@@ -35,4 +35,26 @@ contract EscrowUnitTest is Test {
         assertTrue(escrow.initialized());
     }
 
+    function test_Revert_initialize() public {
+        assertFalse(escrow.initialized());
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.initialize(address(0), treasury, admin, 3_00, 8_00);
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.initialize(client, address(0), admin, 3_00, 8_00);
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.initialize(client, treasury, address(0), 3_00, 8_00);
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.initialize(address(0), address(0), address(0), 3_00, 8_00);
+        vm.expectRevert(IEscrow.Escrow__FeeTooHigh.selector);
+        escrow.initialize(client, treasury, admin, 101_00, 8_00);
+        vm.expectRevert(IEscrow.Escrow__FeeTooHigh.selector);
+        escrow.initialize(client, treasury, admin, 3_00, 101_00);
+        vm.expectRevert(IEscrow.Escrow__FeeTooHigh.selector);
+        escrow.initialize(client, treasury, admin, 101_00, 101_00);
+        escrow.initialize(client, treasury, admin, 3_00, 8_00);
+        assertTrue(escrow.initialized());
+        vm.expectRevert(IEscrow.Escrow__AlreadyInitialized.selector);
+        escrow.initialize(client, treasury, admin, 3_00, 8_00);
+    }
+
 }
