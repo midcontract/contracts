@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IEscrow} from "./interfaces/IEscrow.sol";
+import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
 contract Escrow is IEscrow {
     /// @notice The basis points used for calculating fees and percentages.
@@ -13,7 +14,7 @@ contract Escrow is IEscrow {
 
     uint256 public feeClient;
     uint256 public feeContractor;
-    uint256 public nextContractId;
+    uint256 private currentContractId;
 
     /// @dev Indicates that the contract has been initialized.
     bool public initialized;
@@ -25,7 +26,7 @@ contract Escrow is IEscrow {
         address paymentToken; // TokenRegistery
         uint256 amount;
         uint256 amountToClaim;
-        uint256 timeLock; // possible lock for delay of disput or smth
+        uint256 timeLock; // TODO TBC possible lock for delay of disput or smth
         bytes32 contractorData;
         FeeConfig feeConfig;
         Status status;
@@ -36,20 +37,16 @@ contract Escrow is IEscrow {
         _;
     }
 
-    function initialize(
-        address _client,
-        address _treasury,
-        address _admin,
-        uint256 _feeClient,
-        uint256 _feeContractor
-    ) external {
+    function initialize(address _client, address _treasury, address _admin, uint256 _feeClient, uint256 _feeContractor)
+        external
+    {
         if (initialized) revert Escrow__AlreadyInitialized();
 
         if (_client == address(0) || _treasury == address(0) || _admin == address(0)) {
             revert Escrow__ZeroAddressProvided();
         }
         if (_feeClient > MAX_BPS || _feeContractor > MAX_BPS) revert Escrow__FeeTooHigh();
-        
+
         client = _client;
         treasury = _treasury;
         admin = _admin;
@@ -61,12 +58,17 @@ contract Escrow is IEscrow {
     }
 
     function deposit(Deposit calldata _deposit) external onlyClient {
+        // TODO add validation for payment token
         
+        uint256 depositAmount = _computeDepositAmout(_deposit.amount, uint256(_deposit.feeConfig));
+
+        SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), depositAmount);
+
         unchecked {
-            nextContractId++;
+            currentContractId++;
         }
 
-        Deposit storage D = deposits[nextContractId];
+        Deposit storage D = deposits[currentContractId];
         D.paymentToken = _deposit.paymentToken;
         D.amount = _deposit.amount;
         D.timeLock = _deposit.timeLock;
@@ -74,6 +76,19 @@ contract Escrow is IEscrow {
         D.feeConfig = _deposit.feeConfig;
         D.status = Status.PENDING;
 
-        // emit Deposited()
+        emit Deposited(
+            currentContractId, msg.sender, _deposit.paymentToken, depositAmount, _deposit.timeLock, _deposit.feeConfig
+        );
+    }
+
+    function _computeDepositAmout(uint256 _amount, uint256 _feeConfig) internal view returns (uint256) {
+        if (_feeConfig == uint256(FeeConfig.FULL)) {
+            return _amount + (_amount * (feeClient + feeContractor)) / MAX_BPS;
+        }
+        return _amount + ((_amount * feeClient) / MAX_BPS);
+    }
+
+    function getCurrentContractId() external view returns (uint256) {
+        return currentContractId;
     }
 }

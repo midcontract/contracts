@@ -24,4 +24,13 @@ interface IEscrow {
         APPROVED
     }
 
+    event Deposited(
+        uint256 indexed contractId,
+        address indexed sender,
+        address indexed paymentToken,
+        uint256 amount,
+        uint256 timeLock,
+        FeeConfig feeConfig 
+    );
+
 }
