@@ -59,10 +59,11 @@ contract Escrow is IEscrow {
 
     function deposit(Deposit calldata _deposit) external onlyClient {
         // TODO add validation for payment token
-        
-        uint256 depositAmount = _computeDepositAmout(_deposit.amount, uint256(_deposit.feeConfig));
 
-        SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), depositAmount);
+        uint256 feeAmount = _computeFeeAmount(_deposit.amount, uint256(_deposit.feeConfig));
+
+        SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), _deposit.amount);
+        SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, treasury, feeAmount);
 
         unchecked {
             currentContractId++;
@@ -77,18 +78,35 @@ contract Escrow is IEscrow {
         D.status = Status.PENDING;
 
         emit Deposited(
-            currentContractId, msg.sender, _deposit.paymentToken, depositAmount, _deposit.timeLock, _deposit.feeConfig
+            msg.sender, currentContractId, _deposit.paymentToken, _deposit.amount, _deposit.timeLock, _deposit.feeConfig
         );
     }
 
-    function _computeDepositAmout(uint256 _amount, uint256 _feeConfig) internal view returns (uint256) {
+
+    function _computeFeeAmount(uint256 _amount, uint256 _feeConfig) internal view returns (uint256 feeAmount) {
+        if (_feeConfig == uint256(FeeConfig.FULL)) {
+            return feeAmount = (_amount * (feeClient + feeContractor)) / MAX_BPS;
+        }
+        return feeAmount = (_amount * feeClient) / MAX_BPS;
+    }
+
+
+    function _computeDepositAmount(uint256 _amount, uint256 _feeConfig) internal view returns (uint256) {
         if (_feeConfig == uint256(FeeConfig.FULL)) {
             return _amount + (_amount * (feeClient + feeContractor)) / MAX_BPS;
         }
         return _amount + ((_amount * feeClient) / MAX_BPS);
     }
 
+    function computeDepositAmount(uint256 _amount, uint256 _feeConfig) external view returns (uint256) {
+        return _computeDepositAmount(_amount, _feeConfig);
+    }
+
     function getCurrentContractId() external view returns (uint256) {
         return currentContractId;
     }
+
+
+
+
 }

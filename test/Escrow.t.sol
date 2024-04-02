@@ -7,6 +7,8 @@ import {Escrow, IEscrow} from "src/Escrow.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
 contract EscrowUnitTest is Test {
+    uint256 constant MAX_BPS = 100_00; // 100%
+
     Escrow escrow;
     ERC20Mock paymentToken;
 
@@ -45,8 +47,8 @@ contract EscrowUnitTest is Test {
     }
 
     event Deposited(
-        uint256 indexed contractId,
         address indexed sender,
+        uint256 indexed contractId,
         address indexed paymentToken,
         uint256 amount,
         uint256 timeLock,
@@ -116,11 +118,12 @@ contract EscrowUnitTest is Test {
         paymentToken.mint(address(client), 1.11 ether);
         paymentToken.approve(address(escrow), 1.11 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(1, address(client), address(paymentToken), 1.11 ether, 0, FeeConfig.FULL);
+        emit Deposited(address(client), 1, address(paymentToken), 1 ether, 0, FeeConfig.FULL);
         escrow.deposit(deposit);
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 1);
-        assertEq(paymentToken.balanceOf(address(escrow)), 1.11 ether);
+        assertEq(paymentToken.balanceOf(address(escrow)), 1 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         (
             address _contractor,
@@ -152,4 +155,18 @@ contract EscrowUnitTest is Test {
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
         escrow.deposit(deposit);
     }
+
+    function test_computeDepositAmount() public {
+        test_initialize();
+        uint256 depositAmount = 1 ether;
+        uint256 configFeeFull = 0;
+        uint256 netDepositAmount =
+            depositAmount + (depositAmount * (escrow.feeClient() + escrow.feeContractor())) / MAX_BPS;
+        assertEq(escrow.computeDepositAmount(depositAmount, configFeeFull), netDepositAmount);
+        configFeeFull = 1;
+        netDepositAmount = depositAmount + (depositAmount * (escrow.feeClient())) / MAX_BPS;
+        assertEq(escrow.computeDepositAmount(depositAmount, configFeeFull), netDepositAmount);
+    }
+
+
 }
