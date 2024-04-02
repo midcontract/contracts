@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 interface IEscrow {
-
     error Escrow__AlreadyInitialized();
 
     error Escrow__UnauthorizedAccount(address account);
@@ -10,6 +9,8 @@ interface IEscrow {
     error Escrow__ZeroAddressProvided();
 
     error Escrow__FeeTooHigh();
+
+    error Escrow__InvalidStatusForWithdraw();
 
     enum FeeConfig {
         FULL,
@@ -30,7 +31,8 @@ interface IEscrow {
         address indexed paymentToken,
         uint256 amount,
         uint256 timeLock,
-        FeeConfig feeConfig 
+        FeeConfig feeConfig
     );
 
+    event Withdrawn(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
 }

@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import {IEscrow} from "./interfaces/IEscrow.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
+import {console2} from "lib/forge-std/src/console2.sol";
+
 contract Escrow is IEscrow {
     /// @notice The basis points used for calculating fees and percentages.
     uint256 public constant MAX_BPS = 100_00; // 100%
@@ -82,6 +84,37 @@ contract Escrow is IEscrow {
         );
     }
 
+    function withdraw(uint256 _contractId) external onlyClient {
+        Deposit storage D = deposits[_contractId];
+        if (uint256(D.status) != uint256(Status.PENDING)) revert Escrow__InvalidStatusForWithdraw();
+
+        uint256 feeAmount;
+        uint256 withdrawAmount;
+
+        console2.log("D.amount ", D.amount);
+
+        // TODO TBC if withdrawAmount is full D.feeConfig, when fee is gonna pay
+        if (uint256(D.feeConfig) == uint256(FeeConfig.FULL)) {
+            feeAmount = D.amount * (feeClient + feeContractor) / MAX_BPS;
+            withdrawAmount = D.amount - feeAmount;
+        } else {
+            feeAmount = D.amount * feeClient / MAX_BPS;
+            withdrawAmount = D.amount - feeAmount;
+        }
+
+        console2.log("feeAmount, withdrawAmount ", feeAmount, withdrawAmount);
+
+        // TODO Update deposit amount
+        D.amount = D.amount - (withdrawAmount + feeAmount);
+
+        // TODO TBC change status
+
+        SafeTransferLib.safeTransfer(D.paymentToken, treasury, feeAmount);
+        SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
+
+        emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
+    }
+
 
     function _computeFeeAmount(uint256 _amount, uint256 _feeConfig) internal view returns (uint256 feeAmount) {
         if (_feeConfig == uint256(FeeConfig.FULL)) {
@@ -105,8 +138,5 @@ contract Escrow is IEscrow {
     function getCurrentContractId() external view returns (uint256) {
         return currentContractId;
     }
-
-
-
 
 }

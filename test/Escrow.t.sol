@@ -55,6 +55,8 @@ contract EscrowUnitTest is Test {
         FeeConfig feeConfig
     );
 
+    event Withdrawn(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+
     function setUp() public {
         client = makeAddr("client");
         treasury = makeAddr("treasury");
@@ -120,6 +122,7 @@ contract EscrowUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Deposited(address(client), 1, address(paymentToken), 1 ether, 0, FeeConfig.FULL);
         escrow.deposit(deposit);
+        vm.stopPrank();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 1);
         assertEq(paymentToken.balanceOf(address(escrow)), 1 ether);
@@ -168,5 +171,50 @@ contract EscrowUnitTest is Test {
         assertEq(escrow.computeDepositAmount(depositAmount, configFeeFull), netDepositAmount);
     }
 
+    function test_Revert_withdraw() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        address notClient = makeAddr("notClient");
+        vm.prank(notClient);
+        vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
+        escrow.withdraw(currentContractId);
+        vm.prank(client);
+        escrow.withdraw(currentContractId);
+    }
 
+    // helpler
+    function _computeFeeAmount(uint256 _amount, uint256 _feeConfig) internal view returns (uint256 feeAmount, uint256 withdrawAmount) {
+        if (_feeConfig == 0) { // uint256(FeeConfig.FULL)
+            feeAmount = (_amount * (escrow.feeClient() + escrow.feeContractor())) / MAX_BPS;
+            withdrawAmount = _amount - feeAmount;
+            return (feeAmount, withdrawAmount);
+        }
+        feeAmount = (_amount * escrow.feeClient()) / MAX_BPS;
+        withdrawAmount = _amount - feeAmount;
+        return (feeAmount, withdrawAmount);
+    }
+
+    function test_withdraw() public {
+        test_deposit();
+        assertEq(paymentToken.balanceOf(address(escrow)), 1 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (,, uint256 _amount, uint256 _amountToClaim,,, IEscrow.FeeConfig _feeConfig, IEscrow.Status _status) = 
+            escrow.deposits(currentContractId);
+
+        (uint256 feeAmount, uint256 withdrawAmount) = _computeFeeAmount(_amount, uint256(_feeConfig));
+
+        vm.prank(client);
+        vm.expectEmit(true, true, true, true);
+        emit Withdrawn(client, currentContractId, address(paymentToken), withdrawAmount);
+        escrow.withdraw(currentContractId);
+        (,, uint256 _amountAfter,,,,, IEscrow.Status _statusAfter) = escrow.deposits(currentContractId);
+        assertEq(_amountAfter, 0);
+        // TODO add assert for IEscrow.Status _statusAfter if it's changed
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether + feeAmount);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether + withdrawAmount);
+    }
 }
