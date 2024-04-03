@@ -60,6 +60,7 @@ contract Escrow is IEscrow {
     }
 
     function deposit(Deposit calldata _deposit) external onlyClient {
+        // TODO if (currentContractId > 0) require(msg.sender == client, "");
         // TODO add validation for payment token
 
         uint256 feeAmount = _computeFeeAmount(_deposit.amount, uint256(_deposit.feeConfig));
@@ -86,12 +87,12 @@ contract Escrow is IEscrow {
 
     function withdraw(uint256 _contractId) external onlyClient {
         Deposit storage D = deposits[_contractId];
-        if (uint256(D.status) != uint256(Status.PENDING)) revert Escrow__InvalidStatusForWithdraw();
+        if (uint256(D.status) != uint256(Status.PENDING)) revert Escrow__InvalidStatusForWithdraw(); // TODO test
 
         uint256 feeAmount;
         uint256 withdrawAmount;
 
-        console2.log("D.amount ", D.amount);
+        // console2.log("D.amount ", D.amount);
 
         // TODO TBC if withdrawAmount is full D.feeConfig, when fee is gonna pay
         if (uint256(D.feeConfig) == uint256(FeeConfig.FULL)) {
@@ -102,7 +103,7 @@ contract Escrow is IEscrow {
             withdrawAmount = D.amount - feeAmount;
         }
 
-        console2.log("feeAmount, withdrawAmount ", feeAmount, withdrawAmount);
+        // console2.log("feeAmount, withdrawAmount ", feeAmount, withdrawAmount);
 
         // TODO Update deposit amount
         D.amount = D.amount - (withdrawAmount + feeAmount);
@@ -115,6 +116,28 @@ contract Escrow is IEscrow {
         emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
     }
 
+    function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt) external {
+        Deposit storage D = deposits[_contractId];
+
+        if (uint256(D.status) != uint256(Status.PENDING)) revert Escrow__InvalidStatusForSubmit(); // TODO test
+
+        bytes32 contractorDataHash = _getContractorDataHash(_data, _salt);
+
+        if (D.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
+
+        D.contractor = msg.sender;
+        D.status = Status.SUBMITTED;
+
+        emit Submitted(msg.sender, _contractId);
+    }
+
+    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_data, _salt));
+    }
+
+    function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
+        return _getContractorDataHash(_data, _salt);
+    }
 
     function _computeFeeAmount(uint256 _amount, uint256 _feeConfig) internal view returns (uint256 feeAmount) {
         if (_feeConfig == uint256(FeeConfig.FULL)) {
@@ -122,7 +145,6 @@ contract Escrow is IEscrow {
         }
         return feeAmount = (_amount * feeClient) / MAX_BPS;
     }
-
 
     function _computeDepositAmount(uint256 _amount, uint256 _feeConfig) internal view returns (uint256) {
         if (_feeConfig == uint256(FeeConfig.FULL)) {

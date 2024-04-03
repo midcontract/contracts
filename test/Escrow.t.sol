@@ -15,12 +15,15 @@ contract EscrowUnitTest is Test {
     address client;
     address treasury;
     address admin;
+    address contractor;
 
     Escrow.Deposit deposit;
     FeeConfig feeConfig;
     Status status;
 
     bytes32 contractorData;
+    bytes32 salt;
+    bytes contractData;
 
     struct Deposit {
         address contractor;
@@ -57,12 +60,19 @@ contract EscrowUnitTest is Test {
 
     event Withdrawn(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
 
+    event Submitted(address indexed sender, uint256 indexed contractId);
+
     function setUp() public {
         client = makeAddr("client");
         treasury = makeAddr("treasury");
         admin = makeAddr("admin");
+        contractor = makeAddr("contractor");
         escrow = new Escrow();
         paymentToken = new ERC20Mock();
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        contractorData = keccak256(abi.encodePacked(contractData, salt));
 
         deposit = Escrow.Deposit({
             contractor: address(0),
@@ -143,7 +153,7 @@ contract EscrowUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_timeLock, 0);
-        assertEq(_contractorData, bytes32(0));
+        assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 0); //IEscrow.FeeConfig.FULL
         assertEq(uint256(_status), 0); //Status.PENDING
     }
@@ -171,20 +181,14 @@ contract EscrowUnitTest is Test {
         assertEq(escrow.computeDepositAmount(depositAmount, configFeeFull), netDepositAmount);
     }
 
-    function test_Revert_withdraw() public {
-        test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
-        address notClient = makeAddr("notClient");
-        vm.prank(notClient);
-        vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
-        escrow.withdraw(currentContractId);
-        vm.prank(client);
-        escrow.withdraw(currentContractId);
-    }
-
-    // helpler
-    function _computeFeeAmount(uint256 _amount, uint256 _feeConfig) internal view returns (uint256 feeAmount, uint256 withdrawAmount) {
-        if (_feeConfig == 0) { // uint256(FeeConfig.FULL)
+    // helper
+    function _computeFeeAmount(uint256 _amount, uint256 _feeConfig)
+        internal
+        view
+        returns (uint256 feeAmount, uint256 withdrawAmount)
+    {
+        if (_feeConfig == 0) {
+            // uint256(FeeConfig.FULL)
             feeAmount = (_amount * (escrow.feeClient() + escrow.feeContractor())) / MAX_BPS;
             withdrawAmount = _amount - feeAmount;
             return (feeAmount, withdrawAmount);
@@ -201,7 +205,7 @@ contract EscrowUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
 
         uint256 currentContractId = escrow.getCurrentContractId();
-        (,, uint256 _amount, uint256 _amountToClaim,,, IEscrow.FeeConfig _feeConfig, IEscrow.Status _status) = 
+        (,, uint256 _amount, uint256 _amountToClaim,,, IEscrow.FeeConfig _feeConfig, IEscrow.Status _status) =
             escrow.deposits(currentContractId);
 
         (uint256 feeAmount, uint256 withdrawAmount) = _computeFeeAmount(_amount, uint256(_feeConfig));
@@ -217,4 +221,79 @@ contract EscrowUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether + feeAmount);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether + withdrawAmount);
     }
+
+    function test_Revert_withdraw() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        address notClient = makeAddr("notClient");
+        vm.prank(notClient);
+        vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
+        escrow.withdraw(currentContractId);
+        vm.prank(client);
+        escrow.withdraw(currentContractId);
+    }
+
+    function test_submit() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            ,
+            bytes32 _contractorData,
+            IEscrow.FeeConfig _feeConfig,
+            IEscrow.Status _status
+        ) = escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(uint256(_status), 0); //Status.PENDING
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(contractor);
+        vm.expectEmit(true, true, true, true);
+        emit Submitted(contractor, currentContractId);
+        escrow.submit(currentContractId, contractData, salt);
+        (_contractor,, _amount, _amountToClaim,,, _feeConfig, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorDataHash);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
+    function test_Revert_submit() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            ,
+            bytes32 _contractorData,
+            IEscrow.FeeConfig _feeConfig,
+            IEscrow.Status _status
+        ) = escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(uint256(_status), 0); //Status.PENDING
+
+        contractData = bytes("contract_data_");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.startPrank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidContractorDataHash.selector);
+        escrow.submit(currentContractId, contractData, salt);
+        assertEq(_contractor, address(0));
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(41)));
+        contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.startPrank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidContractorDataHash.selector);
+        escrow.submit(currentContractId, contractData, salt);
+        assertEq(_contractor, address(0));
+        vm.stopPrank();
+    }
+
 }

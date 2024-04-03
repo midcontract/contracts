@@ -12,6 +12,10 @@ interface IEscrow {
 
     error Escrow__InvalidStatusForWithdraw();
 
+    error Escrow__InvalidStatusForSubmit();
+
+    error Escrow__InvalidContractorDataHash();
+
     enum FeeConfig {
         FULL,
         ONLY_CLIENT,
@@ -35,4 +39,6 @@ interface IEscrow {
     );
 
     event Withdrawn(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+
+    event Submitted(address indexed sender, uint256 indexed contractId);
 }
