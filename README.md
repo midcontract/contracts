@@ -1,17 +1,11 @@
-## Foundry
+# <h1 align="center"> Midcontract Platform Contracts </h1>
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+<h3 align="center"> This repository contains the smart contract suite used in Midcontract project </h3>
+<br>
 
-Foundry consists of:
+## Getting Started
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
+### Install Foundry and Forge: [installation guide](https://book.getfoundry.sh/getting-started/installation)
 
 ## Usage
 
@@ -48,7 +42,7 @@ $ anvil
 ### Deploy
 
 ```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+$ source .env && forge script script/Escrow.s.sol:EscrowScript --rpc-url http://localhost:8545 
 ```
 
 ### Cast
