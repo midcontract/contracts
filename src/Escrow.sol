@@ -135,8 +135,10 @@ contract Escrow is IEscrow {
         external
         onlyClient
     {
+        if (_amountApprove == 0 && _amountAdditional == 0) revert Escrow__InvalidAmount();
+
         Deposit storage D = deposits[_contractId];
-        
+
         if (uint256(D.status) != uint256(Status.SUBMITTED)) revert Escrow__InvalidStatusForApprove();
 
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
@@ -151,7 +153,7 @@ contract Escrow is IEscrow {
                 D.amountToClaim += _amountApprove;
                 emit Approved(_contractId, _amountApprove, _receiver);
             } else {
-                revert Escrow__NotEnoughDeposit();
+                revert Escrow__NotEnoughDeposit(); // TODO test
             }
         }
     }

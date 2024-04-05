@@ -22,6 +22,8 @@ interface IEscrow {
 
     error Escrow__UnauthorizedReceiver();
 
+    error Escrow__InvalidAmount();
+
     enum FeeConfig {
         FULL,
         ONLY_CLIENT,
