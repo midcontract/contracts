@@ -64,7 +64,7 @@ contract Escrow is IEscrow {
         // TODO add validation for payment token
 
         uint256 feeAmount = _computeFeeAmount(_deposit.amount, uint256(_deposit.feeConfig));
-
+        // TODO TBC feeAmount cut after claim
         SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), _deposit.amount);
         SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, treasury, feeAmount);
 
@@ -131,12 +131,42 @@ contract Escrow is IEscrow {
         emit Submitted(msg.sender, _contractId);
     }
 
-    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_data, _salt));
+    function approve(uint256 _contractId, uint256 _amountApprove, uint256 _amountAdditional, address _receiver)
+        external
+        onlyClient
+    {
+        Deposit storage D = deposits[_contractId];
+        
+        if (uint256(D.status) != uint256(Status.SUBMITTED)) revert Escrow__InvalidStatusForApprove();
+
+        if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
+
+        if (_amountAdditional > 0) {
+            _refill(_contractId, _amountAdditional);
+        }
+
+        if (_amountApprove > 0) {
+            D.status = Status.PENDING; // TODO TBC the correct status
+            if (D.amount >= (D.amountToClaim + _amountAdditional)) {
+                D.amountToClaim += _amountApprove;
+                emit Approved(_contractId, _amountApprove, _receiver);
+            } else {
+                revert Escrow__NotEnoughDeposit();
+            }
+        }
     }
 
-    function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
-        return _getContractorDataHash(_data, _salt);
+    function _refill(uint256 _contractId, uint256 _amountAdditional) internal {
+        Deposit storage D = deposits[_contractId];
+
+        uint256 refillAmount = _computeDepositAmount(_amountAdditional, uint256(D.feeConfig));
+        SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), refillAmount);
+        D.amount += _amountAdditional;
+        emit Refilled(_contractId, _amountAdditional);
+    }
+
+    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_data, _salt));
     }
 
     function _computeFeeAmount(uint256 _amount, uint256 _feeConfig) internal view returns (uint256 feeAmount) {
@@ -153,6 +183,10 @@ contract Escrow is IEscrow {
         return _amount + ((_amount * feeClient) / MAX_BPS);
     }
 
+    function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
+        return _getContractorDataHash(_data, _salt);
+    }
+
     function computeDepositAmount(uint256 _amount, uint256 _feeConfig) external view returns (uint256) {
         return _computeDepositAmount(_amount, _feeConfig);
     }
@@ -160,5 +194,4 @@ contract Escrow is IEscrow {
     function getCurrentContractId() external view returns (uint256) {
         return currentContractId;
     }
-
 }

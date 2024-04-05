@@ -16,6 +16,12 @@ interface IEscrow {
 
     error Escrow__InvalidContractorDataHash();
 
+    error Escrow__InvalidStatusForApprove();
+
+    error Escrow__NotEnoughDeposit();
+
+    error Escrow__UnauthorizedReceiver();
+
     enum FeeConfig {
         FULL,
         ONLY_CLIENT,
@@ -41,4 +47,8 @@ interface IEscrow {
     event Withdrawn(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
 
     event Submitted(address indexed sender, uint256 indexed contractId);
+
+    event Approved(uint256 indexed contractId, uint256 indexed amountApprove, address indexed receiver);
+
+    event Refilled(uint256 indexed contractId, uint256 indexed amountAdditional);
 }
