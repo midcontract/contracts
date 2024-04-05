@@ -433,4 +433,91 @@ contract EscrowUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), escrowBalanceBefore + depositAmount);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
     }
+
+    function test_Revert_approve_InvalidStatusForApprove() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            ,
+            bytes32 _contractorData,
+            IEscrow.FeeConfig _feeConfig,
+            IEscrow.Status _status
+        ) = escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(uint256(_status), 0); //Status.PENDING
+
+        uint256 amountApprove = 1 ether;
+        uint256 amountAdditional = 0 ether;
+
+        vm.startPrank(client);
+        vm.expectRevert(IEscrow.Escrow__InvalidStatusForApprove.selector);
+        escrow.approve(currentContractId, amountApprove, amountAdditional, contractor);
+        (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(uint256(_status), 0); //Status.PENDING
+        vm.stopPrank();
+    }
+
+    function test_Revert_approve_UnauthorizedReceiver() public {
+        test_submit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            ,
+            bytes32 _contractorData,
+            IEscrow.FeeConfig _feeConfig,
+            IEscrow.Status _status
+        ) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        uint256 amountApprove = 1 ether;
+        uint256 amountAdditional = 0 ether;
+
+        vm.startPrank(client);
+        vm.expectRevert(IEscrow.Escrow__UnauthorizedReceiver.selector);
+        escrow.approve(currentContractId, amountApprove, amountAdditional, address(0));
+        (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        vm.expectRevert(IEscrow.Escrow__UnauthorizedReceiver.selector);
+        escrow.approve(currentContractId, amountApprove, amountAdditional, address(123));
+        (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        vm.stopPrank();
+    }
+
+    function test_Revert_approve_InvalidAmount() public {
+        test_submit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            ,
+            bytes32 _contractorData,
+            IEscrow.FeeConfig _feeConfig,
+            IEscrow.Status _status
+        ) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        vm.startPrank(client);
+        vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
+        escrow.approve(currentContractId, 0, 0, contractor);
+        (,, , ,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        vm.stopPrank();
+    }
 }
