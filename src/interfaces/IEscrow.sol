@@ -24,6 +24,8 @@ interface IEscrow {
 
     error Escrow__InvalidAmount();
 
+    error Escrow__NotApproved();
+
     enum FeeConfig {
         FULL,
         ONLY_CLIENT,
@@ -53,4 +55,6 @@ interface IEscrow {
     event Approved(uint256 indexed contractId, uint256 indexed amountApprove, address indexed receiver);
 
     event Refilled(uint256 indexed contractId, uint256 indexed amountAdditional);
+
+    event Claimed(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
 }

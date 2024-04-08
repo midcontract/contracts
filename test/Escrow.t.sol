@@ -66,6 +66,8 @@ contract EscrowUnitTest is Test {
 
     event Refilled(uint256 indexed contractId, uint256 indexed amountAdditional);
 
+    event Claimed(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+
     function setUp() public {
         client = makeAddr("client");
         treasury = makeAddr("treasury");
@@ -209,7 +211,6 @@ contract EscrowUnitTest is Test {
         withdrawAmount = _amount - feeAmount;
         return (feeAmount, withdrawAmount);
     }
-
 
     ///////////////////////////////////////////
     //           withdraw tests              //
@@ -516,8 +517,66 @@ contract EscrowUnitTest is Test {
         vm.startPrank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
         escrow.approve(currentContractId, 0, 0, contractor);
-        (,, , ,,,, _status) = escrow.deposits(currentContractId);
+        (,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 1); //Status.SUBMITTED
         vm.stopPrank();
     }
+
+    ////////////////////////////////////////////
+    //              claim tests               //
+    ////////////////////////////////////////////
+
+    function test_claim() public {
+        test_approve();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,, IEscrow.Status _status)
+            = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 1 ether);
+        assertEq(uint256(_status), 0); //Status.PENDING
+
+        assertEq(paymentToken.balanceOf(address(escrow)), 1 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
+        assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
+
+        vm.startPrank(contractor);
+        vm.expectEmit(true, true, true, true);
+        emit Claimed(contractor, currentContractId, _paymentToken, _amountToClaim);
+        escrow.claim(currentContractId);
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
+        assertEq(paymentToken.balanceOf(address(contractor)), 1 ether);
+
+        (,, uint256 _amountAfter, uint256 _amountToClaimAfter,,,, IEscrow.Status _statusAfter) =
+            escrow.deposits(currentContractId);
+        assertEq(_amountAfter, _amount - _amountToClaim);
+        assertEq(_amountToClaimAfter, 0 ether);
+        assertEq(uint256(_statusAfter), 0); //Status.PENDING - CLAIMED
+        vm.stopPrank();
+    }
+
+    function test_Revert_claim() public {
+        uint256 amountApprove = 0 ether;
+        uint256 amountAdditional = 0.5 ether;
+        test_approve2();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (,, uint256 _amount, uint256 _amountToClaim,,,, IEscrow.Status _status) = escrow.deposits(currentContractId);
+        assertEq(_amount, 1 ether + amountAdditional);
+        assertEq(_amountToClaim, amountApprove); //0
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__NotApproved.selector);
+        escrow.claim(currentContractId);
+        vm.prank(address(this));
+        vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
+        escrow.claim(currentContractId);
+        (,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_amount, 1 ether + amountAdditional);
+        assertEq(_amountToClaim, amountApprove); //0
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
+    // test feeAmount > 0, claim full amount and transfer to treasury
 }

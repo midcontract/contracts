@@ -167,6 +167,44 @@ contract Escrow is IEscrow {
         emit Refilled(_contractId, _amountAdditional);
     }
 
+    function claim(uint256 _contractId) external {
+        Deposit storage D = deposits[_contractId];
+
+        // TODO check the status
+
+        if (D.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
+
+        if (D.amountToClaim == 0) revert Escrow__NotApproved();
+
+        (uint256 claimAmount, uint256 feeAmount) = _computeClaimAmount(D.amountToClaim, uint256(D.feeConfig));
+
+        D.amount = D.amount - D.amountToClaim;
+        D.amountToClaim = 0;
+
+        SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, claimAmount);
+        if (feeAmount > 0) {
+            SafeTransferLib.safeTransfer(D.paymentToken, treasury, feeAmount);
+        }
+
+        emit Claimed(msg.sender, _contractId, D.paymentToken, claimAmount); //+depositAmount
+    }
+
+    function _computeClaimAmount(uint256 _amount, uint256 _feeConfig)
+        internal
+        view
+        returns (uint256 claimAmount, uint256 feeAmount)
+    {
+        if (_feeConfig == uint256(FeeConfig.FULL)) {
+            claimAmount = _amount;
+            feeAmount = 0;
+            return (claimAmount, feeAmount);
+        }
+        feeAmount = (_amount * feeContractor) / MAX_BPS; 
+        claimAmount = _amount - feeAmount; // TODO return claimAmount & feeAmount
+
+        return (claimAmount, feeAmount);
+    }
+
     function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(_data, _salt));
     }
