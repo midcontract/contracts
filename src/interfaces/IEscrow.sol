@@ -26,6 +26,8 @@ interface IEscrow {
 
     error Escrow__NotApproved();
 
+    error Escrow__NotSupportedPaymentToken();
+
     enum FeeConfig {
         FULL,
         ONLY_CLIENT,

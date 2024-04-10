@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IEscrow} from "./interfaces/IEscrow.sol";
+import {IRegistry} from "./interfaces/IRegistry.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
 import {console2} from "lib/forge-std/src/console2.sol";
@@ -9,6 +10,8 @@ import {console2} from "lib/forge-std/src/console2.sol";
 contract Escrow is IEscrow {
     /// @notice The basis points used for calculating fees and percentages.
     uint256 public constant MAX_BPS = 100_00; // 100%
+
+    IRegistry public registry;
 
     address public client;
     address public treasury;
@@ -39,12 +42,12 @@ contract Escrow is IEscrow {
         _;
     }
 
-    function initialize(address _client, address _treasury, address _admin, uint256 _feeClient, uint256 _feeContractor)
+    function initialize(address _client, address _treasury, address _admin, address _registry, uint256 _feeClient, uint256 _feeContractor)
         external
     {
         if (initialized) revert Escrow__AlreadyInitialized();
 
-        if (_client == address(0) || _treasury == address(0) || _admin == address(0)) {
+        if (_client == address(0) || _treasury == address(0) || _admin == address(0) || _registry == address(0)) {
             revert Escrow__ZeroAddressProvided();
         }
         if (_feeClient > MAX_BPS || _feeContractor > MAX_BPS) revert Escrow__FeeTooHigh();
@@ -52,6 +55,7 @@ contract Escrow is IEscrow {
         client = _client;
         treasury = _treasury;
         admin = _admin;
+        registry = IRegistry(_registry);
 
         feeClient = _feeClient;
         feeContractor = _feeContractor;
@@ -61,7 +65,8 @@ contract Escrow is IEscrow {
 
     function deposit(Deposit calldata _deposit) external onlyClient {
         // TODO if (currentContractId > 0) require(msg.sender == client, "");
-        // TODO add validation for payment token
+        
+        if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
 
         uint256 feeAmount = _computeFeeAmount(_deposit.amount, uint256(_deposit.feeConfig));
         // TODO TBC feeAmount cut after claim
@@ -182,9 +187,11 @@ contract Escrow is IEscrow {
         D.amountToClaim = 0;
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, claimAmount);
-        if (feeAmount > 0) {
-            SafeTransferLib.safeTransfer(D.paymentToken, treasury, feeAmount);
+        if (feeAmount > 0) { // TODO test
+            SafeTransferLib.safeTransfer(D.paymentToken, treasury, feeAmount); 
         }
+
+        // if (D.amount == 0) D.status = Status.COMPLETED; TBC
 
         emit Claimed(msg.sender, _contractId, D.paymentToken, claimAmount); //+depositAmount
     }

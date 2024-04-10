@@ -4,26 +4,29 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 
 import {Escrow, IEscrow} from "src/Escrow.sol";
+import {Registry, IRegistry} from "src/Registry.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
 contract EscrowUnitTest is Test {
     uint256 constant MAX_BPS = 100_00; // 100%
 
-    Escrow escrow;
-    ERC20Mock paymentToken;
+    Escrow public escrow;
+    Registry public registry;
+    ERC20Mock public paymentToken;
+    ERC20Mock public newPaymentToken;
 
-    address client;
-    address treasury;
-    address admin;
-    address contractor;
+    address public client;
+    address public treasury;
+    address public admin;
+    address public contractor;
 
-    Escrow.Deposit deposit;
-    FeeConfig feeConfig;
-    Status status;
+    Escrow.Deposit public deposit;
+    FeeConfig public feeConfig;
+    Status public status;
 
-    bytes32 contractorData;
-    bytes32 salt;
-    bytes contractData;
+    bytes32 public contractorData;
+    bytes32 public salt;
+    bytes public contractData;
 
     struct Deposit {
         address contractor;
@@ -74,7 +77,9 @@ contract EscrowUnitTest is Test {
         admin = makeAddr("admin");
         contractor = makeAddr("contractor");
         escrow = new Escrow();
+        registry = new Registry();
         paymentToken = new ERC20Mock();
+        registry.addPaymentToken(address(paymentToken));
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
@@ -98,14 +103,16 @@ contract EscrowUnitTest is Test {
 
     function test_setUpState() public view {
         assertTrue(address(escrow).code.length > 0);
+        assertTrue(registry.paymentTokens(address(paymentToken)));
     }
 
     function test_initialize() public {
         assertFalse(escrow.initialized());
-        escrow.initialize(client, treasury, admin, 3_00, 8_00);
+        escrow.initialize(client, treasury, admin, address(registry), 3_00, 8_00);
         assertEq(escrow.client(), client);
         assertEq(escrow.treasury(), treasury);
         assertEq(escrow.admin(), admin);
+        assertEq(address(escrow.registry()), address(registry));
         assertEq(escrow.feeClient(), 3_00);
         assertEq(escrow.feeContractor(), 8_00);
         assertEq(escrow.getCurrentContractId(), 0);
@@ -115,23 +122,25 @@ contract EscrowUnitTest is Test {
     function test_Revert_initialize() public {
         assertFalse(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(address(0), treasury, admin, 3_00, 8_00);
+        escrow.initialize(address(0), treasury, admin, address(registry), 3_00, 8_00);
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, address(0), admin, 3_00, 8_00);
+        escrow.initialize(client, address(0), admin, address(registry), 3_00, 8_00);
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, treasury, address(0), 3_00, 8_00);
+        escrow.initialize(client, treasury, address(0), address(registry), 3_00, 8_00);
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(address(0), address(0), address(0), 3_00, 8_00);
+        escrow.initialize(client, treasury, admin, address(0), 3_00, 8_00);
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.initialize(address(0), address(0), address(registry), address(0), 3_00, 8_00);
         vm.expectRevert(IEscrow.Escrow__FeeTooHigh.selector);
-        escrow.initialize(client, treasury, admin, 101_00, 8_00);
+        escrow.initialize(client, treasury, admin, address(registry), 101_00, 8_00);
         vm.expectRevert(IEscrow.Escrow__FeeTooHigh.selector);
-        escrow.initialize(client, treasury, admin, 3_00, 101_00);
+        escrow.initialize(client, treasury, admin, address(registry), 3_00, 101_00);
         vm.expectRevert(IEscrow.Escrow__FeeTooHigh.selector);
-        escrow.initialize(client, treasury, admin, 101_00, 101_00);
-        escrow.initialize(client, treasury, admin, 3_00, 8_00);
+        escrow.initialize(client, treasury, admin, address(registry), 101_00, 101_00);
+        escrow.initialize(client, treasury, admin, address(registry), 3_00, 8_00);
         assertTrue(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__AlreadyInitialized.selector);
-        escrow.initialize(client, treasury, admin, 3_00, 8_00);
+        escrow.initialize(client, treasury, admin, address(registry), 3_00, 8_00);
     }
 
     ///////////////////////////////////////////
@@ -180,6 +189,21 @@ contract EscrowUnitTest is Test {
         address notClient = makeAddr("notClient");
         vm.prank(notClient);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
+        escrow.deposit(deposit);
+
+        ERC20Mock notPaymentToken = new ERC20Mock();
+        deposit = Escrow.Deposit({
+            contractor: address(0),
+            paymentToken: address(notPaymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: IEscrow.FeeConfig.FULL,
+            status: IEscrow.Status.PENDING
+        });
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__NotSupportedPaymentToken.selector);
         escrow.deposit(deposit);
     }
 
