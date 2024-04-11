@@ -26,17 +26,6 @@ contract Escrow is IEscrow {
 
     mapping(uint256 contractId => Deposit depositInfo) public deposits;
 
-    struct Deposit {
-        address contractor;
-        address paymentToken; // TokenRegistery
-        uint256 amount;
-        uint256 amountToClaim;
-        uint256 timeLock; // TODO TBC possible lock for delay of disput or smth
-        bytes32 contractorData;
-        FeeConfig feeConfig;
-        Status status;
-    }
-
     modifier onlyClient() {
         if (msg.sender != client) revert Escrow__UnauthorizedAccount(msg.sender);
         _;

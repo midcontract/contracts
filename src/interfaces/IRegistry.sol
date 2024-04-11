@@ -14,6 +14,10 @@ interface IRegistry {
 
     event PaymentTokenRemoved(address token);
 
+    event EscrowSet(address escrow);
+
     // Functions
     function paymentTokens(address token) external view returns (bool);
+
+    function escrow() external view returns (address);
 }

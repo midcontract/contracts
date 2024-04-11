@@ -30,10 +30,10 @@ contract EscrowUnitTest is Test {
 
     struct Deposit {
         address contractor;
-        address paymentToken; // TokenRegistery
+        address paymentToken;
         uint256 amount;
         uint256 amountToClaim;
-        uint256 timeLock; // possible lock for delay of disput or smth
+        uint256 timeLock;
         bytes32 contractorData;
         FeeConfig feeConfig;
         Status status;
@@ -85,7 +85,7 @@ contract EscrowUnitTest is Test {
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
-        deposit = Escrow.Deposit({
+        deposit = IEscrow.Deposit({
             contractor: address(0),
             paymentToken: address(paymentToken),
             amount: 1 ether,
@@ -192,7 +192,7 @@ contract EscrowUnitTest is Test {
         escrow.deposit(deposit);
 
         ERC20Mock notPaymentToken = new ERC20Mock();
-        deposit = Escrow.Deposit({
+        deposit = IEscrow.Deposit({
             contractor: address(0),
             paymentToken: address(notPaymentToken),
             amount: 1 ether,

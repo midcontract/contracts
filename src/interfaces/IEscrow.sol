@@ -41,6 +41,17 @@ interface IEscrow {
         APPROVED
     }
 
+    struct Deposit {
+        address contractor;
+        address paymentToken;
+        uint256 amount;
+        uint256 amountToClaim;
+        uint256 timeLock; // TODO TBC possible lock for delay of disput or smth
+        bytes32 contractorData;
+        FeeConfig feeConfig;
+        Status status;
+    }
+
     event Deposited(
         address indexed sender,
         uint256 indexed contractId,

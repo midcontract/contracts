@@ -8,6 +8,8 @@ contract Registry is IRegistry, Owned {
     /// @dev The address interpreted as native token of the chain.
     address public constant NATIVE_TOKEN = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
+    address public escrow;
+
     /// @notice Mapping of the enabled ERC20 token addresses as a payment token.
     /// @dev The NATIVE_TOKEN constant should be enabled for facilitating payments using the native token of the chain.
     mapping(address token => bool enabled) public paymentTokens;
@@ -27,5 +29,11 @@ contract Registry is IRegistry, Owned {
         if (!paymentTokens[_token]) revert Registry__PaymentTokenNotRegistered();
         delete paymentTokens[_token];
         emit PaymentTokenRemoved(_token);
+    }
+
+    function setEscrowAddress(address _escrow) external onlyOwner {
+        if (_escrow == address(0)) revert Registry__ZeroAddressProvided();
+        escrow = _escrow;
+        emit EscrowSet(_escrow);
     }
 }
