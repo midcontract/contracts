@@ -4,10 +4,12 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 
 import {Registry, IRegistry} from "src/Registry.sol";
+import {Escrow, IEscrow} from "src/Escrow.sol";
 import {Owned} from "src/libs/Owned.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
 contract RegistryUnitTest is Test {
+    Escrow public escrow;
     Registry public registry;
     ERC20Mock public paymentToken;
     ERC20Mock public newPaymentToken;
@@ -15,8 +17,10 @@ contract RegistryUnitTest is Test {
     event PaymentTokenAdded(address token);
     event PaymentTokenRemoved(address token);
     event OwnershipTransferred(address indexed user, address indexed newOwner);
+    event EscrowUpdated(address escrow);
 
     function setUp() public {
+        escrow = new Escrow();
         registry = new Registry();
         paymentToken = new ERC20Mock();
         newPaymentToken = new ERC20Mock();
@@ -80,6 +84,23 @@ contract RegistryUnitTest is Test {
         emit OwnershipTransferred(address(this), newOwner);
         registry.transferOwnership(newOwner);
         assertEq(registry.owner(), newOwner);
+        vm.stopPrank();
+    }
+
+    function test_updateEscrow() public {
+        assertEq(registry.escrow(), address(0));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        registry.updateEscrow(address(escrow));
+        vm.startPrank(address(this));
+        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        registry.updateEscrow(address(0));
+        assertEq(registry.escrow(), address(0));
+        vm.expectEmit(true, false, false, true);
+        emit EscrowUpdated(address(escrow));
+        registry.updateEscrow(address(escrow));
+        assertEq(registry.escrow(), address(escrow));
         vm.stopPrank();
     }
 }

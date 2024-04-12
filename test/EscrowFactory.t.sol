@@ -62,7 +62,7 @@ contract EscrowFactoryUnitTest is Test {
         registry = new Registry();
         paymentToken = new ERC20Mock();
         registry.addPaymentToken(address(paymentToken));
-        registry.setEscrow(address(escrow));
+        registry.updateEscrow(address(escrow));
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
