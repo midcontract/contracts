@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
-import {EscrowFactory} from "src/EscrowFactory.sol";
+import {EscrowFactory, IEscrowFactory, Owned} from "src/EscrowFactory.sol";
 import {Escrow, IEscrow} from "src/Escrow.sol";
 import {Registry, IRegistry} from "src/Registry.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
@@ -52,6 +52,8 @@ contract EscrowFactoryUnitTest is Test {
     }
 
     event EscrowProxyDeployed(address sender, address deployedProxy);
+
+    event RegistryUpdated(address registry);
 
     function setUp() public {
         client = makeAddr("client");
@@ -234,6 +236,24 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(factory.factoryNonce(client), 2);
         assertTrue(factory.existingEscrow(address(escrowProxy2)));
         assertNotEq(address(deployedEscrowProxy2), address(deployedEscrowProxy));
+        vm.stopPrank();
+    }
+
+    function test_updateRegistry() public {
+        assertEq(address(factory.registry()), address(registry));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        factory.updateRegistry(address(registry));
+        vm.startPrank(address(this));
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        factory.updateRegistry(address(0));
+        assertEq(address(factory.registry()), address(registry));
+        Registry newRegistry = new Registry();
+        vm.expectEmit(true, false, false, true);
+        emit RegistryUpdated(address(newRegistry));
+        factory.updateRegistry(address(newRegistry));
+        assertEq(address(factory.registry()), address(newRegistry));
         vm.stopPrank();
     }
 }

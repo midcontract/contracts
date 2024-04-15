@@ -8,6 +8,8 @@ interface IEscrowFactory {
 
     event EscrowProxyDeployed(address sender, address deployedProxy);
 
+    event RegistryUpdated(address registry);
+
     function existingEscrow(address escrow) external returns (bool);
 
     function deployEscrow(
@@ -16,7 +18,6 @@ interface IEscrowFactory {
         address admin,
         address registry,
         uint256 feeClient,
-        uint256 feeContractor,
-        IEscrow.Deposit calldata deposit
+        uint256 feeContractor
     ) external returns (address);
 }

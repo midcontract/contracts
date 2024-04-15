@@ -11,7 +11,7 @@ import {IEscrow} from "./interfaces/IEscrow.sol";
 contract EscrowFactory is IEscrowFactory, Owned {
     IRegistry public registry;
 
-    uint256 private factoryNonce;
+    mapping(address deployer => uint256 nonce) public factoryNonce;
 
     mapping(address escrow => bool deployed) public existingEscrow;
 
@@ -28,10 +28,9 @@ contract EscrowFactory is IEscrowFactory, Owned {
         address _admin,
         address _registry,
         uint256 _feeClient,
-        uint256 _feeContractor,
-        IEscrow.Deposit calldata _deposit
+        uint256 _feeContractor
     ) external returns (address deployedProxy) {
-        bytes32 salt = keccak256(abi.encode(msg.sender, _deposit, factoryNonce));
+        bytes32 salt = keccak256(abi.encode(msg.sender, factoryNonce[msg.sender]));
         
         address escrowImplement = IRegistry(registry).escrow();
 
@@ -39,14 +38,18 @@ contract EscrowFactory is IEscrowFactory, Owned {
 
         Escrow(clone).initialize(_client, _treasury, _admin, _registry, _feeClient, _feeContractor);
 
-        Escrow(clone).deposit(_deposit);
-
         deployedProxy = address(clone);
 
         existingEscrow[deployedProxy] = true;
 
-        unchecked { factoryNonce++; }
+        unchecked { factoryNonce[msg.sender]++; }
 
         emit EscrowProxyDeployed(msg.sender, deployedProxy);
+    }
+
+    function updateRegistry(address _registry) external onlyOwner {
+        if (_registry == address(0)) revert Factory__ZeroAddressProvided();
+        registry = IRegistry(_registry);
+        emit RegistryUpdated(_registry);
     }
 }
