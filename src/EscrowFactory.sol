@@ -2,13 +2,13 @@
 pragma solidity ^0.8.24;
 
 import {Owned} from "./libs/Owned.sol";
+import {Pausable} from "./libs/Pausable.sol";
 import {LibClone} from "./libs/LibClone.sol";
 import {IEscrowFactory} from "./interfaces/IEscrowFactory.sol";
 import {IRegistry} from "./interfaces/IRegistry.sol";
 import {Escrow} from "./Escrow.sol";
-import {IEscrow} from "./interfaces/IEscrow.sol";
 
-contract EscrowFactory is IEscrowFactory, Owned {
+contract EscrowFactory is IEscrowFactory, Owned, Pausable {
     IRegistry public registry;
 
     mapping(address deployer => uint256 nonce) public factoryNonce;
@@ -29,7 +29,7 @@ contract EscrowFactory is IEscrowFactory, Owned {
         address _registry,
         uint256 _feeClient,
         uint256 _feeContractor
-    ) external returns (address deployedProxy) {
+    ) external whenNotPaused returns (address deployedProxy) {
         bytes32 salt = keccak256(abi.encode(msg.sender, factoryNonce[msg.sender]));
         
         address escrowImplement = IRegistry(registry).escrow();
@@ -51,5 +51,13 @@ contract EscrowFactory is IEscrowFactory, Owned {
         if (_registry == address(0)) revert Factory__ZeroAddressProvided();
         registry = IRegistry(_registry);
         emit RegistryUpdated(_registry);
+    }
+
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
     }
 }

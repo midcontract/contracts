@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
-import {EscrowFactory, IEscrowFactory, Owned} from "src/EscrowFactory.sol";
+import {EscrowFactory, IEscrowFactory, Owned, Pausable} from "src/EscrowFactory.sol";
 import {Escrow, IEscrow} from "src/Escrow.sol";
 import {Registry, IRegistry} from "src/Registry.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
@@ -55,6 +55,10 @@ contract EscrowFactoryUnitTest is Test {
 
     event RegistryUpdated(address registry);
 
+    event Paused(address account);
+
+    event Unpaused(address account);
+
     function setUp() public {
         client = makeAddr("client");
         treasury = makeAddr("treasury");
@@ -89,6 +93,7 @@ contract EscrowFactoryUnitTest is Test {
     function test_setUpState() public view {
         assertTrue(escrow.initialized());
         assertTrue(address(factory).code.length > 0);
+        assertFalse(factory.paused());
         assertEq(factory.owner(), address(this));
         assertEq(address(factory.registry()), address(registry));
     }
@@ -255,5 +260,37 @@ contract EscrowFactoryUnitTest is Test {
         factory.updateRegistry(address(newRegistry));
         assertEq(address(factory.registry()), address(newRegistry));
         vm.stopPrank();
+    }
+
+    function test_pause() public {
+        assertFalse(factory.paused());
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        factory.pause();
+        assertFalse(factory.paused());
+        vm.startPrank(client);
+        address deployedEscrowProxy = factory.deployEscrow(client, treasury, admin, address(registry), 3_00, 8_00);
+        vm.stopPrank();
+        assertTrue(address(deployedEscrowProxy).code.length > 0);
+        vm.expectEmit(true, false, false, true);
+        emit Paused(address(this));
+        factory.pause();
+        assertTrue(factory.paused());
+        vm.expectRevert(Pausable.Pausable__Paused.selector);
+        address deployedEscrowProxy2 = factory.deployEscrow(client, treasury, admin, address(registry), 3_00, 8_00);
+        assertTrue(address(deployedEscrowProxy2).code.length == 0);
+        vm.stopPrank();
+        vm.prank(notOwner);
+        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        factory.unpause();
+        vm.prank(address(this));
+        vm.expectEmit(true, false, false, true);
+        emit Unpaused(address(this));
+        factory.unpause();
+        assertFalse(factory.paused());
+        vm.prank(client);
+        deployedEscrowProxy2 = factory.deployEscrow(client, treasury, admin, address(registry), 3_00, 8_00);
+        assertTrue(address(deployedEscrowProxy2).code.length > 0);
     }
 }
