@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {Registry, IRegistry} from "src/Registry.sol";
 import {Escrow, IEscrow} from "src/Escrow.sol";
-import {Owned} from "src/libs/Owned.sol";
+import {EscrowFactory, Owned} from "src/EscrowFactory.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
 contract RegistryUnitTest is Test {
@@ -13,17 +13,20 @@ contract RegistryUnitTest is Test {
     Registry public registry;
     ERC20Mock public paymentToken;
     ERC20Mock public newPaymentToken;
+    EscrowFactory public factory;
 
     event PaymentTokenAdded(address token);
     event PaymentTokenRemoved(address token);
     event OwnershipTransferred(address indexed user, address indexed newOwner);
     event EscrowUpdated(address escrow);
+    event FactoryUpdated(address factory);
 
     function setUp() public {
         escrow = new Escrow();
         registry = new Registry();
         paymentToken = new ERC20Mock();
         newPaymentToken = new ERC20Mock();
+        factory = new EscrowFactory(address(registry));
     }
 
     function test_setUpState() public view {
@@ -101,6 +104,23 @@ contract RegistryUnitTest is Test {
         emit EscrowUpdated(address(escrow));
         registry.updateEscrow(address(escrow));
         assertEq(registry.escrow(), address(escrow));
+        vm.stopPrank();
+    }
+
+    function test_updateFactory() public {
+        assertEq(registry.factory(), address(0));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        registry.updateFactory(address(factory));
+        vm.startPrank(address(this));
+        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        registry.updateFactory(address(0));
+        assertEq(registry.factory(), address(0));
+        vm.expectEmit(true, false, false, true);
+        emit FactoryUpdated(address(factory));
+        registry.updateFactory(address(factory));
+        assertEq(registry.factory(), address(factory));
         vm.stopPrank();
     }
 }

@@ -15,6 +15,10 @@ contract Registry is IRegistry, Owned {
     /// @dev This can be updated by the owner as new versions of the Escrow contract are deployed.
     address public escrow;
 
+    /// @notice Address of the Factory contract currently in use.
+    /// @dev This can be updated by the owner as new versions of the Factory contract are deployed.
+    address public factory;
+
     /// @notice Mapping of ERC20 token addresses that are enabled as payment options.
     /// @dev Includes the ability to enable the native chain token for payments.
     mapping(address token => bool enabled) public paymentTokens;
@@ -45,5 +49,13 @@ contract Registry is IRegistry, Owned {
         if (_escrow == address(0)) revert Registry__ZeroAddressProvided();
         escrow = _escrow;
         emit EscrowUpdated(_escrow);
+    }
+
+    /// @notice Updates the address of the Factory contract.
+    /// @param _factory The new address of the Factory contract to be used.
+    function updateFactory(address _factory) external onlyOwner {
+        if (_factory == address(0)) revert Registry__ZeroAddressProvided();
+        factory = _factory;
+        emit FactoryUpdated(_factory);
     }
 }

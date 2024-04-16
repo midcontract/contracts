@@ -16,8 +16,12 @@ interface IRegistry {
 
     event EscrowUpdated(address escrow);
 
+    event FactoryUpdated(address factory);
+
     // Functions
     function paymentTokens(address token) external view returns (bool);
 
     function escrow() external view returns (address);
+
+    function factory() external view returns (address);
 }
