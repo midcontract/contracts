@@ -28,6 +28,10 @@ interface IEscrow {
 
     error Escrow__NotSupportedPaymentToken();
 
+    error Escrow__ZeroDepositAmount();
+
+    error Escrow__InvalidFeeConfig();
+
     enum FeeConfig {
         FULL,
         ONLY_CLIENT,

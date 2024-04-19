@@ -158,8 +158,8 @@ contract EscrowUnitTest is Test {
         vm.stopPrank();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 1);
-        assertEq(paymentToken.balanceOf(address(escrow)), 1 ether);
-        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
+        assertEq(paymentToken.balanceOf(address(escrow)), 1.11 ether);
+        // assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         (
             address _contractor,
@@ -242,8 +242,8 @@ contract EscrowUnitTest is Test {
 
     function test_withdraw() public {
         test_deposit();
-        assertEq(paymentToken.balanceOf(address(escrow)), 1 ether);
-        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
+        assertEq(paymentToken.balanceOf(address(escrow)), 1.11 ether);
+        // assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
 
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -259,8 +259,8 @@ contract EscrowUnitTest is Test {
         (,, uint256 _amountAfter,,,,, IEscrow.Status _statusAfter) = escrow.deposits(currentContractId);
         assertEq(_amountAfter, 0);
         // TODO add assert for IEscrow.Status _statusAfter if it's changed
-        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
-        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether + feeAmount);
+        assertEq(paymentToken.balanceOf(address(escrow)), feeAmount); //0.11 ether
+        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether + withdrawAmount);
     }
 
@@ -560,16 +560,16 @@ contract EscrowUnitTest is Test {
         assertEq(_amountToClaim, 1 ether);
         assertEq(uint256(_status), 0); //Status.PENDING
 
-        assertEq(paymentToken.balanceOf(address(escrow)), 1 ether);
-        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
+        assertEq(paymentToken.balanceOf(address(escrow)), 1.11 ether);
+        // assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
         assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
 
         vm.startPrank(contractor);
         vm.expectEmit(true, true, true, true);
         emit Claimed(contractor, currentContractId, _paymentToken, _amountToClaim);
         escrow.claim(currentContractId);
-        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
-        assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
+        assertEq(paymentToken.balanceOf(address(escrow)), 0.11 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(contractor)), 1 ether);
 
         (,, uint256 _amountAfter, uint256 _amountToClaimAfter,,,, IEscrow.Status _statusAfter) =

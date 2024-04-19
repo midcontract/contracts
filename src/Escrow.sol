@@ -31,9 +31,14 @@ contract Escrow is IEscrow {
         _;
     }
 
-    function initialize(address _client, address _treasury, address _admin, address _registry, uint256 _feeClient, uint256 _feeContractor)
-        external
-    {
+    function initialize(
+        address _client,
+        address _treasury,
+        address _admin,
+        address _registry,
+        uint256 _feeClient,
+        uint256 _feeContractor
+    ) external {
         if (initialized) revert Escrow__AlreadyInitialized();
 
         if (_client == address(0) || _treasury == address(0) || _admin == address(0) || _registry == address(0)) {
@@ -53,14 +58,13 @@ contract Escrow is IEscrow {
     }
 
     function deposit(Deposit calldata _deposit) external onlyClient {
-        // TODO if (currentContractId > 0) require(msg.sender == client, "");
-        
         if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
 
-        uint256 feeAmount = _computeFeeAmount(_deposit.amount, uint256(_deposit.feeConfig));
-        // TODO TBC feeAmount cut after claim
-        SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), _deposit.amount);
-        SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, treasury, feeAmount);
+        uint256 depositAmount = _computeDepositAmount(_deposit.amount, uint256(_deposit.feeConfig));
+
+        if (depositAmount == 0) revert Escrow__ZeroDepositAmount();
+
+        SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), depositAmount);
 
         unchecked {
             currentContractId++;
@@ -176,8 +180,9 @@ contract Escrow is IEscrow {
         D.amountToClaim = 0;
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, claimAmount);
-        if (feeAmount > 0) { // TODO test
-            SafeTransferLib.safeTransfer(D.paymentToken, treasury, feeAmount); 
+        if (feeAmount > 0) {
+            // TODO test
+            SafeTransferLib.safeTransfer(D.paymentToken, treasury, feeAmount);
         }
 
         // if (D.amount == 0) D.status = Status.COMPLETED; TBC
@@ -195,7 +200,7 @@ contract Escrow is IEscrow {
             feeAmount = 0;
             return (claimAmount, feeAmount);
         }
-        feeAmount = (_amount * feeContractor) / MAX_BPS; 
+        feeAmount = (_amount * feeContractor) / MAX_BPS;
         claimAmount = _amount - feeAmount; // TODO return claimAmount & feeAmount
 
         return (claimAmount, feeAmount);
@@ -208,15 +213,25 @@ contract Escrow is IEscrow {
     function _computeFeeAmount(uint256 _amount, uint256 _feeConfig) internal view returns (uint256 feeAmount) {
         if (_feeConfig == uint256(FeeConfig.FULL)) {
             return feeAmount = (_amount * (feeClient + feeContractor)) / MAX_BPS;
+        } else if (_feeConfig == uint256(FeeConfig.FREE)) {
+            return feeAmount = 0;
         }
         return feeAmount = (_amount * feeClient) / MAX_BPS;
     }
 
     function _computeDepositAmount(uint256 _amount, uint256 _feeConfig) internal view returns (uint256) {
+        // TODO tests
         if (_feeConfig == uint256(FeeConfig.FULL)) {
             return _amount + (_amount * (feeClient + feeContractor)) / MAX_BPS;
+        } else if (_feeConfig == uint256(FeeConfig.ONLY_CLIENT)) {
+            return _amount + ((_amount * feeClient) / MAX_BPS);
+        } else if (_feeConfig == uint256(FeeConfig.ONLY_CONTRACTOR)) {
+            return _amount + ((_amount * feeContractor) / MAX_BPS);
+        } else if (_feeConfig == uint256(FeeConfig.FREE)) {
+            return _amount;
+        } else {
+            revert Escrow__InvalidFeeConfig();
         }
-        return _amount + ((_amount * feeClient) / MAX_BPS);
     }
 
     function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
