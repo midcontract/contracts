@@ -119,7 +119,7 @@ contract EscrowUnitTest is Test {
         assertTrue(escrow.initialized());
     }
 
-    function test_Revert_initialize() public {
+    function test_initialize_reverts() public {
         assertFalse(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.initialize(address(0), treasury, admin, address(registry), 3_00, 8_00);
@@ -181,7 +181,7 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 0); //Status.PENDING
     }
 
-    function test_Revert_deposit() public {
+    function test_deposit_reverts() public {
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
         vm.prank(client);
         escrow.deposit(deposit);
@@ -264,7 +264,7 @@ contract EscrowUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether + withdrawAmount);
     }
 
-    function test_Revert_withdraw() public {
+    function test_withdraw_reverts() public {
         test_deposit();
         uint256 currentContractId = escrow.getCurrentContractId();
         address notClient = makeAddr("notClient");
@@ -308,7 +308,7 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 1); //Status.SUBMITTED
     }
 
-    function test_Revert_submit() public {
+    function test_submit_reverts() public {
         test_deposit();
         uint256 currentContractId = escrow.getCurrentContractId();
         (
@@ -459,7 +459,7 @@ contract EscrowUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
     }
 
-    function test_Revert_approve_InvalidStatusForApprove() public {
+    function test_approve_reverts_InvalidStatusForApprove() public {
         test_deposit();
         uint256 currentContractId = escrow.getCurrentContractId();
         (
@@ -486,7 +486,7 @@ contract EscrowUnitTest is Test {
         vm.stopPrank();
     }
 
-    function test_Revert_approve_UnauthorizedReceiver() public {
+    function test_approve_reverts_UnauthorizedReceiver() public {
         test_submit();
         uint256 currentContractId = escrow.getCurrentContractId();
         (
@@ -520,7 +520,7 @@ contract EscrowUnitTest is Test {
         vm.stopPrank();
     }
 
-    function test_Revert_approve_InvalidAmount() public {
+    function test_approve_reverts_InvalidAmount() public {
         test_submit();
         uint256 currentContractId = escrow.getCurrentContractId();
         (
@@ -554,7 +554,7 @@ contract EscrowUnitTest is Test {
         test_approve();
         uint256 currentContractId = escrow.getCurrentContractId();
         (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,, IEscrow.Status _status)
-            = escrow.deposits(currentContractId);
+        = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 1 ether);
@@ -580,7 +580,7 @@ contract EscrowUnitTest is Test {
         vm.stopPrank();
     }
 
-    function test_Revert_claim() public {
+    function test_claim_reverts() public {
         uint256 amountApprove = 0 ether;
         uint256 amountAdditional = 0.5 ether;
         test_approve2();
@@ -589,7 +589,7 @@ contract EscrowUnitTest is Test {
         assertEq(_amount, 1 ether + amountAdditional);
         assertEq(_amountToClaim, amountApprove); //0
         assertEq(uint256(_status), 1); //Status.SUBMITTED
-        
+
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__NotApproved.selector);
         escrow.claim(currentContractId);

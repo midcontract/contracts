@@ -262,7 +262,7 @@ contract EscrowFactoryUnitTest is Test {
         vm.stopPrank();
     }
 
-    function test_pause() public {
+    function test_pause_unpause() public {
         assertFalse(factory.paused());
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
