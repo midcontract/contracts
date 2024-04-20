@@ -80,6 +80,7 @@ contract EscrowUnitTest is Test {
         registry = new Registry();
         paymentToken = new ERC20Mock();
         registry.addPaymentToken(address(paymentToken));
+        registry.setTreasury(treasury);
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
@@ -108,9 +109,8 @@ contract EscrowUnitTest is Test {
 
     function test_initialize() public {
         assertFalse(escrow.initialized());
-        escrow.initialize(client, treasury, admin, address(registry), 3_00, 8_00);
+        escrow.initialize(client, admin, address(registry), 3_00, 8_00);
         assertEq(escrow.client(), client);
-        assertEq(escrow.treasury(), treasury);
         assertEq(escrow.admin(), admin);
         assertEq(address(escrow.registry()), address(registry));
         assertEq(escrow.feeClient(), 3_00);
@@ -122,25 +122,23 @@ contract EscrowUnitTest is Test {
     function test_initialize_reverts() public {
         assertFalse(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(address(0), treasury, admin, address(registry), 3_00, 8_00);
+        escrow.initialize(address(0), admin, address(registry), 3_00, 8_00);
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, address(0), admin, address(registry), 3_00, 8_00);
+        escrow.initialize(client, address(0), address(registry), 3_00, 8_00);
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, treasury, address(0), address(registry), 3_00, 8_00);
+        escrow.initialize(client, admin, address(0), 3_00, 8_00);
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, treasury, admin, address(0), 3_00, 8_00);
-        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(address(0), address(0), address(registry), address(0), 3_00, 8_00);
+        escrow.initialize(address(0), address(registry), address(0), 3_00, 8_00);
         vm.expectRevert(IEscrow.Escrow__FeeTooHigh.selector);
-        escrow.initialize(client, treasury, admin, address(registry), 101_00, 8_00);
+        escrow.initialize(client, admin, address(registry), 101_00, 8_00);
         vm.expectRevert(IEscrow.Escrow__FeeTooHigh.selector);
-        escrow.initialize(client, treasury, admin, address(registry), 3_00, 101_00);
+        escrow.initialize(client, admin, address(registry), 3_00, 101_00);
         vm.expectRevert(IEscrow.Escrow__FeeTooHigh.selector);
-        escrow.initialize(client, treasury, admin, address(registry), 101_00, 101_00);
-        escrow.initialize(client, treasury, admin, address(registry), 3_00, 8_00);
+        escrow.initialize(client, admin, address(registry), 101_00, 101_00);
+        escrow.initialize(client, admin, address(registry), 3_00, 8_00);
         assertTrue(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__AlreadyInitialized.selector);
-        escrow.initialize(client, treasury, admin, address(registry), 3_00, 8_00);
+        escrow.initialize(client, admin, address(registry), 3_00, 8_00);
     }
 
     ///////////////////////////////////////////

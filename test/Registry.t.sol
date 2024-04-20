@@ -15,11 +15,14 @@ contract RegistryUnitTest is Test {
     ERC20Mock public newPaymentToken;
     EscrowFactory public factory;
 
+    address public treasury;
+
     event PaymentTokenAdded(address token);
     event PaymentTokenRemoved(address token);
     event OwnershipTransferred(address indexed user, address indexed newOwner);
     event EscrowUpdated(address escrow);
     event FactoryUpdated(address factory);
+    event TreasurySet(address treasury);
 
     function setUp() public {
         escrow = new Escrow();
@@ -27,6 +30,7 @@ contract RegistryUnitTest is Test {
         paymentToken = new ERC20Mock();
         newPaymentToken = new ERC20Mock();
         factory = new EscrowFactory(address(registry));
+        treasury = makeAddr("treasury");
     }
 
     function test_setUpState() public view {
@@ -121,6 +125,23 @@ contract RegistryUnitTest is Test {
         emit FactoryUpdated(address(factory));
         registry.updateFactory(address(factory));
         assertEq(registry.factory(), address(factory));
+        vm.stopPrank();
+    }
+
+    function test_setTreasury() public {
+        assertEq(registry.treasury(), address(0));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        registry.setTreasury(address(treasury));
+        vm.startPrank(address(this));
+        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        registry.setTreasury(address(0));
+        assertEq(registry.treasury(), address(0));
+        vm.expectEmit(true, false, false, true);
+        emit TreasurySet(address(treasury));
+        registry.setTreasury(address(treasury));
+        assertEq(registry.treasury(), address(treasury));
         vm.stopPrank();
     }
 }

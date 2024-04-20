@@ -14,7 +14,6 @@ contract Escrow is IEscrow {
     IRegistry public registry;
 
     address public client;
-    address public treasury;
     address public admin;
 
     uint256 public feeClient;
@@ -33,7 +32,6 @@ contract Escrow is IEscrow {
 
     function initialize(
         address _client,
-        address _treasury,
         address _admin,
         address _registry,
         uint256 _feeClient,
@@ -41,13 +39,12 @@ contract Escrow is IEscrow {
     ) external {
         if (initialized) revert Escrow__AlreadyInitialized();
 
-        if (_client == address(0) || _treasury == address(0) || _admin == address(0) || _registry == address(0)) {
+        if (_client == address(0) || _admin == address(0) || _registry == address(0)) {
             revert Escrow__ZeroAddressProvided();
         }
         if (_feeClient > MAX_BPS || _feeContractor > MAX_BPS) revert Escrow__FeeTooHigh();
 
         client = _client;
-        treasury = _treasury;
         admin = _admin;
         registry = IRegistry(_registry);
 
@@ -108,8 +105,10 @@ contract Escrow is IEscrow {
 
         // TODO TBC change status
 
-        SafeTransferLib.safeTransfer(D.paymentToken, treasury, feeAmount);
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
+        if (feeAmount > 0) { // TODO test
+            _sendPlatformFee(D.paymentToken, feeAmount);
+        }
 
         emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
     }
@@ -180,9 +179,8 @@ contract Escrow is IEscrow {
         D.amountToClaim = 0;
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, claimAmount);
-        if (feeAmount > 0) {
-            // TODO test
-            SafeTransferLib.safeTransfer(D.paymentToken, treasury, feeAmount);
+        if (feeAmount > 0) {  // TODO test
+            _sendPlatformFee(D.paymentToken, feeAmount);
         }
 
         // if (D.amount == 0) D.status = Status.COMPLETED; TBC
@@ -232,6 +230,12 @@ contract Escrow is IEscrow {
         } else {
             revert Escrow__InvalidFeeConfig();
         }
+    }
+
+    function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {
+        address treasury = IRegistry(registry).treasury();
+        if (treasury == address(0)) revert Escrow__ZeroAddressProvided();  // TODO test
+        SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
     }
 
     function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {

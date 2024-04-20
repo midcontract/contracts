@@ -29,6 +29,10 @@ interface IRegistry {
     /// @param factory The new factory contract address.
     event FactoryUpdated(address factory);
 
+    /// @notice Emitted when the treasury account address is set in the registry.
+    /// @param treasury The new treasury contract address.
+    event TreasurySet(address treasury);
+
     /// @notice Checks if a token is enabled as a payment token in the registry.
     /// @param token The address of the token to check.
     /// @return True if the token is enabled, false otherwise.
@@ -41,4 +45,8 @@ interface IRegistry {
     /// @notice Retrieves the current factory contract address stored in the registry.
     /// @return The address of the factory contract.
     function factory() external view returns (address);
+
+    /// @notice Retrieves the current treasury account address stored in the registry.
+    /// @return The address of the treasury account.
+    function treasury() external view returns (address);
 }
