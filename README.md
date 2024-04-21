@@ -42,7 +42,7 @@ $ anvil
 ### Deploy
 
 ```shell
-$ source .env && forge script script/Escrow.s.sol:EscrowScript --rpc-url http://localhost:8545 
+$ make deploy-escrow-local
 ```
 
 ### Cast

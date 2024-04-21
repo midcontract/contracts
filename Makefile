@@ -30,7 +30,8 @@ snapshot :; forge snapshot
 anvil :; anvil -m 'test test test test test test test test test test test junk' --steps-tracing --block-time 1
 
 # Deploy to local environment
-deploy-local :; forge script script/Escrow.s.sol:EscrowScript --rpc-url http://localhost:8545 --private-key $(DEFAULT_ANVIL_KEY) -vvvv
+deploy-registry-local :; forge script script/deploy/01_DeployRegistry.s.sol:DeployRegistryScript --rpc-url http://localhost:8545 --private-key $(DEFAULT_ANVIL_KEY) -vvvv
+deploy-escrow-local :; forge script script/deploy/02_DeployEscrow.s.sol:DeployEscrowScript --rpc-url http://localhost:8545 --private-key $(DEFAULT_ANVIL_KEY) -vvvv
 
-# Deploy to Mumbai - Requires environment variables: MUMBAI_RPC_URL, DEPLOYER_EOA_PRIVATE_KEY, POLYGONSCAN_API_KEY
-deploy-mumbai :; source .env && forge script script/Escrow.s.sol:EscrowScript --rpc-url $(MUMBAI_RPC_URL) --private-key $(DEPLOYER_EOA_PRIVATE_KEY) --broadcast --verify --etherscan-api-key $(POLYGONSCAN_API_KEY) -vvvv
+# Deploy to Ethereum Sepolia - Requires environment variables: ETH_SEPOLIA_RPC_URL, DEPLOYER_PRIVATE_KEY, ETHERSCAN_API_KEY
+deploy-escrow-ethsepolia :; source .env && forge script script/deploy/DeployEscrow.s.sol:DeployEscrowScript --rpc-url $(ETH_SEPOLIA_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv

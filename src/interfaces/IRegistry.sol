@@ -49,4 +49,14 @@ interface IRegistry {
     /// @notice Retrieves the current treasury account address stored in the registry.
     /// @return The address of the treasury account.
     function treasury() external view returns (address);
+
+    /// @notice Updates the address of the Escrow contract used in the system.
+    /// @dev This function allows the system administrator to set a new escrow contract address.
+    /// @param _escrow The new address of the Escrow contract to be used across the platform.
+    function updateEscrow(address _escrow) external;
+
+    /// @notice Updates the address of the Factory contract used in the system.
+    /// @dev This function allows the system administrator to set a new factory contract address.
+    /// @param _factory The new address of the Factory contract to be used across the platform.
+    function updateFactory(address _factory) external;
 }
