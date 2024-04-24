@@ -6,6 +6,7 @@ import "forge-std/Script.sol";
 import {Escrow} from "src/Escrow.sol";
 import {EscrowFactory, IEscrowFactory} from "src/EscrowFactory.sol";
 import {Registry, IRegistry} from "src/Registry.sol";
+import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
 contract DeployEscrowFactoryScript is Script {
     EscrowFactory public factory;
@@ -17,6 +18,7 @@ contract DeployEscrowFactoryScript is Script {
     function setUp() public {
         deployerPublicKey = vm.envAddress("DEPLOYER_PUBLIC_KEY");
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        registry = EthSepoliaConfig.REGISTRY;
     }
 
     function run() public {
@@ -25,7 +27,7 @@ contract DeployEscrowFactoryScript is Script {
         IRegistry(registry).updateFactory(address(factory));
         console.log("==factory addr=%s", address(factory));
         assert(address(factory) != address(0));
-        assert(registry.factory() == address(factory));
+        assert(IRegistry(registry).factory() == address(factory));
         vm.stopBroadcast();
     }
 }

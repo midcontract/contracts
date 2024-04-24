@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 
 import {Escrow} from "src/Escrow.sol";
 import {Registry, IRegistry} from "src/Registry.sol";
+import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
 contract DeployEscrowScript is Script {
     Escrow public escrow;
@@ -15,15 +16,17 @@ contract DeployEscrowScript is Script {
     function setUp() public {
         deployerPublicKey = vm.envAddress("DEPLOYER_PUBLIC_KEY");
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        registry = EthSepoliaConfig.REGISTRY;
     }
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
         escrow = new Escrow();
-        // IRegistry(registry).updateEscrow(address(escrow));
+        escrow.initialize(address(deployerPublicKey), address(deployerPublicKey), address(registry), 5_00, 7_00);
+        Registry(registry).updateEscrow(address(escrow));
         console.log("==escrow addr=%s", address(escrow));
         assert(address(escrow) != address(0));
-        // assert(registry.escrow() == address(paymentToken));
+        assert(Registry(registry).escrow() == address(escrow));
         vm.stopBroadcast();
     }
 }

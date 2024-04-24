@@ -1,4 +1,6 @@
--include .env
+# include .env file and export its env vars
+# (-include to ignore error if it does not exist)
+include .env
 
 .PHONY: update build size inspect selectors test trace gas test-contract test-contract-gas trace-contract test-test trace-test clean snapshot anvil deploy
 
@@ -30,8 +32,16 @@ snapshot :; forge snapshot
 anvil :; anvil -m 'test test test test test test test test test test test junk' --steps-tracing --block-time 1
 
 # Deploy to local environment
-deploy-registry-local :; forge script script/deploy/01_DeployRegistry.s.sol:DeployRegistryScript --rpc-url http://localhost:8545 --private-key $(DEFAULT_ANVIL_KEY) -vvvv
-deploy-escrow-local :; forge script script/deploy/02_DeployEscrow.s.sol:DeployEscrowScript --rpc-url http://localhost:8545 --private-key $(DEFAULT_ANVIL_KEY) -vvvv
+deploy-registry-local :; forge script script/deploy/01_DeployRegistry.s.sol:DeployRegistryScript --rpc-url http://localhost:8545 --private-key $(DEPLOYER_PRIVATE_KEY) -vvvv
+deploy-escrow-local :; forge script script/deploy/02_DeployEscrow.s.sol:DeployEscrowScript --rpc-url http://localhost:8545 --private-key $(DEPLOYER_PRIVATE_KEY) -vvvv
+deploy-factory-local :; forge script script/deploy/03_DeployEscrowFactory.s.sol:DeployEscrowFactoryScript --rpc-url http://localhost:8545 --private-key $(DEPLOYER_PRIVATE_KEY) -vvvv
+execute-escrow-local :; forge script script/execute/ExecuteEscrow.s.sol:ExecuteEscrowScript --rpc-url http://localhost:8545 --private-key $(DEPLOYER_PRIVATE_KEY) -vvvv
 
-# Deploy to Ethereum Sepolia - Requires environment variables: ETH_SEPOLIA_RPC_URL, DEPLOYER_PRIVATE_KEY, ETHERSCAN_API_KEY
-deploy-escrow-ethsepolia :; source .env && forge script script/deploy/DeployEscrow.s.sol:DeployEscrowScript --rpc-url $(ETH_SEPOLIA_RPC_URL) --private-key $(DEPLOYER_PRIVATE_KEY) --broadcast --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
+# Deploy to Ethereum Sepolia - Requires environment variables: SEPOLIA_ALCHEMY_RPC_URL, DEPLOYER_PRIVATE_KEY, ETHERSCAN_API_KEY
+deploy-registry-ethsepolia :; source .env && forge script script/deploy/01_DeployRegistry.s.sol:DeployRegistryScript --rpc-url ${SEPOLIA_ALCHEMY_RPC_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${ETHERSCAN_API_KEY} -vvvv
+deploy-escrow-ethsepolia :; source .env && forge script script/deploy/02_DeployEscrow.s.sol:DeployEscrowScript --rpc-url ${SEPOLIA_ALCHEMY_RPC_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${ETHERSCAN_API_KEY} -vvvv
+deploy-factory-ethsepolia :; source .env && forge script script/deploy/03_DeployEscrowFactory.s.sol:DeployEscrowFactoryScript --rpc-url ${SEPOLIA_ALCHEMY_RPC_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${ETHERSCAN_API_KEY} -vvvv
+execute-escrow-ethsepolia :; source .env && forge script script/execute/ExecuteEscrow.s.sol:ExecuteEscrowScript --rpc-url ${SEPOLIA_ALCHEMY_RPC_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${ETHERSCAN_API_KEY} --gas-price 40000000000 --gas-limit ${GAS_LIMIT} -vvvv
+
+# Deploy to Polygon Amoy
+execute-escrow-amoy :; source .env && forge script script/execute/ExecuteEscrow.s.sol:ExecuteEscrowScript --rpc-url ${POLYGON_AMOY_RPC} --private-key ${DEPLOYER_PRIVATE_KEY} --gas-price 40000000000 --gas-limit ${GAS_LIMIT} -vvvv
