@@ -9,5 +9,5 @@ library EthSepoliaConfig {
     address public constant MOCK_PAYMENT_TOKEN = 0x288f4508660A747C77A95D68D5b77eD89CdE9D03;
     address public constant ESCROW = 0x9904951133E96a2330A5862E0B87E810437C2cC0;
     address public constant FACTORY = 0xa01F06ceC1f7Bf6864678940313740FDffCAdbE9;
-    address public constant ESCROW_PROXY = 0x6add42010309a1a38d2d61bcbc7124863544b690;
+    address public constant ESCROW_PROXY = 0x6ADD42010309a1A38D2D61bcBC7124863544B690;
 }
