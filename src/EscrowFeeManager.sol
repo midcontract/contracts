@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
 import {Owned} from "./libs/Owned.sol";
 
-contract EscrowFeeManager is Owned {
-    error Escrow__FeeTooHigh();
-    error Escrow__InvalidFeeConfig();
-
+contract EscrowFeeManager is IEscrowFeeManager, Owned {
     /// @notice The basis points used for calculating fees and percentages.
     uint256 public constant MAX_BPS = 100_00; // 100%
 
-    uint256 public feeCoverage;
-    uint256 public feeClaim;
+    uint256 public defaultCoverageFee;
+    uint256 public defaultClaimFee;
+
+    mapping(address client => uint256 coverageFee) public specialCoverageFee;
+    mapping(address contractor => uint256 claimFee) public specialClaimFee; 
 
     enum FeeConfig {
         FULL, 
@@ -20,11 +21,34 @@ contract EscrowFeeManager is Owned {
         FREE
     }
 
-    constructor(uint256 _feeCoverage, uint256 _feeClaim) Owned(msg.sender) {
-        if (_feeCoverage > MAX_BPS || _feeClaim > MAX_BPS) revert Escrow__FeeTooHigh();
+    constructor(uint256 _defaultCoverageFee, uint256 _defaultClaimFee) Owned(msg.sender) {
+        if (_defaultCoverageFee > MAX_BPS || _defaultClaimFee > MAX_BPS) revert EscrowFeeManager__FeeTooHigh();
 
-        feeCoverage = _feeCoverage;
-        feeClaim = _feeClaim;
+        defaultCoverageFee = _defaultCoverageFee;
+        defaultClaimFee = _defaultClaimFee;
+    }
+
+    function setDefaultFees(uint256 _coverageFee, uint256 _claimFee) external onlyOwner {
+        if (_coverageFee > MAX_BPS || _claimFee > MAX_BPS) revert EscrowFeeManager__FeeTooHigh();
+        defaultCoverageFee = _coverageFee;
+        defaultClaimFee = _claimFee;
+        emit DefaultFeesSet(_coverageFee, _claimFee);
+    }
+
+    function setSpecialFees(address _user, uint256 _coverageFee, uint256 _claimFee) external onlyOwner {
+        if (_coverageFee > MAX_BPS || _claimFee > MAX_BPS) revert EscrowFeeManager__FeeTooHigh();
+        if (_user == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
+        specialCoverageFee[_user] = _coverageFee;
+        specialClaimFee[_user] = _claimFee;
+        emit SpecialFeesSet(_user, _coverageFee, _claimFee);
+    }
+
+    function getCoverageFee(address _user) public view returns (uint256) {
+        return specialCoverageFee[_user] > 0 ? specialCoverageFee[_user] : defaultCoverageFee;
+    }
+
+    function getClaimFee(address _user) public view returns (uint256) {
+        return specialClaimFee[_user] > 0 ? specialClaimFee[_user] : defaultClaimFee;
     }
 
     // Coverage fee:
@@ -32,17 +56,17 @@ contract EscrowFeeManager is Owned {
     // 3% if not payed for the freelancer
     // 8% if payed for the freelancer
 
-    function computeCoverageFee(uint256 _amount, uint256 _feeConfig) external returns (uint256) {
+    function computeCoverageFee(uint256 _amount, uint256 _feeConfig) external view returns (uint256) {
         if (_feeConfig == uint256(FeeConfig.FULL)) {
-            return (_amount * (feeCoverage + feeClaim)) / MAX_BPS;
+            return (_amount * (defaultCoverageFee + defaultClaimFee)) / MAX_BPS;
         } else if (_feeConfig == uint256(FeeConfig.ONLY_CLIENT)) {
-            return ((_amount * feeCoverage) / MAX_BPS);
+            return ((_amount * defaultCoverageFee) / MAX_BPS);
         } else if (_feeConfig == uint256(FeeConfig.ONLY_CONTRACTOR)) {
-            return ((_amount * feeClaim) / MAX_BPS);
+            return ((_amount * defaultClaimFee) / MAX_BPS);
         } else if (_feeConfig == uint256(FeeConfig.FREE)) {
             return 0;
         } else {
-            revert Escrow__InvalidFeeConfig();
+            revert EscrowFeeManager__InvalidFeeConfig();
         }
     }
 
@@ -53,5 +77,4 @@ contract EscrowFeeManager is Owned {
 
     function computeClaimFee(uint256 _amount, FeeConfig _feeConfig) external returns (uint256) {}
 
-    function setFeeConfig(uint256 _feeCoverage, uint256 _feeClaim) external onlyOwner {}
 }
