@@ -22,14 +22,6 @@ contract EscrowFeeManager is IEscrowFeeManager, Owned {
     /// @notice Mapping from user addresses to their specific fee rates.
     mapping(address user => FeeRates feeType) public specialFees;
 
-    /// @notice Enumerates the different configurations of fee responsibilities.
-    enum FeeConfig {
-        CLIENT_COVERS_ALL, // Client pays both coverage and claim fees (total 8%)
-        CLIENT_COVERS_ONLY, // Client pays only the coverage fee (3%), contractor responsible for the claim fee (5%)
-        CONTRACTOR_COVERS_CLAIM, // Contractor pays the claim fee (5%), no coverage fee applied
-        NO_FEES // No fees applied (0%)
-    }
-
     /// @dev Sets initial default fees on contract deployment.
     /// @param _coverage Initial default coverage fee percentage.
     /// @param _claim Initial default claim fee percentage.

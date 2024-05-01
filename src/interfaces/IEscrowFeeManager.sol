@@ -13,6 +13,14 @@ interface IEscrowFeeManager {
     /// @dev Thrown when an operation includes or results in a zero address where it is not allowed.
     error EscrowFeeManager__ZeroAddressProvided();
 
+    /// @notice Enumerates the different configurations of fee responsibilities.
+    enum FeeConfig {
+        CLIENT_COVERS_ALL, // Client pays both coverage and claim fees (total 8%)
+        CLIENT_COVERS_ONLY, // Client pays only the coverage fee (3%), contractor responsible for the claim fee (5%)
+        CONTRACTOR_COVERS_CLAIM, // Contractor pays the claim fee (5%), no coverage fee applied
+        NO_FEES // No fees applied (0%)
+    }
+
     /// @notice Emitted when the default fees are updated.
     /// @param coverage The new default coverage fee as a percentage in basis points.
     /// @param claim The new default claim fee as a percentage in basis points.

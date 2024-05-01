@@ -97,23 +97,23 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(claim, 5_00);
         // CLIENT_COVERS_ALL
         uint256 feeAmount = depositAmount * (coverage + claim) / 100_00;
-        EscrowFeeManager.FeeConfig feeConfig = EscrowFeeManager.FeeConfig.CLIENT_COVERS_ALL;
+        IEscrowFeeManager.FeeConfig feeConfig = IEscrowFeeManager.FeeConfig.CLIENT_COVERS_ALL;
         (uint256 totalDepositAmount, uint256 feeApplied) = feeManager.computeDepositAmount(client, depositAmount, feeConfig);
         assertEq(totalDepositAmount, depositAmount + feeAmount);
         assertEq(feeApplied, feeAmount);
         // CLIENT_COVERS_ONLY
         feeAmount = depositAmount * coverage / 100_00;
-        feeConfig = EscrowFeeManager.FeeConfig.CLIENT_COVERS_ONLY;
+        feeConfig = IEscrowFeeManager.FeeConfig.CLIENT_COVERS_ONLY;
         (totalDepositAmount, feeApplied) = feeManager.computeDepositAmount(client, depositAmount, feeConfig);
         assertEq(totalDepositAmount, depositAmount + feeAmount);
         assertEq(feeApplied, feeAmount);
         // CONTRACTOR_COVERS_CLAIM
-        feeConfig = EscrowFeeManager.FeeConfig.CONTRACTOR_COVERS_CLAIM;
+        feeConfig = IEscrowFeeManager.FeeConfig.CONTRACTOR_COVERS_CLAIM;
         (totalDepositAmount, feeApplied) = feeManager.computeDepositAmount(client, depositAmount, feeConfig);
         assertEq(totalDepositAmount, depositAmount);
         assertEq(feeApplied, 0);
         // NO_FEES
-        feeConfig = EscrowFeeManager.FeeConfig.NO_FEES;
+        feeConfig = IEscrowFeeManager.FeeConfig.NO_FEES;
         (totalDepositAmount, feeApplied) = feeManager.computeDepositAmount(client, depositAmount, feeConfig);
         assertEq(totalDepositAmount, depositAmount);
         assertEq(feeApplied, 0);
@@ -127,23 +127,23 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(claim, 3_50);
         // CLIENT_COVERS_ALL
         uint256 feeAmount = depositAmount * (coverage + claim) / 100_00;
-        EscrowFeeManager.FeeConfig feeConfig = EscrowFeeManager.FeeConfig.CLIENT_COVERS_ALL;
+        IEscrowFeeManager.FeeConfig feeConfig = IEscrowFeeManager.FeeConfig.CLIENT_COVERS_ALL;
         (uint256 totalDepositAmount, uint256 feeApplied) = feeManager.computeDepositAmount(client, depositAmount, feeConfig);
         assertEq(totalDepositAmount, depositAmount + feeAmount);
         assertEq(feeApplied, feeAmount);
         // CLIENT_COVERS_ONLY
         feeAmount = depositAmount * coverage / 100_00;
-        feeConfig = EscrowFeeManager.FeeConfig.CLIENT_COVERS_ONLY;
+        feeConfig = IEscrowFeeManager.FeeConfig.CLIENT_COVERS_ONLY;
         (totalDepositAmount, feeApplied) = feeManager.computeDepositAmount(client, depositAmount, feeConfig);
         assertEq(totalDepositAmount, depositAmount + feeAmount);
         assertEq(feeApplied, feeAmount);
         // CONTRACTOR_COVERS_CLAIM
-        feeConfig = EscrowFeeManager.FeeConfig.CONTRACTOR_COVERS_CLAIM;
+        feeConfig = IEscrowFeeManager.FeeConfig.CONTRACTOR_COVERS_CLAIM;
         (totalDepositAmount, feeApplied) = feeManager.computeDepositAmount(client, depositAmount, feeConfig);
         assertEq(totalDepositAmount, depositAmount);
         assertEq(feeApplied, 0);
         // NO_FEES
-        feeConfig = EscrowFeeManager.FeeConfig.NO_FEES;
+        feeConfig = IEscrowFeeManager.FeeConfig.NO_FEES;
         (totalDepositAmount, feeApplied) = feeManager.computeDepositAmount(client, depositAmount, feeConfig);
         assertEq(totalDepositAmount, depositAmount);
         assertEq(feeApplied, 0);
@@ -155,24 +155,24 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(coverage, 3_00);
         assertEq(claim, 5_00);
         // CLIENT_COVERS_ALL
-        EscrowFeeManager.FeeConfig feeConfig = EscrowFeeManager.FeeConfig.CLIENT_COVERS_ALL;
+        IEscrowFeeManager.FeeConfig feeConfig = IEscrowFeeManager.FeeConfig.CLIENT_COVERS_ALL;
         (uint256 claimableAmount, uint256 feeDeducted) = feeManager.computeClaimableAmount(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
         // CLIENT_COVERS_ONLY
         uint256 feeAmount = claimedAmount * claim / 100_00;
-        feeConfig = EscrowFeeManager.FeeConfig.CLIENT_COVERS_ONLY;
+        feeConfig = IEscrowFeeManager.FeeConfig.CLIENT_COVERS_ONLY;
         (claimableAmount, feeDeducted) = feeManager.computeClaimableAmount(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount - feeAmount);
         assertEq(feeDeducted, feeAmount);
         // CONTRACTOR_COVERS_CLAIM
         feeAmount = claimedAmount * claim / 100_00;
-        feeConfig = EscrowFeeManager.FeeConfig.CONTRACTOR_COVERS_CLAIM;
+        feeConfig = IEscrowFeeManager.FeeConfig.CONTRACTOR_COVERS_CLAIM;
         (claimableAmount, feeDeducted) = feeManager.computeClaimableAmount(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount - feeAmount);
         assertEq(feeDeducted, feeAmount);
         // NO_FEES
-        feeConfig = EscrowFeeManager.FeeConfig.NO_FEES;
+        feeConfig = IEscrowFeeManager.FeeConfig.NO_FEES;
         (claimableAmount, feeDeducted) = feeManager.computeClaimableAmount(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
@@ -185,24 +185,24 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(coverage, 2_00);
         assertEq(claim, 3_50);
         // CLIENT_COVERS_ALL
-        EscrowFeeManager.FeeConfig feeConfig = EscrowFeeManager.FeeConfig.CLIENT_COVERS_ALL;
+        IEscrowFeeManager.FeeConfig feeConfig = IEscrowFeeManager.FeeConfig.CLIENT_COVERS_ALL;
         (uint256 claimableAmount, uint256 feeDeducted) = feeManager.computeClaimableAmount(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
         // CLIENT_COVERS_ONLY
         uint256 feeAmount = claimedAmount * claim / 100_00;
-        feeConfig = EscrowFeeManager.FeeConfig.CLIENT_COVERS_ONLY;
+        feeConfig = IEscrowFeeManager.FeeConfig.CLIENT_COVERS_ONLY;
         (claimableAmount, feeDeducted) = feeManager.computeClaimableAmount(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount - feeAmount);
         assertEq(feeDeducted, feeAmount);
         // CONTRACTOR_COVERS_CLAIM
         feeAmount = claimedAmount * claim / 100_00;
-        feeConfig = EscrowFeeManager.FeeConfig.CONTRACTOR_COVERS_CLAIM;
+        feeConfig = IEscrowFeeManager.FeeConfig.CONTRACTOR_COVERS_CLAIM;
         (claimableAmount, feeDeducted) = feeManager.computeClaimableAmount(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount - feeAmount);
         assertEq(feeDeducted, feeAmount);
         // NO_FEES
-        feeConfig = EscrowFeeManager.FeeConfig.NO_FEES;
+        feeConfig = IEscrowFeeManager.FeeConfig.NO_FEES;
         (claimableAmount, feeDeducted) = feeManager.computeClaimableAmount(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
