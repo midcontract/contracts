@@ -29,6 +29,10 @@ interface IRegistry {
     /// @param factory The new factory contract address.
     event FactoryUpdated(address factory);
 
+    /// @notice Emitted when the feeManager contract address is updated in the registry.
+    /// @param feeManager The new feeManager contract address.
+    event FeeManagerUpdated(address feeManager);
+
     /// @notice Emitted when the treasury account address is set in the registry.
     /// @param treasury The new treasury contract address.
     event TreasurySet(address treasury);
@@ -45,6 +49,10 @@ interface IRegistry {
     /// @notice Retrieves the current factory contract address stored in the registry.
     /// @return The address of the factory contract.
     function factory() external view returns (address);
+
+    /// @notice Retrieves the current feeManager contract address stored in the registry.
+    /// @return The address of the feeManager contract.
+    function feeManager() external view returns (address);
 
     /// @notice Retrieves the current treasury account address stored in the registry.
     /// @return The address of the treasury account.

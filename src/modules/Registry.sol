@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IRegistry} from "./interfaces/IRegistry.sol";
-import {Owned} from "./libs/Owned.sol";
+import {IRegistry} from "../interfaces/IRegistry.sol";
+import {Owned} from "../libs/Owned.sol";
 
 /// @title Registry Contract
 /// @dev This contract manages configuration settings for the escrow system including approved payment tokens.
@@ -18,6 +18,10 @@ contract Registry is IRegistry, Owned {
     /// @notice Address of the Factory contract currently in use.
     /// @dev This can be updated by the owner as new versions of the Factory contract are deployed.
     address public factory;
+
+    /// @notice Address of the FeeManager contract currently in use.
+    /// @dev This can be updated by the owner as new versions of the FeeManager contract are deployed.
+    address public feeManager;
 
     /// @notice Address of the treasury where fees and other payments are collected.
     address public treasury;
@@ -60,6 +64,14 @@ contract Registry is IRegistry, Owned {
         if (_factory == address(0)) revert Registry__ZeroAddressProvided();
         factory = _factory;
         emit FactoryUpdated(_factory);
+    }
+
+    /// @notice Updates the address of the FeeManager contract.
+    /// @param _feeManager The new address of the FeeManager contract to be used.
+    function updateFeeManager(address _feeManager) external onlyOwner {
+        if (_feeManager == address(0)) revert Registry__ZeroAddressProvided();
+        feeManager = _feeManager;
+        emit FeeManagerUpdated(_feeManager);
     }
 
     /// @notice Sets the treasury address where collected fees and other payments will be sent.

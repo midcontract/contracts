@@ -3,25 +3,28 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
-import {Registry, IRegistry} from "src/Registry.sol";
+import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {Escrow, IEscrow} from "src/Escrow.sol";
 import {EscrowFactory, Owned} from "src/EscrowFactory.sol";
+import {EscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
 contract RegistryUnitTest is Test {
-    Escrow public escrow;
-    Registry public registry;
-    ERC20Mock public paymentToken;
-    ERC20Mock public newPaymentToken;
-    EscrowFactory public factory;
+    Escrow escrow;
+    Registry registry;
+    ERC20Mock paymentToken;
+    ERC20Mock newPaymentToken;
+    EscrowFactory factory;
+    EscrowFeeManager feeManager;
 
-    address public treasury;
+    address treasury;
 
     event PaymentTokenAdded(address token);
     event PaymentTokenRemoved(address token);
     event OwnershipTransferred(address indexed user, address indexed newOwner);
     event EscrowUpdated(address escrow);
     event FactoryUpdated(address factory);
+    event FeeManagerUpdated(address feeManager);
     event TreasurySet(address treasury);
 
     function setUp() public {
@@ -30,6 +33,7 @@ contract RegistryUnitTest is Test {
         paymentToken = new ERC20Mock();
         newPaymentToken = new ERC20Mock();
         factory = new EscrowFactory(address(registry));
+        feeManager = new EscrowFeeManager(3_00, 5_00);
         treasury = makeAddr("treasury");
     }
 
@@ -142,6 +146,23 @@ contract RegistryUnitTest is Test {
         emit TreasurySet(address(treasury));
         registry.setTreasury(address(treasury));
         assertEq(registry.treasury(), address(treasury));
+        vm.stopPrank();
+    }
+
+    function test_updateFeeManager() public {
+        assertEq(registry.feeManager(), address(0));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        registry.updateFeeManager(address(feeManager));
+        vm.startPrank(address(this));
+        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        registry.updateFeeManager(address(0));
+        assertEq(registry.feeManager(), address(0));
+        vm.expectEmit(true, false, false, true);
+        emit FeeManagerUpdated(address(feeManager));
+        registry.updateFeeManager(address(feeManager));
+        assertEq(registry.feeManager(), address(feeManager));
         vm.stopPrank();
     }
 }
