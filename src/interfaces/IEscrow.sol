@@ -34,6 +34,8 @@ interface IEscrow {
 
     error Escrow__InvalidFeeConfig();
 
+    error Escrow__NotSetFeeManager();
+
     enum Status {
         PENDING,
         SUBMITTED,

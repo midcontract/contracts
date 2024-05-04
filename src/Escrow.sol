@@ -31,7 +31,7 @@ contract Escrow is IEscrow {
 
     function initialize(address _client, address _admin, address _registry) external {
         if (initialized) revert Escrow__AlreadyInitialized();
-        
+
         if (_client == address(0) || _admin == address(0) || _registry == address(0)) {
             revert Escrow__ZeroAddressProvided();
         }
@@ -192,10 +192,8 @@ contract Escrow is IEscrow {
         internal
         returns (uint256 totalDepositAmount, uint256 feeApplied)
     {
-        // TODO check feeManagerAddress != address(0)
-
         address feeManagerAddress = registry.feeManager();
-
+        if (feeManagerAddress == address(0)) revert Escrow__NotSetFeeManager();
         IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress); // Cast to the interface
 
         (uint256 totalDepositAmount, uint256 feeApplied) =
@@ -208,10 +206,8 @@ contract Escrow is IEscrow {
         internal
         returns (uint256 claimableAmount, uint256 feeDeducted)
     {
-        // TODO check feeManagerAddress != address(0)
-
         address feeManagerAddress = registry.feeManager();
-
+        if (feeManagerAddress == address(0)) revert Escrow__NotSetFeeManager();
         IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress); // Cast to the interface
 
         (uint256 claimableAmount, uint256 feeDeducted) =
@@ -220,14 +216,14 @@ contract Escrow is IEscrow {
         return (claimableAmount, feeDeducted);
     }
 
-    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_data, _salt));
-    }
-
     function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {
         address treasury = IRegistry(registry).treasury();
         if (treasury == address(0)) revert Escrow__ZeroAddressProvided(); // TODO test
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
+    }
+
+    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_data, _salt));
     }
 
     function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
