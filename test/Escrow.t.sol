@@ -8,6 +8,7 @@ import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.
 import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
+import {MockRegistry} from "test/mocks/MockRegistry.sol";
 
 contract EscrowUnitTest is Test {
     Escrow escrow;
@@ -202,6 +203,40 @@ contract EscrowUnitTest is Test {
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__ZeroDepositAmount.selector);
         escrow.deposit(deposit);
+    }
+
+    function test_deposit_reverts_NotSetFeeManager() public {
+        // this test needs it's own setup
+        Escrow escrow2 = new Escrow();
+        MockRegistry registry2 = new MockRegistry();
+        ERC20Mock paymentToken2 = new ERC20Mock();
+        EscrowFeeManager feeManager2 = new EscrowFeeManager(3_00, 5_00);
+        registry2.addPaymentToken(address(paymentToken));
+        escrow2.initialize(client, admin, address(registry2));
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), 1.08 ether);
+        paymentToken.approve(address(escrow2), 1.08 ether);
+        vm.expectRevert(IEscrow.Escrow__NotSetFeeManager.selector);
+        escrow2.deposit(deposit);
+        vm.stopPrank();
+        vm.prank(address(this));
+        registry2.updateFeeManager(address(feeManager));
+        vm.prank(client);
+        escrow2.deposit(deposit);
+
+        uint256 currentContractId = escrow2.getCurrentContractId();
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(contractor);
+        escrow2.submit(currentContractId, contractData, salt);
+        vm.prank(client);
+        escrow2.approve(currentContractId, 1 ether, 0, contractor);
+
+        registry2.updateFeeManager(address(0));
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__NotSetFeeManager.selector);
+        escrow2.claim(currentContractId);
     }
 
     // helper
