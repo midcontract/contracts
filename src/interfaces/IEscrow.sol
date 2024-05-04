@@ -36,12 +36,6 @@ interface IEscrow {
 
     error Escrow__NotSetFeeManager();
 
-    enum Status {
-        PENDING,
-        SUBMITTED,
-        APPROVED
-    }
-
     struct Deposit {
         address contractor;
         address paymentToken;
@@ -50,7 +44,7 @@ interface IEscrow {
         uint256 timeLock; // TODO TBC possible lock for delay of disput or smth
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
-        Status status;
+        Enums.Status status;
     }
 
     event Deposited(

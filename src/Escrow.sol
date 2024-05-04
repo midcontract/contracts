@@ -63,7 +63,7 @@ contract Escrow is IEscrow {
         D.timeLock = _deposit.timeLock;
         D.contractorData = _deposit.contractorData;
         D.feeConfig = _deposit.feeConfig;
-        D.status = Status.PENDING;
+        D.status = Enums.Status.PENDING;
 
         emit Deposited(
             msg.sender, currentContractId, _deposit.paymentToken, _deposit.amount, _deposit.timeLock, _deposit.feeConfig
@@ -72,7 +72,7 @@ contract Escrow is IEscrow {
 
     function withdraw(uint256 _contractId) external onlyClient {
         Deposit storage D = deposits[_contractId];
-        if (uint256(D.status) != uint256(Status.PENDING)) revert Escrow__InvalidStatusForWithdraw(); // TODO test
+        if (uint256(D.status) != uint256(Enums.Status.PENDING)) revert Escrow__InvalidStatusForWithdraw(); // TODO test
 
         uint256 feeAmount;
         // uint256 withdrawAmount;
@@ -109,14 +109,14 @@ contract Escrow is IEscrow {
     function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt) external {
         Deposit storage D = deposits[_contractId];
 
-        if (uint256(D.status) != uint256(Status.PENDING)) revert Escrow__InvalidStatusForSubmit(); // TODO test
+        if (uint256(D.status) != uint256(Enums.Status.PENDING)) revert Escrow__InvalidStatusForSubmit(); // TODO test
 
         bytes32 contractorDataHash = _getContractorDataHash(_data, _salt);
 
         if (D.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash(); // TODO check not zero
 
         D.contractor = msg.sender;
-        D.status = Status.SUBMITTED;
+        D.status = Enums.Status.SUBMITTED;
 
         emit Submitted(msg.sender, _contractId);
     }
@@ -129,7 +129,7 @@ contract Escrow is IEscrow {
 
         Deposit storage D = deposits[_contractId];
 
-        if (uint256(D.status) != uint256(Status.SUBMITTED)) revert Escrow__InvalidStatusForApprove();
+        if (uint256(D.status) != uint256(Enums.Status.SUBMITTED)) revert Escrow__InvalidStatusForApprove();
 
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
@@ -138,7 +138,7 @@ contract Escrow is IEscrow {
         }
 
         if (_amountApprove > 0) {
-            D.status = Status.PENDING; // TODO TBC the correct status
+            D.status = Enums.Status.PENDING; // TODO TBC the correct status
             if (D.amount >= (D.amountToClaim + _amountAdditional)) {
                 D.amountToClaim += _amountApprove;
                 emit Approved(_contractId, _amountApprove, _receiver);

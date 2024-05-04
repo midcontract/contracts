@@ -41,12 +41,6 @@ contract EscrowUnitTest is Test {
         Status status;
     }
 
-    enum Status {
-        PENDING,
-        SUBMITTED,
-        APPROVED
-    }
-
     event Deposited(
         address indexed sender,
         uint256 indexed contractId,
@@ -87,7 +81,7 @@ contract EscrowUnitTest is Test {
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: IEscrow.Status.PENDING
+            status: Enums.Status.PENDING
         });
     }
 
@@ -153,7 +147,7 @@ contract EscrowUnitTest is Test {
             uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(address(_paymentToken), address(paymentToken));
@@ -184,7 +178,7 @@ contract EscrowUnitTest is Test {
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: IEscrow.Status.PENDING
+            status: Enums.Status.PENDING
         });
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NotSupportedPaymentToken.selector);
@@ -198,7 +192,7 @@ contract EscrowUnitTest is Test {
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: IEscrow.Status.PENDING
+            status: Enums.Status.PENDING
         });
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__ZeroDepositAmount.selector);
@@ -265,7 +259,7 @@ contract EscrowUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
 
         uint256 currentContractId = escrow.getCurrentContractId();
-        (,, uint256 _amount, uint256 _amountToClaim,,, Enums.FeeConfig _feeConfig, IEscrow.Status _status) =
+        (,, uint256 _amount, uint256 _amountToClaim,,, Enums.FeeConfig _feeConfig, Enums.Status _status) =
             escrow.deposits(currentContractId);
 
         (uint256 withdrawAmount, uint256 feeAmount) = _computeDepositAndFeeAmount(client, _amount, _feeConfig);
@@ -274,9 +268,9 @@ contract EscrowUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Withdrawn(client, currentContractId, address(paymentToken), withdrawAmount);
         escrow.withdraw(currentContractId);
-        (,, uint256 _amountAfter,,,,, IEscrow.Status _statusAfter) = escrow.deposits(currentContractId);
+        (,, uint256 _amountAfter,,,,, Enums.Status _statusAfter) = escrow.deposits(currentContractId);
         assertEq(_amountAfter, 0);
-        // TODO add assert for IEscrow.Status _statusAfter if it's changed
+        // TODO add assert for Enums.Status _statusAfter if it's changed
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount - (_amount + feeAmount));
         assertEq(paymentToken.balanceOf(address(client)), 0 ether + withdrawAmount); //==totalDepositAmount
     }
@@ -307,7 +301,7 @@ contract EscrowUnitTest is Test {
             ,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 0); //Status.PENDING
@@ -336,7 +330,7 @@ contract EscrowUnitTest is Test {
             ,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 0); //Status.PENDING
@@ -375,7 +369,7 @@ contract EscrowUnitTest is Test {
             ,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
@@ -408,7 +402,7 @@ contract EscrowUnitTest is Test {
             ,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
@@ -448,7 +442,7 @@ contract EscrowUnitTest is Test {
             ,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
@@ -489,7 +483,7 @@ contract EscrowUnitTest is Test {
             ,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 0); //Status.PENDING
@@ -516,7 +510,7 @@ contract EscrowUnitTest is Test {
             ,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
@@ -550,7 +544,7 @@ contract EscrowUnitTest is Test {
             ,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
@@ -572,8 +566,8 @@ contract EscrowUnitTest is Test {
     function test_claim() public {
         test_approve();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,, IEscrow.Status _status)
-        = escrow.deposits(currentContractId);
+        (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
+            escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 1 ether);
@@ -594,7 +588,7 @@ contract EscrowUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(contractor)), 1 ether);
 
-        (,, uint256 _amountAfter, uint256 _amountToClaimAfter,,,, IEscrow.Status _statusAfter) =
+        (,, uint256 _amountAfter, uint256 _amountToClaimAfter,,,, Enums.Status _statusAfter) =
             escrow.deposits(currentContractId);
         assertEq(_amountAfter, _amount - _amountToClaim);
         assertEq(_amountToClaimAfter, 0 ether);
@@ -607,7 +601,7 @@ contract EscrowUnitTest is Test {
         uint256 amountAdditional = 0.5 ether;
         test_approve2();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (,, uint256 _amount, uint256 _amountToClaim,,,, IEscrow.Status _status) = escrow.deposits(currentContractId);
+        (,, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_amount, 1 ether + amountAdditional);
         assertEq(_amountToClaim, amountApprove); //0
         assertEq(uint256(_status), 1); //Status.SUBMITTED

@@ -22,7 +22,7 @@ contract ExecuteEscrowEndToEndTest is Test {
 
     IEscrow.Deposit deposit;
     Enums.FeeConfig feeConfig;
-    IEscrow.Status status;
+    Enums.Status status;
     bytes32 contractorData;
     bytes32 salt;
     bytes contractData;
@@ -35,7 +35,7 @@ contract ExecuteEscrowEndToEndTest is Test {
         uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
-        IEscrow.Status status;
+        Enums.Status status;
     }
 
     function setUp() public {
@@ -58,7 +58,7 @@ contract ExecuteEscrowEndToEndTest is Test {
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: IEscrow.Status.PENDING
+            status: Enums.Status.PENDING
         });
 
         vm.prank(contractor);
@@ -102,7 +102,7 @@ contract ExecuteEscrowEndToEndTest is Test {
             uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = Escrow(escrowProxy).deposits(currentContractId);
 
         // Assertions to verify that the deposit parameters are correctly set according to the inputs provided during creation.

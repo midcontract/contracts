@@ -18,7 +18,7 @@ contract ExecuteEscrowScript is Script {
 
     IEscrow.Deposit public deposit;
     Enums.FeeConfig public feeConfig;
-    IEscrow.Status public status;
+    Enums.Status public status;
     bytes32 public contractorData;
     bytes32 public salt;
     bytes public contractData;
@@ -31,7 +31,7 @@ contract ExecuteEscrowScript is Script {
         uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
-        IEscrow.Status status;
+        Enums.Status status;
     }
 
     address public deployerPublicKey;
@@ -58,7 +58,7 @@ contract ExecuteEscrowScript is Script {
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: IEscrow.Status.PENDING
+            status: Enums.Status.PENDING
         });
     }
 

@@ -38,13 +38,7 @@ contract EscrowFactoryUnitTest is Test {
         uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
-        Status status;
-    }
-
-    enum Status {
-        PENDING,
-        SUBMITTED,
-        APPROVED
+        Enums.Status status;
     }
 
     event EscrowProxyDeployed(address sender, address deployedProxy);
@@ -77,7 +71,7 @@ contract EscrowFactoryUnitTest is Test {
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: IEscrow.Status.PENDING
+            status: Enums.Status.PENDING
         });
 
         escrow.initialize(address(this), address(this), address(registry));
@@ -154,7 +148,7 @@ contract EscrowFactoryUnitTest is Test {
             uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrowProxy.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(address(_paymentToken), address(paymentToken));
@@ -178,7 +172,7 @@ contract EscrowFactoryUnitTest is Test {
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.NO_FEES,
-            status: IEscrow.Status.PENDING
+            status: Enums.Status.PENDING
         });
 
         (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 2 ether, Enums.FeeConfig.NO_FEES);
@@ -208,7 +202,7 @@ contract EscrowFactoryUnitTest is Test {
             uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
-            IEscrow.Status _status
+            Enums.Status _status
         ) = escrowProxy.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(address(_paymentToken), address(paymentToken));
