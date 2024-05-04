@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IEscrowFeeManager} from "../interfaces/IEscrowFeeManager.sol";
 import {Owned} from "../libs/Owned.sol";
+import {Enums} from "src/libs/Enums.sol";
 
 /// @title Escrow Fee Manager
 /// @notice Manages fee rates and calculations for escrow transactions.
@@ -55,7 +56,7 @@ contract EscrowFeeManager is IEscrowFeeManager, Owned {
     /// @param _feeConfig The fee configuration to determine which fees to apply.
     /// @return totalDepositAmount The total amount after fees are added.
     /// @return feeApplied The amount of fees added to the deposit.
-    function computeDepositAmount(address _client, uint256 _depositAmount, FeeConfig _feeConfig)
+    function computeDepositAmountAndFee(address _client, uint256 _depositAmount, Enums.FeeConfig _feeConfig)
         external
         view
         returns (uint256 totalDepositAmount, uint256 feeApplied)
@@ -63,11 +64,11 @@ contract EscrowFeeManager is IEscrowFeeManager, Owned {
         FeeRates memory rates =
             (specialFees[_client].coverage != 0 || specialFees[_client].claim != 0) ? specialFees[_client] : defaultFees;
 
-        if (_feeConfig == FeeConfig.CLIENT_COVERS_ALL) {
+        if (_feeConfig == Enums.FeeConfig.CLIENT_COVERS_ALL) {
             // If the client covers both the coverage and claim fees
             feeApplied = _depositAmount * (rates.coverage + rates.claim) / MAX_BPS;
             totalDepositAmount = _depositAmount + feeApplied;
-        } else if (_feeConfig == FeeConfig.CLIENT_COVERS_ONLY) {
+        } else if (_feeConfig == Enums.FeeConfig.CLIENT_COVERS_ONLY) {
             // If the client only covers the coverage fee
             feeApplied = _depositAmount * rates.coverage / MAX_BPS;
             totalDepositAmount = _depositAmount + feeApplied;
@@ -86,17 +87,19 @@ contract EscrowFeeManager is IEscrowFeeManager, Owned {
     /// @param _feeConfig The fee configuration to determine which fees to deduct.
     /// @return claimableAmount The amount claimable after fees are deducted.
     /// @return feeDeducted The amount of fees deducted from the claim.
-    function computeClaimableAmount(address _contractor, uint256 _claimedAmount, FeeConfig _feeConfig)
+    function computeClaimableAmountAndFee(address _contractor, uint256 _claimedAmount, Enums.FeeConfig _feeConfig)
         external
         view
         returns (uint256 claimableAmount, uint256 feeDeducted)
     {
         FeeRates memory rates = (specialFees[_contractor].claim != 0) ? specialFees[_contractor] : defaultFees;
 
-        if (_feeConfig == FeeConfig.CLIENT_COVERS_ALL) {
+        if (_feeConfig == Enums.FeeConfig.CLIENT_COVERS_ALL) {
             claimableAmount = _claimedAmount;
             feeDeducted = 0;
-        } else if (_feeConfig == FeeConfig.CONTRACTOR_COVERS_CLAIM || _feeConfig == FeeConfig.CLIENT_COVERS_ONLY) {
+        } else if (
+            _feeConfig == Enums.FeeConfig.CONTRACTOR_COVERS_CLAIM || _feeConfig == Enums.FeeConfig.CLIENT_COVERS_ONLY
+        ) {
             feeDeducted = _claimedAmount * rates.claim / MAX_BPS;
             claimableAmount = _claimedAmount - feeDeducted;
         } else {
@@ -110,14 +113,14 @@ contract EscrowFeeManager is IEscrowFeeManager, Owned {
     /// @notice Retrieves the coverage fee percentage for a specific user.
     /// @param _user The user's address.
     /// @return The coverage fee percentage.
-    function getCoverageFee(address _user) external view returns (uint256) {
+    function getCoverageFee(address _user) external view returns (uint16) {
         return specialFees[_user].coverage > 0 ? specialFees[_user].coverage : defaultFees.coverage;
     }
 
     /// @notice Retrieves the claim fee percentage for a specific user.
     /// @param _user The user's address.
     /// @return The claim fee percentage.
-    function getClaimFee(address _user) external view returns (uint256) {
+    function getClaimFee(address _user) external view returns (uint16) {
         return specialFees[_user].claim > 0 ? specialFees[_user].claim : defaultFees.claim;
     }
 }

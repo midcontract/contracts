@@ -33,16 +33,12 @@ contract EscrowFactory is IEscrowFactory, Owned, Pausable {
     /// @param _client The client's address who initiates the escrow, msg.sender.
     /// @param _admin The admin's address who has administrative privileges over the escrow.
     /// @param _registry Address of the registry contract to fetch escrow implementation.
-    /// @param _feeClient Fee percentage to be paid by the client.
-    /// @param _feeContractor Fee percentage to be paid by the contractor.
     /// @return deployedProxy The address of the newly deployed escrow proxy.
     /// @dev Clones the escrow template and initializes it with specific parameters for the project.
     function deployEscrow(
         address _client,
         address _admin,
-        address _registry,
-        uint256 _feeClient,
-        uint256 _feeContractor
+        address _registry
     ) external whenNotPaused returns (address deployedProxy) {
         bytes32 salt = keccak256(abi.encode(msg.sender, factoryNonce[msg.sender]));
         
@@ -50,7 +46,7 @@ contract EscrowFactory is IEscrowFactory, Owned, Pausable {
 
         address clone = LibClone.cloneDeterministic(escrowImplement, salt);
 
-        Escrow(clone).initialize(_client, _admin, _registry, _feeClient, _feeContractor);
+        Escrow(clone).initialize(_client, _admin, _registry);
 
         deployedProxy = address(clone);
 

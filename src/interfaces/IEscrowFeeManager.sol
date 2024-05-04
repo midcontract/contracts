@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {Enums} from "src/libs/Enums.sol";
+
 /// @title Interface for Escrow Fee Manager
 /// @notice Defines the standard functions and events for an escrow fee management system.
 interface IEscrowFeeManager {
@@ -12,14 +14,6 @@ interface IEscrowFeeManager {
 
     /// @dev Thrown when an operation includes or results in a zero address where it is not allowed.
     error EscrowFeeManager__ZeroAddressProvided();
-
-    /// @notice Enumerates the different configurations of fee responsibilities.
-    enum FeeConfig {
-        CLIENT_COVERS_ALL, // Client pays both coverage and claim fees (total 8%)
-        CLIENT_COVERS_ONLY, // Client pays only the coverage fee (3%), contractor responsible for the claim fee (5%)
-        CONTRACTOR_COVERS_CLAIM, // Contractor pays the claim fee (5%), no coverage fee applied
-        NO_FEES // No fees applied (0%)
-    }
 
     /// @notice Emitted when the default fees are updated.
     /// @param coverage The new default coverage fee as a percentage in basis points.
@@ -38,7 +32,7 @@ interface IEscrowFeeManager {
     /// @param feeConfig The fee configuration to determine which fees to apply.
     /// @return totalDepositAmount The total amount after fees are added.
     /// @return feeApplied The amount of fees applied based on the configuration.
-    function computeDepositAmount(address client, uint256 depositAmount, FeeConfig feeConfig)
+    function computeDepositAmountAndFee(address client, uint256 depositAmount, Enums.FeeConfig feeConfig)
         external
         view
         returns (uint256 totalDepositAmount, uint256 feeApplied);
@@ -49,7 +43,7 @@ interface IEscrowFeeManager {
     /// @param feeConfig The fee configuration to determine which fees to deduct.
     /// @return claimableAmount The amount the contractor can claim after fee deductions.
     /// @return feeDeducted The amount of fees deducted based on the configuration.
-    function computeClaimableAmount(address contractor, uint256 claimedAmount, FeeConfig feeConfig)
+    function computeClaimableAmountAndFee(address contractor, uint256 claimedAmount, Enums.FeeConfig feeConfig)
         external
         view
         returns (uint256 claimableAmount, uint256 feeDeducted);
@@ -57,10 +51,16 @@ interface IEscrowFeeManager {
     /// @notice Retrieves the coverage fee percentage for a specific user.
     /// @param user The user's address whose fee rate is being queried.
     /// @return The coverage fee percentage for the specified user.
-    function getCoverageFee(address user) external view returns (uint256);
+    function getCoverageFee(address user) external view returns (uint16);
 
     /// @notice Retrieves the claim fee percentage for a specific user.
     /// @param user The user's address whose fee rate is being queried.
     /// @return The claim fee percentage for the specified user.
-    function getClaimFee(address user) external view returns (uint256);
+    function getClaimFee(address user) external view returns (uint16);
+
+    /// @notice Retrieves the default fee rates for coverage and claim.
+    /// @return coverage The default fee percentage for coverage charges.
+    /// @return claim The default fee percentage for claim charges.
+    /// @dev This function returns two uint16 values representing the default percentages for coverage and claim fees respectively.
+    function defaultFees() external view returns (uint16, uint16);
 }

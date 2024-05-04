@@ -5,9 +5,10 @@ import "forge-std/Script.sol";
 
 import {Escrow, IEscrow} from "src/Escrow.sol";
 import {EscrowFactory, IEscrowFactory} from "src/EscrowFactory.sol";
-import {Registry, IRegistry} from "src/Registry.sol";
+import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
+import {Enums} from "src/libs/Enums.sol";
 
 contract ExecuteEscrowScript is Script {
     address public escrow;
@@ -15,9 +16,9 @@ contract ExecuteEscrowScript is Script {
     address public registry;
     address public paymentToken;
 
-    Escrow.Deposit public deposit;
-    FeeConfig public feeConfig;
-    Status public status;
+    IEscrow.Deposit public deposit;
+    Enums.FeeConfig public feeConfig;
+    IEscrow.Status public status;
     bytes32 public contractorData;
     bytes32 public salt;
     bytes public contractData;
@@ -29,8 +30,8 @@ contract ExecuteEscrowScript is Script {
         uint256 amountToClaim;
         uint256 timeLock;
         bytes32 contractorData;
-        FeeConfig feeConfig;
-        Status status;
+        Enums.FeeConfig feeConfig;
+        IEscrow.Status status;
     }
 
     address public deployerPublicKey;
@@ -56,7 +57,7 @@ contract ExecuteEscrowScript is Script {
             amountToClaim: 0 ether,
             timeLock: 0,
             contractorData: contractorData,
-            feeConfig: IEscrow.FeeConfig.FULL,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
             status: IEscrow.Status.PENDING
         });
     }
@@ -65,7 +66,9 @@ contract ExecuteEscrowScript is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // deploy new escrow
-        address deployedEscrowProxy = EscrowFactory(factory).deployEscrow(address(deployerPublicKey), address(deployerPublicKey), address(registry), 3_00, 8_00);
+        address deployedEscrowProxy = EscrowFactory(factory).deployEscrow(
+            address(deployerPublicKey), address(deployerPublicKey), address(registry)
+        );
         Escrow escrowProxy = Escrow(address(deployedEscrowProxy));
 
         // mint, approve payment token
@@ -78,9 +81,9 @@ contract ExecuteEscrowScript is Script {
         // submit
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = Escrow(escrowProxy).getContractorDataHash(contractData, salt);
+        // bytes32 contractorDataHash = Escrow(escrowProxy).getContractorDataHash(contractData, salt);
         uint256 currentContractId = Escrow(escrowProxy).getCurrentContractId();
-        
+
         // submit
         Escrow(escrowProxy).submit(currentContractId, contractData, salt);
 

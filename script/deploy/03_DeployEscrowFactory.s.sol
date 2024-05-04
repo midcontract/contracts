@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 
 import {Escrow} from "src/Escrow.sol";
 import {EscrowFactory, IEscrowFactory} from "src/EscrowFactory.sol";
-import {Registry, IRegistry} from "src/Registry.sol";
+import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
 contract DeployEscrowFactoryScript is Script {

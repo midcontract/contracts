@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {Enums} from "src/libs/Enums.sol";
+
 interface IEscrow {
     error Escrow__AlreadyInitialized();
 
@@ -32,13 +34,6 @@ interface IEscrow {
 
     error Escrow__InvalidFeeConfig();
 
-    enum FeeConfig {
-        FULL,
-        ONLY_CLIENT,
-        ONLY_CONTRACTOR,
-        FREE
-    }
-
     enum Status {
         PENDING,
         SUBMITTED,
@@ -52,7 +47,7 @@ interface IEscrow {
         uint256 amountToClaim;
         uint256 timeLock; // TODO TBC possible lock for delay of disput or smth
         bytes32 contractorData;
-        FeeConfig feeConfig;
+        Enums.FeeConfig feeConfig;
         Status status;
     }
 
@@ -62,7 +57,7 @@ interface IEscrow {
         address indexed paymentToken,
         uint256 amount,
         uint256 timeLock,
-        FeeConfig feeConfig
+        Enums.FeeConfig feeConfig
     );
 
     event Withdrawn(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);

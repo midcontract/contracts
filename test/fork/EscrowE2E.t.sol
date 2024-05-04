@@ -5,9 +5,10 @@ import "forge-std/Test.sol";
 
 import {Escrow, IEscrow} from "src/Escrow.sol";
 import {EscrowFactory, IEscrowFactory} from "src/EscrowFactory.sol";
-import {Registry, IRegistry} from "src/Registry.sol";
+import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
+import {Enums} from "src/libs/Enums.sol";
 
 contract ExecuteEscrowEndToEndTest is Test {
     Escrow escrow = Escrow(EthSepoliaConfig.ESCROW);
@@ -20,7 +21,7 @@ contract ExecuteEscrowEndToEndTest is Test {
     address admin;
 
     IEscrow.Deposit deposit;
-    IEscrow.FeeConfig feeConfig;
+    Enums.FeeConfig feeConfig;
     IEscrow.Status status;
     bytes32 contractorData;
     bytes32 salt;
@@ -33,7 +34,7 @@ contract ExecuteEscrowEndToEndTest is Test {
         uint256 amountToClaim;
         uint256 timeLock;
         bytes32 contractorData;
-        IEscrow.FeeConfig feeConfig;
+        Enums.FeeConfig feeConfig;
         IEscrow.Status status;
     }
 
@@ -44,7 +45,7 @@ contract ExecuteEscrowEndToEndTest is Test {
         // contractorPrK = vm.envUint("CONTRACTOR_PRIVATE_KEY");
         admin = vm.envAddress("ADMIN_PUBLIC_KEY");
         // adminPrK = vm.envUint("ADMIN_PRIVATE_KEY");
-        
+
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
@@ -56,7 +57,7 @@ contract ExecuteEscrowEndToEndTest is Test {
             amountToClaim: 0 ether,
             timeLock: 0,
             contractorData: contractorData,
-            feeConfig: IEscrow.FeeConfig.FULL,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
             status: IEscrow.Status.PENDING
         });
 
@@ -69,10 +70,11 @@ contract ExecuteEscrowEndToEndTest is Test {
     function test_createDeposit() public {
         // Start impersonating the client to perform actions as if they are initiated by the client.
         vm.startPrank(client);
-        
+
         // Step 1: Deploy their own contract instance to interact with the factory.
         // The client deploys an Escrow contract via the factory specifying fee configurations.
-        address deployedEscrowProxy = EscrowFactory(factory).deployEscrow(address(client), address(admin), address(registry), 3_00, 8_00);
+        address deployedEscrowProxy =
+            EscrowFactory(factory).deployEscrow(address(client), address(admin), address(registry));
         Escrow escrowProxy = Escrow(address(deployedEscrowProxy));
 
         // Step 2: Client approves the payment token with the respective deposit token amount.
@@ -99,7 +101,7 @@ contract ExecuteEscrowEndToEndTest is Test {
             uint256 _amountToClaim,
             uint256 _timeLock,
             bytes32 _contractorData,
-            IEscrow.FeeConfig _feeConfig,
+            Enums.FeeConfig _feeConfig,
             IEscrow.Status _status
         ) = Escrow(escrowProxy).deposits(currentContractId);
 
@@ -111,7 +113,7 @@ contract ExecuteEscrowEndToEndTest is Test {
         assertEq(_amountToClaim, 0 ether); // Checks that no amount is set to be claimable initially.
         assertEq(_timeLock, 0); // Verifies that the time lock for the deposit is set to 0 (no delay).
         assertEq(_contractorData, contractorData); // Checks that the contractor data matches the expected initial value.
-        assertEq(uint256(_feeConfig), 0); // Ensures the fee configuration is set to FULL (assuming 0 is FULL in the enum).
+        assertEq(uint256(_feeConfig), 0); // Ensures the fee configuration is set to CLIENT_COVERS_ALL (assuming 0 is CLIENT_COVERS_ALL in the enum).
         assertEq(uint256(_status), 0); // Confirms that the initial status of the deposit is PENDING (assuming 0 is PENDING in the enum).
     }
 }

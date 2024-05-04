@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 
-import {Registry} from "src/Registry.sol";
+import {Registry} from "src/modules/Registry.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
 contract DeployRegistryScript is Script {

@@ -27,14 +27,10 @@ interface IEscrowFactory {
     /// @param client The address of the client for whom the escrow is being created.
     /// @param admin The address with administrative privileges over the new escrow.
     /// @param registry The address of the registry containing escrow configurations.
-    /// @param feeClient The fee percentage to be paid by the client.
-    /// @param feeContractor The fee percentage to be paid by the contractor.
     /// @return The address of the newly deployed escrow contract.
     function deployEscrow(
         address client,
         address admin,
-        address registry,
-        uint256 feeClient,
-        uint256 feeContractor
+        address registry
     ) external returns (address);
 }
