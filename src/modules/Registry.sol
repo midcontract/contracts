@@ -31,6 +31,7 @@ contract Registry is IRegistry, Ownable {
     mapping(address token => bool enabled) public paymentTokens;
 
     /// @dev Initializes the contract setting the owner to the message sender.
+    /// @param _owner Address of the initial owner of the registry contract.
     constructor(address _owner) {
         _initializeOwner(_owner);
     }

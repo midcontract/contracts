@@ -22,6 +22,7 @@ contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
 
     /// @dev Sets the initial registry used for cloning escrow contracts.
     /// @param _registry Address of the registry contract.
+    /// @param _owner Address of the initial owner of the factory contract.
     constructor(address _registry, address _owner) {
         if (_registry == address(0)) {
             revert Factory__ZeroAddressProvided();
@@ -32,7 +33,7 @@ contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
 
     /// @notice Deploys a new escrow contract clone with unique settings for each project.
     /// @param _client The client's address who initiates the escrow, msg.sender.
-    /// @param _owner The admin's address who has administrative privileges over the escrow.
+    /// @param _owner The owner's address who has administrative privileges over the escrow.
     /// @param _registry Address of the registry contract to fetch escrow implementation.
     /// @return deployedProxy The address of the newly deployed escrow proxy.
     /// @dev Clones the escrow template and initializes it with specific parameters for the project.

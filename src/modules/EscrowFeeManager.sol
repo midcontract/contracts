@@ -26,6 +26,7 @@ contract EscrowFeeManager is IEscrowFeeManager, Ownable {
     /// @dev Sets initial default fees on contract deployment.
     /// @param _coverage Initial default coverage fee percentage.
     /// @param _claim Initial default claim fee percentage.
+    /// @param _owner Address of the initial owner of the fee manager contract.
     constructor(uint16 _coverage, uint16 _claim, address _owner) {
         _updateDefaultFees(_coverage, _claim);
         _initializeOwner(_owner);
