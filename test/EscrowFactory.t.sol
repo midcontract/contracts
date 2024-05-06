@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 
 import {Escrow, IEscrow} from "src/Escrow.sol";
-import {EscrowFactory, IEscrowFactory, Owned, Pausable} from "src/EscrowFactory.sol";
+import {EscrowFactory, IEscrowFactory, Ownable, Pausable} from "src/EscrowFactory.sol";
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {Registry, IRegistry} from "src/modules/Registry.sol";
@@ -18,9 +18,9 @@ contract EscrowFactoryUnitTest is Test {
     EscrowFeeManager feeManager;
 
     address client;
+    address contractor;
     address treasury;
     address owner;
-    address contractor;
 
     Escrow.Deposit deposit;
     Enums.FeeConfig feeConfig;
@@ -47,17 +47,20 @@ contract EscrowFactoryUnitTest is Test {
     event Unpaused(address account);
 
     function setUp() public {
-        client = makeAddr("client");
-        treasury = makeAddr("treasury");
         owner = makeAddr("owner");
+        treasury = makeAddr("treasury");
+        client = makeAddr("client");
         contractor = makeAddr("contractor");
+        
         escrow = new Escrow();
-        registry = new Registry();
+        registry = new Registry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(3_00, 5_00);
+        feeManager = new EscrowFeeManager(3_00, 5_00, owner);
+        vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
         registry.updateEscrow(address(escrow));
         registry.updateFeeManager(address(feeManager));
+        vm.stopPrank();
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
@@ -74,16 +77,16 @@ contract EscrowFactoryUnitTest is Test {
             status: Enums.Status.PENDING
         });
 
-        escrow.initialize(address(this), address(this), address(registry));
+        escrow.initialize(address(client), address(owner), address(registry));
 
-        factory = new EscrowFactory(address(registry));
+        factory = new EscrowFactory(address(registry), owner);
     }
 
     function test_setUpState() public view {
         assertTrue(escrow.initialized());
         assertTrue(address(factory).code.length > 0);
         assertFalse(factory.paused());
-        assertEq(factory.owner(), address(this));
+        assertEq(factory.owner(), address(owner));
         assertEq(address(factory.registry()), address(registry));
     }
 
@@ -244,13 +247,13 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(address(factory.registry()), address(registry));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         factory.updateRegistry(address(registry));
-        vm.startPrank(address(this));
+        vm.startPrank(address(owner));
         vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
         factory.updateRegistry(address(0));
         assertEq(address(factory.registry()), address(registry));
-        Registry newRegistry = new Registry();
+        Registry newRegistry = new Registry(owner);
         vm.expectEmit(true, false, false, true);
         emit RegistryUpdated(address(newRegistry));
         factory.updateRegistry(address(newRegistry));
@@ -262,15 +265,16 @@ contract EscrowFactoryUnitTest is Test {
         assertFalse(factory.paused());
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         factory.pause();
         assertFalse(factory.paused());
         vm.startPrank(client);
         address deployedEscrowProxy = factory.deployEscrow(client, owner, address(registry));
         vm.stopPrank();
         assertTrue(address(deployedEscrowProxy).code.length > 0);
+        vm.startPrank(owner);
         vm.expectEmit(true, false, false, true);
-        emit Paused(address(this));
+        emit Paused(address(owner));
         factory.pause();
         assertTrue(factory.paused());
         vm.expectRevert(Pausable.Pausable__Paused.selector);
@@ -278,11 +282,11 @@ contract EscrowFactoryUnitTest is Test {
         assertTrue(address(deployedEscrowProxy2).code.length == 0);
         vm.stopPrank();
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         factory.unpause();
-        vm.prank(address(this));
+        vm.prank(address(owner));
         vm.expectEmit(true, false, false, true);
-        emit Unpaused(address(this));
+        emit Unpaused(address(owner));
         factory.unpause();
         assertFalse(factory.paused());
         vm.prank(client);

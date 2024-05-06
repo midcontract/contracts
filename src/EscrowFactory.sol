@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Owned} from "./libs/Owned.sol";
-import {Pausable} from "./libs/Pausable.sol";
-import {LibClone} from "./libs/LibClone.sol";
+import {Escrow} from "./Escrow.sol";
 import {IEscrowFactory} from "./interfaces/IEscrowFactory.sol";
 import {IRegistry} from "./interfaces/IRegistry.sol";
-import {Escrow} from "./Escrow.sol";
+import {LibClone} from "./libs/LibClone.sol";
+import {Ownable} from "./libs/Ownable.sol";
+import {Pausable} from "./libs/Pausable.sol";
 
 /// @title Escrow Factory Contract
 /// @dev This contract is used for creating new escrow contract instances using the clone factory pattern.
-contract EscrowFactory is IEscrowFactory, Owned, Pausable {
+contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
     /// @notice Registry contract address storing escrow templates and configurations.
     IRegistry public registry;
 
@@ -22,11 +22,12 @@ contract EscrowFactory is IEscrowFactory, Owned, Pausable {
 
     /// @dev Sets the initial registry used for cloning escrow contracts.
     /// @param _registry Address of the registry contract.
-    constructor(address _registry) Owned(msg.sender) {
+    constructor(address _registry, address _owner) {
         if (_registry == address(0)) {
             revert Factory__ZeroAddressProvided();
         }
         registry = IRegistry(_registry);
+        _initializeOwner(_owner);
     }
 
     /// @notice Deploys a new escrow contract clone with unique settings for each project.

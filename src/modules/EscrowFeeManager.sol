@@ -2,12 +2,12 @@
 pragma solidity ^0.8.24;
 
 import {IEscrowFeeManager} from "../interfaces/IEscrowFeeManager.sol";
-import {Owned} from "../libs/Owned.sol";
+import {Ownable} from "../libs/Ownable.sol";
 import {Enums} from "src/libs/Enums.sol";
 
 /// @title Escrow Fee Manager
 /// @notice Manages fee rates and calculations for escrow transactions.
-contract EscrowFeeManager is IEscrowFeeManager, Owned {
+contract EscrowFeeManager is IEscrowFeeManager, Ownable {
     /// @notice The maximum allowable percentage in basis points (100%).
     uint256 public constant MAX_BPS = 100_00; // 100%
 
@@ -26,17 +26,16 @@ contract EscrowFeeManager is IEscrowFeeManager, Owned {
     /// @dev Sets initial default fees on contract deployment.
     /// @param _coverage Initial default coverage fee percentage.
     /// @param _claim Initial default claim fee percentage.
-    constructor(uint16 _coverage, uint16 _claim) Owned(msg.sender) {
-        updateDefaultFees(_coverage, _claim);
+    constructor(uint16 _coverage, uint16 _claim, address _owner) {
+        _updateDefaultFees(_coverage, _claim);
+        _initializeOwner(_owner);
     }
 
     /// @notice Updates the default coverage and claim fees.
     /// @param _coverage New default coverage fee percentage.
     /// @param _claim New default claim fee percentage.
-    function updateDefaultFees(uint16 _coverage, uint16 _claim) public onlyOwner {
-        if (_coverage > MAX_BPS || _claim > MAX_BPS) revert EscrowFeeManager__FeeTooHigh();
-        defaultFees = FeeRates({coverage: _coverage, claim: _claim});
-        emit DefaultFeesSet(_coverage, _claim);
+    function updateDefaultFees(uint16 _coverage, uint16 _claim) external onlyOwner {
+        _updateDefaultFees(_coverage, _claim);
     }
 
     /// @notice Sets special fee rates for a specific user.
@@ -122,5 +121,14 @@ contract EscrowFeeManager is IEscrowFeeManager, Owned {
     /// @return The claim fee percentage.
     function getClaimFee(address _user) external view returns (uint16) {
         return specialFees[_user].claim > 0 ? specialFees[_user].claim : defaultFees.claim;
+    }
+
+    /// @dev Updates the default coverage and claim fees.
+    /// @param _coverage New default coverage fee percentage.
+    /// @param _claim New default claim fee percentage.
+    function _updateDefaultFees(uint16 _coverage, uint16 _claim) internal {
+        if (_coverage > MAX_BPS || _claim > MAX_BPS) revert EscrowFeeManager__FeeTooHigh();
+        defaultFees = FeeRates({coverage: _coverage, claim: _claim});
+        emit DefaultFeesSet(_coverage, _claim);
     }
 }

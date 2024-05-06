@@ -3,12 +3,13 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
-import {EscrowFeeManager, IEscrowFeeManager, Owned} from "src/modules/EscrowFeeManager.sol";
+import {EscrowFeeManager, IEscrowFeeManager, Ownable} from "src/modules/EscrowFeeManager.sol";
 import {Enums} from "src/libs/Enums.sol";
 
 contract EscrowFeeManagerUnitTest is Test {
     EscrowFeeManager feeManager;
 
+    address owner;
     address client;
     address contractor;
 
@@ -16,14 +17,15 @@ contract EscrowFeeManagerUnitTest is Test {
     event SpecialFeesSet(address user, uint256 coverage, uint256 claim);
 
     function setUp() public {
+        owner = makeAddr("owner");
         client = makeAddr("client");
         contractor = makeAddr("contractor");
-        feeManager = new EscrowFeeManager(3_00, 5_00);
+        feeManager = new EscrowFeeManager(3_00, 5_00, owner);
     }
 
     function test_setUpState() public view {
         assertTrue(address(feeManager).code.length > 0);
-        assertEq(feeManager.owner(), address(this));
+        assertEq(feeManager.owner(), address(owner));
         (uint16 coverage, uint16 claim) = feeManager.defaultFees();
         assertEq(coverage, 3_00);
         assertEq(claim, 5_00);
@@ -35,9 +37,9 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(claim, 5_00);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         feeManager.updateDefaultFees(0, 10_00);
-        vm.startPrank(address(this)); //current owner
+        vm.startPrank(address(owner)); //current owner
         vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
         feeManager.updateDefaultFees(101_00, 10_00);
         vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
@@ -61,9 +63,9 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(claim, 0);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         feeManager.setSpecialFees(client, 2_00, 3_50);
-        vm.startPrank(address(this)); //current owner
+        vm.startPrank(address(owner)); //current owner
         vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
         feeManager.setSpecialFees(client, 101_00, 3_50);
         vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
@@ -123,6 +125,7 @@ contract EscrowFeeManagerUnitTest is Test {
 
     function test_computeDepositAmount_specialFees() public {
         uint256 depositAmount = 1 ether;
+        vm.prank(owner);
         feeManager.setSpecialFees(client, 2_00, 3_50);
         (uint16 coverage, uint16 claim) = feeManager.specialFees(client);
         assertEq(coverage, 2_00);
@@ -184,6 +187,7 @@ contract EscrowFeeManagerUnitTest is Test {
 
     function test_computeClaimableAmount_specialFees() public {
         uint256 claimedAmount = 1 ether;
+        vm.prank(owner);
         feeManager.setSpecialFees(contractor, 2_00, 3_50);
         (uint16 coverage, uint16 claim) = feeManager.specialFees(contractor);
         assertEq(coverage, 2_00);

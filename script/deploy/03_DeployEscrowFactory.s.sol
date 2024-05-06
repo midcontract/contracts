@@ -23,7 +23,7 @@ contract DeployEscrowFactoryScript is Script {
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        factory = new EscrowFactory(registry);
+        factory = new EscrowFactory(registry, deployerPublicKey);
         IRegistry(registry).updateFactory(address(factory));
         console.log("==factory addr=%s", address(factory));
         assert(address(factory) != address(0));

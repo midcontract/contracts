@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {Escrow, IEscrow} from "src/Escrow.sol";
-import {EscrowFactory, Owned} from "src/EscrowFactory.sol";
+import {EscrowFactory, Ownable} from "src/EscrowFactory.sol";
 import {EscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
@@ -17,6 +17,7 @@ contract RegistryUnitTest is Test {
     EscrowFactory factory;
     EscrowFeeManager feeManager;
 
+    address owner;
     address treasury;
 
     event PaymentTokenAdded(address token);
@@ -28,18 +29,19 @@ contract RegistryUnitTest is Test {
     event TreasurySet(address treasury);
 
     function setUp() public {
+        owner = makeAddr("owner");
+        treasury = makeAddr("treasury");
         escrow = new Escrow();
-        registry = new Registry();
+        registry = new Registry(owner);
         paymentToken = new ERC20Mock();
         newPaymentToken = new ERC20Mock();
-        factory = new EscrowFactory(address(registry));
-        feeManager = new EscrowFeeManager(3_00, 5_00);
-        treasury = makeAddr("treasury");
+        factory = new EscrowFactory(address(registry), owner);
+        feeManager = new EscrowFeeManager(3_00, 5_00, owner);
     }
 
     function test_setUpState() public view {
         assertTrue(address(registry).code.length > 0);
-        assertEq(registry.owner(), address(this));
+        assertEq(registry.owner(), address(owner));
         assertEq(registry.NATIVE_TOKEN(), address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE));
     }
 
@@ -47,10 +49,10 @@ contract RegistryUnitTest is Test {
         assertFalse(registry.paymentTokens(address(paymentToken)));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         registry.addPaymentToken(address(paymentToken));
         assertFalse(registry.paymentTokens(address(paymentToken)));
-        vm.startPrank(address(this)); //current owner
+        vm.startPrank(address(owner)); //current owner
         vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
         registry.addPaymentToken(address(0));
         assertFalse(registry.paymentTokens(address(paymentToken)));
@@ -67,10 +69,10 @@ contract RegistryUnitTest is Test {
         test_addPaymentToken();
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         registry.removePaymentToken(address(paymentToken));
         assertTrue(registry.paymentTokens(address(paymentToken)));
-        vm.startPrank(address(this)); //current owner
+        vm.startPrank(address(owner)); //current owner
         vm.expectEmit(true, false, false, true);
         emit PaymentTokenRemoved(address(paymentToken));
         registry.removePaymentToken(address(paymentToken));
@@ -81,18 +83,18 @@ contract RegistryUnitTest is Test {
     }
 
     function test_transferOwnership() public {
-        assertEq(registry.owner(), address(this));
+        assertEq(registry.owner(), address(owner));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         registry.transferOwnership(notOwner);
-        assertEq(registry.owner(), address(this));
+        assertEq(registry.owner(), address(owner));
         address newOwner = makeAddr("newOwner");
-        vm.startPrank(address(this)); //current owner
-        vm.expectRevert(Owned.Owned__ZeroAddressProvided.selector);
+        vm.startPrank(address(owner)); //current owner
+        vm.expectRevert(Ownable.NewOwnerIsZeroAddress.selector);
         registry.transferOwnership(address(0));
         vm.expectEmit(true, false, false, true);
-        emit OwnershipTransferred(address(this), newOwner);
+        emit OwnershipTransferred(address(owner), newOwner);
         registry.transferOwnership(newOwner);
         assertEq(registry.owner(), newOwner);
         vm.stopPrank();
@@ -102,9 +104,9 @@ contract RegistryUnitTest is Test {
         assertEq(registry.escrow(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         registry.updateEscrow(address(escrow));
-        vm.startPrank(address(this));
+        vm.startPrank(address(owner));
         vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
         registry.updateEscrow(address(0));
         assertEq(registry.escrow(), address(0));
@@ -119,9 +121,9 @@ contract RegistryUnitTest is Test {
         assertEq(registry.factory(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         registry.updateFactory(address(factory));
-        vm.startPrank(address(this));
+        vm.startPrank(address(owner));
         vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
         registry.updateFactory(address(0));
         assertEq(registry.factory(), address(0));
@@ -136,9 +138,9 @@ contract RegistryUnitTest is Test {
         assertEq(registry.treasury(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         registry.setTreasury(address(treasury));
-        vm.startPrank(address(this));
+        vm.startPrank(address(owner));
         vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
         registry.setTreasury(address(0));
         assertEq(registry.treasury(), address(0));
@@ -153,9 +155,9 @@ contract RegistryUnitTest is Test {
         assertEq(registry.feeManager(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Owned.Owned__Unauthorized.selector);
+        vm.expectRevert(Ownable.Unauthorized.selector);
         registry.updateFeeManager(address(feeManager));
-        vm.startPrank(address(this));
+        vm.startPrank(address(owner));
         vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
         registry.updateFeeManager(address(0));
         assertEq(registry.feeManager(), address(0));

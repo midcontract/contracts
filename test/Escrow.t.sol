@@ -18,9 +18,9 @@ contract EscrowUnitTest is Test {
     EscrowFeeManager feeManager;
 
     address client;
+    address contractor;
     address treasury;
     address owner;
-    address contractor;
 
     Escrow.Deposit deposit;
     Enums.FeeConfig feeConfig;
@@ -59,17 +59,20 @@ contract EscrowUnitTest is Test {
     event RegistryUpdated(address registry);
 
     function setUp() public {
-        client = makeAddr("client");
-        treasury = makeAddr("treasury");
         owner = makeAddr("owner");
+        treasury = makeAddr("treasury");
+        client = makeAddr("client");
         contractor = makeAddr("contractor");
+        
         escrow = new Escrow();
-        registry = new Registry();
+        registry = new Registry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(3_00, 5_00);
+        feeManager = new EscrowFeeManager(3_00, 5_00, owner);
+        vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
         registry.setTreasury(treasury);
         registry.updateFeeManager(address(feeManager));
+        vm.stopPrank();
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
@@ -204,9 +207,10 @@ contract EscrowUnitTest is Test {
     function test_deposit_reverts_NotSetFeeManager() public {
         // this test needs it's own setup
         Escrow escrow2 = new Escrow();
-        MockRegistry registry2 = new MockRegistry();
+        MockRegistry registry2 = new MockRegistry(owner);
         ERC20Mock paymentToken2 = new ERC20Mock();
-        EscrowFeeManager feeManager2 = new EscrowFeeManager(3_00, 5_00);
+        EscrowFeeManager feeManager2 = new EscrowFeeManager(3_00, 5_00, owner);
+        vm.prank(owner);
         registry2.addPaymentToken(address(paymentToken));
         escrow2.initialize(client, owner, address(registry2));
         vm.startPrank(address(client));
@@ -215,7 +219,7 @@ contract EscrowUnitTest is Test {
         vm.expectRevert(IEscrow.Escrow__NotSetFeeManager.selector);
         escrow2.deposit(deposit);
         vm.stopPrank();
-        vm.prank(address(this));
+        vm.prank(owner);
         registry2.updateFeeManager(address(feeManager));
         vm.prank(client);
         escrow2.deposit(deposit);
@@ -229,6 +233,7 @@ contract EscrowUnitTest is Test {
         vm.prank(client);
         escrow2.approve(currentContractId, 1 ether, 0, contractor);
 
+        vm.prank(owner);
         registry2.updateFeeManager(address(0));
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__NotSetFeeManager.selector);
@@ -654,7 +659,7 @@ contract EscrowUnitTest is Test {
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.updateRegistry(address(0));
         assertEq(address(escrow.registry()), address(registry));
-        Registry newRegistry = new Registry();
+        Registry newRegistry = new Registry(owner);
         vm.expectEmit(true, false, false, true);
         emit RegistryUpdated(address(newRegistry));
         escrow.updateRegistry(address(newRegistry));

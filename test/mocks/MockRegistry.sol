@@ -2,11 +2,11 @@
 pragma solidity ^0.8.24;
 
 import {IRegistry} from "src/interfaces/IRegistry.sol";
-import {Owned} from "src/libs/Owned.sol";
+import {Ownable} from "src/libs/Ownable.sol";
 
 /// @title Registry Contract
 /// @dev This contract manages configuration settings for the escrow system including approved payment tokens.
-contract MockRegistry is IRegistry, Owned {
+contract MockRegistry is IRegistry, Ownable {
     /// @notice Constant for the native token of the chain.
     /// @dev Used to represent the native blockchain currency in payment tokens mapping.
     address public constant NATIVE_TOKEN = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -31,7 +31,9 @@ contract MockRegistry is IRegistry, Owned {
     mapping(address token => bool enabled) public paymentTokens;
 
     /// @dev Initializes the contract setting the owner to the message sender.
-    constructor() Owned(msg.sender) {}
+    constructor(address _owner) {
+        _initializeOwner(_owner);
+    }
 
     /// @notice Adds a new ERC20 token to the list of accepted payment tokens.
     /// @param _token The address of the ERC20 token to enable.

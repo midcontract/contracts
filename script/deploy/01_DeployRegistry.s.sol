@@ -19,7 +19,7 @@ contract DeployRegistryScript is Script {
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        registry = new Registry();
+        registry = new Registry(deployerPublicKey);
         paymentToken = new ERC20Mock();
         registry.addPaymentToken(address(paymentToken));
         console.log("==registry addr=%s", address(registry));
