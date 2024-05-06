@@ -5,15 +5,15 @@ import {IEscrow} from "./interfaces/IEscrow.sol";
 import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
 import {IRegistry} from "./interfaces/IRegistry.sol";
 import {Enums} from "src/libs/Enums.sol";
+import {Ownable} from "src/libs/Ownable.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
 import {console2} from "lib/forge-std/src/console2.sol";
 
-contract Escrow is IEscrow {
+contract Escrow is IEscrow, Ownable {
     IRegistry public registry;
 
     address public client;
-    address public admin;
 
     uint256 private currentContractId;
 
@@ -29,16 +29,16 @@ contract Escrow is IEscrow {
         _;
     }
 
-    function initialize(address _client, address _admin, address _registry) external {
+    function initialize(address _client, address _owner, address _registry) external {
         if (initialized) revert Escrow__AlreadyInitialized();
 
-        if (_client == address(0) || _admin == address(0) || _registry == address(0)) {
+        if (_client == address(0) || _owner == address(0) || _registry == address(0)) {
             revert Escrow__ZeroAddressProvided();
         }
 
         client = _client;
-        admin = _admin;
         registry = IRegistry(_registry);
+        _initializeOwner(_owner);
 
         initialized = true;
     }
@@ -232,5 +232,13 @@ contract Escrow is IEscrow {
 
     function getCurrentContractId() external view returns (uint256) {
         return currentContractId;
+    }
+
+    /// @notice Updates the registry address used for fetching escrow implementations.
+    /// @param _registry New registry address.
+    function updateRegistry(address _registry) external onlyOwner {
+        if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
+        registry = IRegistry(_registry);
+        emit RegistryUpdated(_registry);
     }
 }

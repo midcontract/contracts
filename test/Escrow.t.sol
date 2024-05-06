@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
-import {Escrow, IEscrow} from "src/Escrow.sol";
+import {Escrow, IEscrow, Ownable} from "src/Escrow.sol";
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {Enums} from "src/libs/Enums.sol";
@@ -19,12 +19,12 @@ contract EscrowUnitTest is Test {
 
     address client;
     address treasury;
-    address admin;
+    address owner;
     address contractor;
 
     Escrow.Deposit deposit;
     Enums.FeeConfig feeConfig;
-    Status status;
+    Enums.Status status;
 
     bytes32 contractorData;
     bytes32 salt;
@@ -38,7 +38,7 @@ contract EscrowUnitTest is Test {
         uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
-        Status status;
+        Enums.Status status;
     }
 
     event Deposited(
@@ -55,11 +55,13 @@ contract EscrowUnitTest is Test {
     event Approved(uint256 indexed contractId, uint256 indexed amountApprove, address indexed receiver);
     event Refilled(uint256 indexed contractId, uint256 indexed amountAdditional);
     event Claimed(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+    event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
+    event RegistryUpdated(address registry);
 
     function setUp() public {
         client = makeAddr("client");
         treasury = makeAddr("treasury");
-        admin = makeAddr("admin");
+        owner = makeAddr("owner");
         contractor = makeAddr("contractor");
         escrow = new Escrow();
         registry = new Registry();
@@ -96,9 +98,9 @@ contract EscrowUnitTest is Test {
 
     function test_initialize() public {
         assertFalse(escrow.initialized());
-        escrow.initialize(client, admin, address(registry));
+        escrow.initialize(client, owner, address(registry));
         assertEq(escrow.client(), client);
-        assertEq(escrow.admin(), admin);
+        assertEq(escrow.owner(), owner);
         assertEq(address(escrow.registry()), address(registry));
         assertEq(escrow.getCurrentContractId(), 0);
         assertTrue(escrow.initialized());
@@ -107,17 +109,17 @@ contract EscrowUnitTest is Test {
     function test_initialize_reverts() public {
         assertFalse(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(address(0), admin, address(registry));
+        escrow.initialize(address(0), owner, address(registry));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.initialize(client, address(0), address(registry));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, admin, address(0));
+        escrow.initialize(client, owner, address(0));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.initialize(address(0), address(0), address(0));
-        escrow.initialize(client, admin, address(registry));
+        escrow.initialize(client, owner, address(registry));
         assertTrue(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__AlreadyInitialized.selector);
-        escrow.initialize(client, admin, address(registry));
+        escrow.initialize(client, owner, address(registry));
     }
 
     ///////////////////////////////////////////
@@ -206,7 +208,7 @@ contract EscrowUnitTest is Test {
         ERC20Mock paymentToken2 = new ERC20Mock();
         EscrowFeeManager feeManager2 = new EscrowFeeManager(3_00, 5_00);
         registry2.addPaymentToken(address(paymentToken));
-        escrow2.initialize(client, admin, address(registry2));
+        escrow2.initialize(client, owner, address(registry2));
         vm.startPrank(address(client));
         paymentToken.mint(address(client), 1.08 ether);
         paymentToken.approve(address(escrow2), 1.08 ether);
@@ -619,4 +621,44 @@ contract EscrowUnitTest is Test {
     }
 
     // test feeAmount > 0, claim full amount and transfer to treasury
+
+    ////////////////////////////////////////////
+    //      ownership & management tests      //
+    ////////////////////////////////////////////
+
+    function test_transferOwnership() public {
+        test_initialize();
+        assertEq(escrow.owner(), owner);
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        escrow.transferOwnership(notOwner);
+        vm.startPrank(owner); //current owner
+        vm.expectRevert(Ownable.NewOwnerIsZeroAddress.selector);
+        escrow.transferOwnership(address(0));
+        address newOwner = makeAddr("newOwner");
+        vm.expectEmit(true, false, false, true);
+        emit OwnershipTransferred(owner, newOwner);
+        escrow.transferOwnership(newOwner);
+        vm.stopPrank();
+    }
+
+    function test_updateRegistry() public {
+        test_initialize();
+        assertEq(address(escrow.registry()), address(registry));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        escrow.updateRegistry(address(registry));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.updateRegistry(address(0));
+        assertEq(address(escrow.registry()), address(registry));
+        Registry newRegistry = new Registry();
+        vm.expectEmit(true, false, false, true);
+        emit RegistryUpdated(address(newRegistry));
+        escrow.updateRegistry(address(newRegistry));
+        assertEq(address(escrow.registry()), address(newRegistry));
+        vm.stopPrank();
+    }
 }
