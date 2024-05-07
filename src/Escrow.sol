@@ -74,34 +74,15 @@ contract Escrow is IEscrow, Ownable {
         Deposit storage D = deposits[_contractId];
         if (uint256(D.status) != uint256(Enums.Status.PENDING)) revert Escrow__InvalidStatusForWithdraw(); // TODO test
 
-        uint256 feeAmount;
-        // uint256 withdrawAmount;
-
-        // console2.log("D.amount ", D.amount);
-
-        (uint256 withdrawAmount, uint256 feeApplied) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
-
-        // TODO TBC if withdrawAmount is full D.feeConfig, when fee is gonna pay
-        // if (uint256(D.feeConfig) == uint256(Enums.FeeConfig.CLIENT_COVERS_ALL)) {
-        //     feeAmount = D.amount * (feeCoverage + feeClaim) / MAX_BPS;
-        //     withdrawAmount = D.amount - feeApplied;
-        // } else {
-        //     feeAmount = D.amount * feeCoverage / MAX_BPS;
-        //     withdrawAmount = D.amount - feeAmount;
-        // }
-
-        // console2.log("feeAmount, withdrawAmount ", feeAmount, withdrawAmount);
+        (uint256 withdrawAmount, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
 
         // TODO Update deposit amount
-        D.amount = D.amount - (withdrawAmount - feeApplied);
-
-        // TODO TBC change status
-
+        D.amount = D.amount - (withdrawAmount - feeAmount);
+       
+        // allows to withdraw totalDepositAmount: depositAmount + feeAmmount
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
-        // if (feeAmount > 0) {
-        //     // TODO test
-        //     _sendPlatformFee(D.paymentToken, feeAmount);
-        // }
+
+        // TODO TBC change status: D.status = Status.CANCELLED;
 
         emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
     }

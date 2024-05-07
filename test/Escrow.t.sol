@@ -282,7 +282,7 @@ contract EscrowUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether + withdrawAmount); //==totalDepositAmount
     }
 
-    function test_withdraw_reverts() public {
+    function test_withdraw_reverts_UnauthorizedAccount() public {
         test_deposit();
         uint256 currentContractId = escrow.getCurrentContractId();
         address notClient = makeAddr("notClient");
@@ -290,6 +290,14 @@ contract EscrowUnitTest is Test {
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
         escrow.withdraw(currentContractId);
         vm.prank(client);
+        escrow.withdraw(currentContractId);
+    }
+
+    function test_withdraw_reverts_InvalidStatusForWithdraw() public {
+        test_submit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__InvalidStatusForWithdraw.selector);
         escrow.withdraw(currentContractId);
     }
 
