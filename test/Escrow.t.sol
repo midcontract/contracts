@@ -240,7 +240,7 @@ contract EscrowUnitTest is Test {
         escrow2.claim(currentContractId);
     }
 
-    // helper
+    // helpers
     function _computeDepositAndFeeAmount(address _client, uint256 _depositAmount, Enums.FeeConfig _feeConfig)
         internal
         view
@@ -252,6 +252,19 @@ contract EscrowUnitTest is Test {
             feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
 
         return (totalDepositAmount, feeApplied);
+    }
+
+    function _computeClaimableAndFeeAmount(address _contractor, uint256 _claimAmount, Enums.FeeConfig _feeConfig)
+        internal
+        view
+        returns (uint256 claimAmount, uint256 feeAmount)
+    {
+        address feeManagerAddress = registry.feeManager();
+        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
+        (uint256 claimAmount, uint256 feeAmount) =
+            feeManager.computeClaimableAmountAndFee(_contractor, _claimAmount, _feeConfig);
+
+        return (claimAmount, feeAmount);
     }
 
     ///////////////////////////////////////////
@@ -578,7 +591,7 @@ contract EscrowUnitTest is Test {
     //              claim tests               //
     ////////////////////////////////////////////
 
-    function test_claim() public {
+    function test_claim_clientCoversAll() public {
         test_approve();
         uint256 currentContractId = escrow.getCurrentContractId();
         (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
@@ -633,7 +646,59 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 1); //Status.SUBMITTED
     }
 
-    // test feeAmount > 0, claim full amount and transfer to treasury
+    // claim full amount and transfer to treasury
+
+    function test_claim_clientCoversOnly() public {
+        // this test need it's own setup
+        test_initialize();
+        deposit = IEscrow.Deposit({
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.PENDING
+        });
+
+        (uint256 depositAmount, uint256 feeApplied) =
+            _computeDepositAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        vm.startPrank(client);
+        paymentToken.mint(address(client), depositAmount); //1.03 ether
+        paymentToken.approve(address(escrow), depositAmount);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+        uint256 currentContractId = escrow.getCurrentContractId();
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(contractor);
+        escrow.submit(currentContractId, contractData, salt);
+
+        uint256 amountApprove = 1 ether;
+        uint256 amountAdditional = 0 ether;
+        vm.prank(client);
+        escrow.approve(currentContractId, amountApprove, amountAdditional, contractor);
+        
+        (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
+            escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 1 ether);
+        assertEq(uint256(_status), 0); //Status.PENDING
+
+        (uint256 claimAmount, uint256 feeAmount) =
+            _computeClaimableAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        
+        vm.prank(contractor);
+        escrow.claim(currentContractId);
+        assertEq(paymentToken.balanceOf(address(escrow)), feeApplied);
+        assertEq(paymentToken.balanceOf(address(treasury)), feeAmount);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
+    }
 
     ////////////////////////////////////////////
     //      ownership & management tests      //
