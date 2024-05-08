@@ -9,8 +9,8 @@ interface IEscrowFeeManager {
     /// @dev Thrown when the specified fee exceeds the maximum allowed basis points.
     error EscrowFeeManager__FeeTooHigh();
 
-    /// @dev Thrown when an invalid fee configuration is used.
-    error EscrowFeeManager__InvalidFeeConfig();
+    /// @dev Thrown when an unsupported fee configuration is used.
+    error EscrowFeeManager__UnsupportedFeeConfiguration();
 
     /// @dev Thrown when an operation includes or results in a zero address where it is not allowed.
     error EscrowFeeManager__ZeroAddressProvided();

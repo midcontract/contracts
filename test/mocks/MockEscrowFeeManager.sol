@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IEscrowFeeManager} from "../interfaces/IEscrowFeeManager.sol";
-import {Ownable} from "../libs/Ownable.sol";
+import {IEscrowFeeManager} from "src/interfaces/IEscrowFeeManager.sol";
+import {Ownable} from "src/libs/Ownable.sol";
 import {Enums} from "src/libs/Enums.sol";
 
 /// @title Escrow Fee Manager
 /// @notice Manages fee rates and calculations for escrow transactions.
-contract EscrowFeeManager is IEscrowFeeManager, Ownable {
+contract MockEscrowFeeManager is Ownable {
+    /// @dev Custom errors
+    error EscrowFeeManager__FeeTooHigh();
+    error EscrowFeeManager__UnsupportedFeeConfiguration();
+    error EscrowFeeManager__ZeroAddressProvided();
+
     /// @notice The maximum allowable percentage in basis points (100%).
     uint256 public constant MAX_BPS = 100_00; // 100%
 
@@ -22,6 +27,10 @@ contract EscrowFeeManager is IEscrowFeeManager, Ownable {
 
     /// @notice Mapping from user addresses to their specific fee rates.
     mapping(address user => FeeRates feeType) public specialFees;
+
+    /// @dev Events
+    event DefaultFeesSet(uint256 coverage, uint256 claim);
+    event SpecialFeesSet(address user, uint256 coverage, uint256 claim);
 
     /// @dev Sets initial default fees on contract deployment.
     /// @param _coverage Initial default coverage fee percentage.
@@ -56,7 +65,7 @@ contract EscrowFeeManager is IEscrowFeeManager, Ownable {
     /// @param _feeConfig The fee configuration to determine which fees to apply.
     /// @return totalDepositAmount The total amount after fees are added.
     /// @return feeApplied The amount of fees added to the deposit.
-    function computeDepositAmountAndFee(address _client, uint256 _depositAmount, Enums.FeeConfig _feeConfig)
+    function computeDepositAmountAndFee(address _client, uint256 _depositAmount, uint256 _feeConfig)
         external
         view
         returns (uint256 totalDepositAmount, uint256 feeApplied)
@@ -64,15 +73,15 @@ contract EscrowFeeManager is IEscrowFeeManager, Ownable {
         FeeRates memory rates =
             (specialFees[_client].coverage != 0 || specialFees[_client].claim != 0) ? specialFees[_client] : defaultFees;
 
-        if (_feeConfig == Enums.FeeConfig.CLIENT_COVERS_ALL) {
+        if (uint256(_feeConfig) == uint256(Enums.FeeConfig.CLIENT_COVERS_ALL)) {
             // If the client covers both the coverage and claim fees
             feeApplied = _depositAmount * (rates.coverage + rates.claim) / MAX_BPS;
             totalDepositAmount = _depositAmount + feeApplied;
-        } else if (_feeConfig == Enums.FeeConfig.CLIENT_COVERS_ONLY) {
+        } else if (uint256(_feeConfig) == uint256(Enums.FeeConfig.CLIENT_COVERS_ONLY)) {
             // If the client only covers the coverage fee
             feeApplied = _depositAmount * rates.coverage / MAX_BPS;
             totalDepositAmount = _depositAmount + feeApplied;
-        } else if (_feeConfig == Enums.FeeConfig.NO_FEES) {
+        } else if (uint256(_feeConfig) == uint256(Enums.FeeConfig.NO_FEES)) {
             // No fees applied
             totalDepositAmount = _depositAmount;
             feeApplied = 0;
@@ -90,29 +99,29 @@ contract EscrowFeeManager is IEscrowFeeManager, Ownable {
     /// @return claimableAmount The amount claimable after fees are deducted.
     /// @return feeDeducted The amount of fees deducted from the claim.
     /// @return clientFee The additional fee amount covered by the client if applicable.
-    function computeClaimableAmountAndFee(address _contractor, uint256 _claimedAmount, Enums.FeeConfig _feeConfig)
+    function computeClaimableAmountAndFee(address _contractor, uint256 _claimedAmount, uint256 _feeConfig)
         external
         view
         returns (uint256 claimableAmount, uint256 feeDeducted, uint256 clientFee)
     {
         FeeRates memory rates = (specialFees[_contractor].claim != 0) ? specialFees[_contractor] : defaultFees;
 
-        if (_feeConfig == Enums.FeeConfig.CLIENT_COVERS_ALL) {
+        if (uint256(_feeConfig) == uint256(Enums.FeeConfig.CLIENT_COVERS_ALL)) {
             // The client covers both coverage and claim fees.
             feeDeducted = 0; // No fee is deducted from the contractor's claim.
             clientFee = _claimedAmount * (rates.coverage + rates.claim) / MAX_BPS;
             claimableAmount = _claimedAmount;
-        } else if (_feeConfig == Enums.FeeConfig.CONTRACTOR_COVERS_CLAIM) {
+        } else if (uint256(_feeConfig) == uint256(Enums.FeeConfig.CONTRACTOR_COVERS_CLAIM)) {
             // The contractor covers the claim fee.
             feeDeducted = _claimedAmount * rates.claim / MAX_BPS;
             clientFee = 0; // No additional fee covered by the client in this configuration.
             claimableAmount = _claimedAmount - feeDeducted;
-        } else if (_feeConfig == Enums.FeeConfig.CLIENT_COVERS_ONLY) {
+        } else if (uint256(_feeConfig) == uint256(Enums.FeeConfig.CLIENT_COVERS_ONLY)) {
             // The client covers the coverage fee, the claim fee is handled by the contractor.
             feeDeducted = _claimedAmount * rates.claim / MAX_BPS;
             clientFee = _claimedAmount * rates.coverage / MAX_BPS; // Client additionally covers this amount.
             claimableAmount = _claimedAmount - feeDeducted;
-        } else if (_feeConfig == Enums.FeeConfig.NO_FEES) {
+        } else if (uint256(_feeConfig) == uint256(Enums.FeeConfig.NO_FEES)) {
             // No fees are applicable.
             feeDeducted = 0;
             clientFee = 0;
