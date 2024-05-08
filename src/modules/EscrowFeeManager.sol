@@ -87,27 +87,37 @@ contract EscrowFeeManager is IEscrowFeeManager, Ownable {
     /// @param _feeConfig The fee configuration to determine which fees to deduct.
     /// @return claimableAmount The amount claimable after fees are deducted.
     /// @return feeDeducted The amount of fees deducted from the claim.
+    /// @return clientFee The additional fee amount covered by the client if applicable.
     function computeClaimableAmountAndFee(address _contractor, uint256 _claimedAmount, Enums.FeeConfig _feeConfig)
         external
         view
-        returns (uint256 claimableAmount, uint256 feeDeducted)
+        returns (uint256 claimableAmount, uint256 feeDeducted, uint256 clientFee)
     {
         FeeRates memory rates = (specialFees[_contractor].claim != 0) ? specialFees[_contractor] : defaultFees;
 
         if (_feeConfig == Enums.FeeConfig.CLIENT_COVERS_ALL) {
+            // The client covers both coverage and claim fees.
+            feeDeducted = 0; // No fee is deducted from the contractor's claim.
+            clientFee = _claimedAmount * (rates.coverage + rates.claim) / MAX_BPS;
             claimableAmount = _claimedAmount;
-            feeDeducted = 0;
-        } else if (
-            _feeConfig == Enums.FeeConfig.CONTRACTOR_COVERS_CLAIM || _feeConfig == Enums.FeeConfig.CLIENT_COVERS_ONLY
-        ) {
+        } else if (_feeConfig == Enums.FeeConfig.CONTRACTOR_COVERS_CLAIM) {
+            // The contractor covers the claim fee.
             feeDeducted = _claimedAmount * rates.claim / MAX_BPS;
+            clientFee = 0; // No additional fee covered by the client in this configuration.
+            claimableAmount = _claimedAmount - feeDeducted;
+        } else if (_feeConfig == Enums.FeeConfig.CLIENT_COVERS_ONLY) {
+            // The client covers the coverage fee, the claim fee is handled by the contractor.
+            feeDeducted = _claimedAmount * rates.claim / MAX_BPS;
+            clientFee = _claimedAmount * rates.coverage / MAX_BPS; // Client additionally covers this amount.
             claimableAmount = _claimedAmount - feeDeducted;
         } else {
-            claimableAmount = _claimedAmount;
+            // No fees are applicable.
             feeDeducted = 0;
+            clientFee = 0;
+            claimableAmount = _claimedAmount;
         }
 
-        return (claimableAmount, feeDeducted);
+        return (claimableAmount, feeDeducted, clientFee);
     }
 
     /// @notice Retrieves the coverage fee percentage for a specific user.

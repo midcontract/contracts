@@ -147,7 +147,7 @@ contract Escrow is IEscrow, Ownable {
 
         if (D.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
 
-        (uint256 claimAmount, uint256 feeAmount) =
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
             _computeClaimableAmountAndFee(msg.sender, D.amountToClaim, D.feeConfig);
 
         D.amount = D.amount - D.amountToClaim;
@@ -157,10 +157,9 @@ contract Escrow is IEscrow, Ownable {
         // TBC else  can't be completed in case 1st milestone..
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, claimAmount);
-        if (feeAmount > 0) {
-            // TODO this branch send only claimable fee amount, needs to be adjusted
-            // for the case when CLIENT_COVERS_ONLY so needs to be withdrawn two types of fees: coverage & claim
-            _sendPlatformFee(D.paymentToken, feeAmount);
+        
+        if (feeAmount > 0 || clientFee > 0) {
+            _sendPlatformFee(D.paymentToken, feeAmount + clientFee);
         }
 
         emit Claimed(msg.sender, _contractId, D.paymentToken, claimAmount);
@@ -175,8 +174,7 @@ contract Escrow is IEscrow, Ownable {
         if (feeManagerAddress == address(0)) revert Escrow__NotSetFeeManager();
         IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress); // Cast to the interface
 
-        (uint256 totalDepositAmount, uint256 feeApplied) =
-            feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
+        (totalDepositAmount, feeApplied) = feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
 
         return (totalDepositAmount, feeApplied);
     }
@@ -184,16 +182,16 @@ contract Escrow is IEscrow, Ownable {
     function _computeClaimableAmountAndFee(address _contractor, uint256 _claimedAmount, Enums.FeeConfig _feeConfig)
         internal
         view
-        returns (uint256 claimableAmount, uint256 feeDeducted)
+        returns (uint256 claimableAmount, uint256 feeDeducted, uint256 clientFee)
     {
         address feeManagerAddress = registry.feeManager();
         if (feeManagerAddress == address(0)) revert Escrow__NotSetFeeManager();
         IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
 
-        (uint256 claimableAmount, uint256 feeDeducted) =
+        (claimableAmount, feeDeducted, clientFee) =
             feeManager.computeClaimableAmountAndFee(_contractor, _claimedAmount, _feeConfig);
 
-        return (claimableAmount, feeDeducted);
+        return (claimableAmount, feeDeducted, clientFee);
     }
 
     function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {

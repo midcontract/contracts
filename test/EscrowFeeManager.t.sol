@@ -161,28 +161,36 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(coverage, 3_00);
         assertEq(claim, 5_00);
         // CLIENT_COVERS_ALL
+        uint256 clientFeeApplied = claimedAmount * (coverage + claim) / 100_00;
         Enums.FeeConfig feeConfig = Enums.FeeConfig.CLIENT_COVERS_ALL;
-        (uint256 claimableAmount, uint256 feeDeducted) =
+        (uint256 claimableAmount, uint256 feeDeducted, uint256 clientFee) =
             feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
+        assertEq(clientFee, clientFeeApplied);
         // CLIENT_COVERS_ONLY
+        clientFeeApplied = claimedAmount * coverage / 100_00;
         uint256 feeAmount = claimedAmount * claim / 100_00;
         feeConfig = Enums.FeeConfig.CLIENT_COVERS_ONLY;
-        (claimableAmount, feeDeducted) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        (claimableAmount, feeDeducted, clientFee) =
+            feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount - feeAmount);
         assertEq(feeDeducted, feeAmount);
+        assertEq(clientFee, clientFeeApplied);
         // CONTRACTOR_COVERS_CLAIM
         feeAmount = claimedAmount * claim / 100_00;
         feeConfig = Enums.FeeConfig.CONTRACTOR_COVERS_CLAIM;
-        (claimableAmount, feeDeducted) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        (claimableAmount, feeDeducted, clientFee) =
+            feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount - feeAmount);
         assertEq(feeDeducted, feeAmount);
+        assertEq(clientFee, 0);
         // NO_FEES
         feeConfig = Enums.FeeConfig.NO_FEES;
-        (claimableAmount, feeDeducted) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        (claimableAmount, feeDeducted, clientFee) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
+        assertEq(clientFee, 0);
     }
 
     function test_computeClaimableAmount_specialFees() public {
@@ -193,27 +201,33 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(coverage, 2_00);
         assertEq(claim, 3_50);
         // CLIENT_COVERS_ALL
+        uint256 clientFeeApplied = claimedAmount * (coverage + claim) / 100_00;
         Enums.FeeConfig feeConfig = Enums.FeeConfig.CLIENT_COVERS_ALL;
-        (uint256 claimableAmount, uint256 feeDeducted) =
+        (uint256 claimableAmount, uint256 feeDeducted, uint256 clientFee) =
             feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
+        assertEq(clientFee, clientFeeApplied);
         // CLIENT_COVERS_ONLY
+        clientFeeApplied = claimedAmount * coverage / 100_00;
         uint256 feeAmount = claimedAmount * claim / 100_00;
         feeConfig = Enums.FeeConfig.CLIENT_COVERS_ONLY;
-        (claimableAmount, feeDeducted) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        (claimableAmount, feeDeducted, clientFee) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount - feeAmount);
         assertEq(feeDeducted, feeAmount);
+        assertEq(clientFee, clientFeeApplied);
         // CONTRACTOR_COVERS_CLAIM
         feeAmount = claimedAmount * claim / 100_00;
         feeConfig = Enums.FeeConfig.CONTRACTOR_COVERS_CLAIM;
-        (claimableAmount, feeDeducted) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        (claimableAmount, feeDeducted, clientFee) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount - feeAmount);
         assertEq(feeDeducted, feeAmount);
+        assertEq(clientFee, 0);
         // NO_FEES
         feeConfig = Enums.FeeConfig.NO_FEES;
-        (claimableAmount, feeDeducted) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        (claimableAmount, feeDeducted, clientFee) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
+        assertEq(clientFee, 0);
     }
 }

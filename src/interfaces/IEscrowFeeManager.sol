@@ -43,10 +43,11 @@ interface IEscrowFeeManager {
     /// @param feeConfig The fee configuration to determine which fees to deduct.
     /// @return claimableAmount The amount the contractor can claim after fee deductions.
     /// @return feeDeducted The amount of fees deducted based on the configuration.
+    /// @return clientFee The additional fee amount covered by the client if applicable.
     function computeClaimableAmountAndFee(address contractor, uint256 claimedAmount, Enums.FeeConfig feeConfig)
         external
         view
-        returns (uint256 claimableAmount, uint256 feeDeducted);
+        returns (uint256 claimableAmount, uint256 feeDeducted, uint256 clientFee);
 
     /// @notice Retrieves the coverage fee percentage for a specific user.
     /// @param user The user's address whose fee rate is being queried.

@@ -63,7 +63,7 @@ contract EscrowUnitTest is Test {
         treasury = makeAddr("treasury");
         client = makeAddr("client");
         contractor = makeAddr("contractor");
-        
+
         escrow = new Escrow();
         registry = new Registry(owner);
         paymentToken = new ERC20Mock();
@@ -248,8 +248,7 @@ contract EscrowUnitTest is Test {
     {
         address feeManagerAddress = registry.feeManager();
         IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
-        (uint256 totalDepositAmount, uint256 feeApplied) =
-            feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
+        (totalDepositAmount, feeApplied) = feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
 
         return (totalDepositAmount, feeApplied);
     }
@@ -257,14 +256,14 @@ contract EscrowUnitTest is Test {
     function _computeClaimableAndFeeAmount(address _contractor, uint256 _claimAmount, Enums.FeeConfig _feeConfig)
         internal
         view
-        returns (uint256 claimAmount, uint256 feeAmount)
+        returns (uint256 claimAmount, uint256 feeAmount, uint256 clientFee)
     {
         address feeManagerAddress = registry.feeManager();
         IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
-        (uint256 claimAmount, uint256 feeAmount) =
+        (claimAmount, feeAmount, clientFee) =
             feeManager.computeClaimableAmountAndFee(_contractor, _claimAmount, _feeConfig);
 
-        return (claimAmount, feeAmount);
+        return (claimAmount, feeAmount, clientFee);
     }
 
     ///////////////////////////////////////////
@@ -605,16 +604,20 @@ contract EscrowUnitTest is Test {
             _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
 
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
-        // assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
+
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        assertEq(feeApplied, clientFee);
 
         vm.startPrank(contractor);
         vm.expectEmit(true, true, true, true);
         emit Claimed(contractor, currentContractId, _paymentToken, _amountToClaim);
         escrow.claim(currentContractId);
-        assertEq(paymentToken.balanceOf(address(escrow)), feeApplied);
-        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
-        assertEq(paymentToken.balanceOf(address(contractor)), 1 ether);
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
 
         (,, uint256 _amountAfter, uint256 _amountToClaimAfter,,,, Enums.Status _statusAfter) =
             escrow.deposits(currentContractId);
@@ -645,8 +648,6 @@ contract EscrowUnitTest is Test {
         assertEq(_amountToClaim, amountApprove); //0
         assertEq(uint256(_status), 1); //Status.SUBMITTED
     }
-
-    // claim full amount and transfer to treasury
 
     function test_claim_clientCoversOnly() public {
         // this test need it's own setup
@@ -682,7 +683,7 @@ contract EscrowUnitTest is Test {
         uint256 amountAdditional = 0 ether;
         vm.prank(client);
         escrow.approve(currentContractId, amountApprove, amountAdditional, contractor);
-        
+
         (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -690,14 +691,85 @@ contract EscrowUnitTest is Test {
         assertEq(_amountToClaim, 1 ether);
         assertEq(uint256(_status), 0); //Status.PENDING
 
-        (uint256 claimAmount, uint256 feeAmount) =
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
             _computeClaimableAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
-        
+        assertEq(feeApplied, clientFee);
+
         vm.prank(contractor);
         escrow.claim(currentContractId);
-        assertEq(paymentToken.balanceOf(address(escrow)), feeApplied);
-        assertEq(paymentToken.balanceOf(address(treasury)), feeAmount);
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee);
         assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
+    }
+
+    function test_claim_withSeveralDeposits() public {
+        test_approve();
+
+        (uint256 totalDepositAmount, uint256 feeApplied) =
+            _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
+
+        // create 2d deposit
+        uint256 depositAmount2 = 1 ether;
+        deposit = IEscrow.Deposit({
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: depositAmount2,
+            amountToClaim: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.PENDING
+        });
+
+        (uint256 depositAmount, uint256 feeApplied1) =
+            _computeDepositAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertGt(depositAmount, depositAmount2);
+
+        vm.startPrank(client);
+        paymentToken.mint(address(client), depositAmount); //1.03 ether
+        paymentToken.approve(address(escrow), depositAmount);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+        uint256 currentContractId_2 = escrow.getCurrentContractId();
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + depositAmount);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(contractor);
+        escrow.submit(currentContractId_2, contractData, salt);
+
+        uint256 amountApprove = 1 ether;
+        uint256 amountAdditional = 0 ether;
+        vm.prank(client);
+        escrow.approve(currentContractId_2, amountApprove, amountAdditional, contractor);
+
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(feeApplied1, clientFee);
+        assertEq(claimAmount, amountApprove - feeAmount);
+
+        vm.prank(contractor);
+        escrow.claim(currentContractId_2);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
+        assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
+
+        (uint256 _claimAmount, uint256 _feeAmount, uint256 _clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+
+        uint256 currentContractId_1 = --currentContractId_2;
+        vm.prank(contractor);
+        escrow.claim(currentContractId_1);
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); // totalDepositAmount - _claimAmount
+        assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee + _clientFee);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount + _claimAmount);
     }
 
     ////////////////////////////////////////////
