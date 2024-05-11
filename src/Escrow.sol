@@ -10,25 +10,34 @@ import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
 import {console2} from "lib/forge-std/src/console2.sol";
 
+/// @title Escrow Contract
+/// @notice Manages deposits, approvals, submissions, and claims within the escrow system.
 contract Escrow is IEscrow, Ownable {
+    /// @dev Address of the registry contract.
     IRegistry public registry;
 
+    /// @dev Address of the client initiating actions within the escrow.
     address public client;
 
+    /// @dev Current contract ID, incremented for each new deposit.
     uint256 private currentContractId;
 
     /// @dev Indicates that the contract has been initialized.
     bool public initialized;
 
+    /// @dev Stores the total amount deposited for each contract ID.
     mapping(uint256 contractId => Deposit depositInfo) public deposits;
 
-    mapping(uint256 contractId => uint256 totalDepositAmount) public totalDeposited;
-
+    /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
         if (msg.sender != client) revert Escrow__UnauthorizedAccount(msg.sender);
         _;
     }
 
+    /// @notice Initializes the escrow contract.
+    /// @param _client Address of the client initiating actions within the escrow.
+    /// @param _owner Address of the owner of the midcontract escrow platform.
+    /// @param _registry Address of the registry contract.
     function initialize(address _client, address _owner, address _registry) external {
         if (initialized) revert Escrow__AlreadyInitialized();
 
@@ -43,6 +52,8 @@ contract Escrow is IEscrow, Ownable {
         initialized = true;
     }
 
+    /// @notice Creates a deposit within the escrow system.
+    /// @param _deposit Details of the deposit to be created.
     function deposit(Deposit calldata _deposit) external onlyClient {
         if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
 
@@ -70,6 +81,8 @@ contract Escrow is IEscrow, Ownable {
         );
     }
 
+    /// @notice Withdraws funds from a deposit.
+    /// @param _contractId ID of the deposit from which funds are to be withdrawn.
     function withdraw(uint256 _contractId) external onlyClient {
         Deposit storage D = deposits[_contractId];
         if (uint256(D.status) != uint256(Enums.Status.PENDING)) revert Escrow__InvalidStatusForWithdraw(); // TODO test
@@ -87,6 +100,11 @@ contract Escrow is IEscrow, Ownable {
         emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
     }
 
+    /// @notice Submits a deposit by the contractor.
+    /// @dev This function allows the contractor to submit a deposit with their data and salt.
+    /// @param _contractId ID of the deposit to be submitted.
+    /// @param _data Contractor data for the deposit.
+    /// @param _salt Salt value for generating the contractor data hash.
     function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt) external {
         Deposit storage D = deposits[_contractId];
 
@@ -102,6 +120,12 @@ contract Escrow is IEscrow, Ownable {
         emit Submitted(msg.sender, _contractId);
     }
 
+    /// @notice Approves a deposit by the client.
+    /// @dev This function allows the client to approve a submitted deposit, specifying the amount to approve and any additional amount.
+    /// @param _contractId ID of the deposit to be approved.
+    /// @param _amountApprove Amount to approve for the deposit.
+    /// @param _amountAdditional Additional amount to be added to the deposit.
+    /// @param _receiver Address of the contractor receiving the approved amount.
     function approve(uint256 _contractId, uint256 _amountApprove, uint256 _amountAdditional, address _receiver)
         external
         onlyClient
@@ -129,17 +153,9 @@ contract Escrow is IEscrow, Ownable {
         }
     }
 
-    function _refill(uint256 _contractId, uint256 _amountAdditional) internal {
-        Deposit storage D = deposits[_contractId];
-
-        (uint256 totalAmountAdditional, uint256 feeApplied) =
-            _computeDepositAmountAndFee(msg.sender, _amountAdditional, D.feeConfig);
-
-        SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalAmountAdditional);
-        D.amount += _amountAdditional;
-        emit Refilled(_contractId, _amountAdditional);
-    }
-
+    /// @notice Claims the approved amount by the contractor.
+    /// @dev This function allows the contractor to claim the approved amount from the deposit.
+    /// @param _contractId ID of the deposit from which to claim funds.
     function claim(uint256 _contractId) external {
         Deposit storage D = deposits[_contractId];
         // check the status
@@ -165,6 +181,28 @@ contract Escrow is IEscrow, Ownable {
         emit Claimed(msg.sender, _contractId, D.paymentToken, claimAmount);
     }
 
+    /// @notice Refills the deposit with an additional amount.
+    /// @dev This internal function allows adding additional funds to the deposit, updating the deposit amount accordingly.
+    /// @param _contractId ID of the deposit to be refilled.
+    /// @param _amountAdditional Additional amount to be added to the deposit.
+    function _refill(uint256 _contractId, uint256 _amountAdditional) internal {
+        Deposit storage D = deposits[_contractId];
+
+        (uint256 totalAmountAdditional, uint256 feeApplied) =
+            _computeDepositAmountAndFee(msg.sender, _amountAdditional, D.feeConfig);
+
+        SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalAmountAdditional);
+        D.amount += _amountAdditional;
+        emit Refilled(_contractId, _amountAdditional);
+    }
+
+    /// @notice Computes the total deposit amount and the applied fee.
+    /// @dev This internal function calculates the total deposit amount and the fee applied based on the client, deposit amount, and fee configuration.
+    /// @param _client Address of the client making the deposit.
+    /// @param _depositAmount Amount of the deposit.
+    /// @param _feeConfig Fee configuration for the deposit.
+    /// @return totalDepositAmount Total deposit amount after applying the fee.
+    /// @return feeApplied Fee applied to the deposit.
     function _computeDepositAmountAndFee(address _client, uint256 _depositAmount, Enums.FeeConfig _feeConfig)
         internal
         view
@@ -179,6 +217,14 @@ contract Escrow is IEscrow, Ownable {
         return (totalDepositAmount, feeApplied);
     }
 
+    /// @notice Computes the claimable amount and the fee deducted from the claimed amount.
+    /// @dev This internal function calculates the claimable amount for the contractor and the fees deducted from the claimed amount based on the contractor, claimed amount, and fee configuration.
+    /// @param _contractor Address of the contractor claiming the amount.
+    /// @param _claimedAmount Amount claimed by the contractor.
+    /// @param _feeConfig Fee configuration for the deposit.
+    /// @return claimableAmount Amount claimable by the contractor.
+    /// @return feeDeducted Fee deducted from the claimed amount.
+    /// @return clientFee Fee to be paid by the client for covering the claim.
     function _computeClaimableAmountAndFee(address _contractor, uint256 _claimedAmount, Enums.FeeConfig _feeConfig)
         internal
         view
@@ -194,20 +240,33 @@ contract Escrow is IEscrow, Ownable {
         return (claimableAmount, feeDeducted, clientFee);
     }
 
+    /// @notice Sends the platform fee to the treasury.
+    /// @dev This internal function transfers the platform fee to the treasury address.
+    /// @param _paymentToken Address of the payment token for the fee.
+    /// @param _feeAmount Amount of the fee to be transferred.
     function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {
         address treasury = IRegistry(registry).treasury();
         if (treasury == address(0)) revert Escrow__ZeroAddressProvided(); // TODO test
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
     }
 
+    /// @notice Generates a hash for the contractor data.
+    /// @dev This internal function computes the hash value for the contractor data using the provided data and salt.
     function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(_data, _salt));
     }
 
+    /// @notice Generates a hash for the contractor data.
+    /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
+    /// @param _data Contractor data.
+    /// @param _salt Salt value for generating the hash.
+    /// @return Hash value of the contractor data.
     function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
         return _getContractorDataHash(_data, _salt);
     }
 
+    /// @notice Retrieves the current contract ID.
+    /// @return The current contract ID.
     function getCurrentContractId() external view returns (uint256) {
         return currentContractId;
     }
