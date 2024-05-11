@@ -3,12 +3,12 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 
-import {EscrowFactory} from "src/EscrowFactory.sol";
+import {EscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
-contract DeployEscrowFactoryScript is Script {
-    EscrowFactory public factory;
+contract DeployEscrowFeeManagerScript is Script {
+    EscrowFeeManager public feeManager;
     address public registry;
     address public deployerPublicKey;
     uint256 public deployerPrivateKey;
@@ -21,11 +21,11 @@ contract DeployEscrowFactoryScript is Script {
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        factory = new EscrowFactory(registry, deployerPublicKey);
-        IRegistry(registry).updateFactory(address(factory));
-        console.log("==factory addr=%s", address(factory));
-        assert(address(factory) != address(0));
-        assert(IRegistry(registry).factory() == address(factory));
+        feeManager = new EscrowFeeManager(3_00, 5_00, deployerPublicKey);
+        Registry(registry).updateFeeManager(address(feeManager));
+        console.log("==feeManager addr=%s", address(feeManager));
+        assert(address(feeManager) != address(0));
+        assert(Registry(registry).feeManager() == address(feeManager));
         vm.stopBroadcast();
     }
 }
