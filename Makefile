@@ -47,6 +47,7 @@ execute-escrow-local :; forge script script/execute/ExecuteEscrow.s.sol:ExecuteE
 DEPLOY_URL := ${SEPOLIA_ALCHEMY_RPC_URL} #${POLYGON_AMOY_RPC}
 SCAN_API_KEY := ${ETHERSCAN_API_KEY}
 deploy-registry :; source .env && forge script script/deploy/01_DeployRegistry.s.sol:DeployRegistryScript --rpc-url ${DEPLOY_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${SCAN_API_KEY} -vvvv
-deploy-escrow :; source .env && forge script script/deploy/02_DeployEscrow.s.sol:DeployEscrowScript --rpc-url ${DEPLOY_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${SCAN_API_KEY} -vvvv
+deploy-escrow :; source .env && forge script script/deploy/02_DeployEscrow.s.sol:DeployEscrowScript --rpc-url ${DEPLOY_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${SCAN_API_KEY} --gas-price ${GAS_PRICE} --gas-limit ${GAS_LIMIT} -vvvv
 deploy-factory :; source .env && forge script script/deploy/03_DeployEscrowFactory.s.sol:DeployEscrowFactoryScript --rpc-url ${DEPLOY_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${SCAN_API_KEY} -vvvv
-execute-escrow :; source .env && forge script script/execute/ExecuteEscrow.s.sol:ExecuteEscrowScript --rpc-url ${DEPLOY_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${SCAN_API_KEY} --gas-price ${GAS_PRICE} --gas-limit ${GAS_LIMIT} -vvvv
+deploy-feemanager :; source .env && forge script script/deploy/04_DeployEscrowFeeManager.s.sol:DeployEscrowFeeManagerScript --rpc-url ${DEPLOY_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${SCAN_API_KEY} -vvvv
+execute-escrow :; source .env && forge script script/execute/ExecuteEscrow.s.sol:ExecuteEscrowScript --rpc-url ${DEPLOY_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --gas-price ${GAS_PRICE} --gas-limit ${GAS_LIMIT} -vvvv
