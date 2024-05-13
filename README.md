@@ -44,3 +44,7 @@ make deploy-escrow
 | FeeManager | [0xA4857B1178425cfaaaeedBcFc220F242b4A518fA](https://sepolia.etherscan.io/address/0xa4857b1178425cfaaaeedbcfc220f242b4a518fa) |
 | Mock USDT | [0xa801061f49970Ef796e0fD0998348f3436ccCb1d](https://sepolia.etherscan.io/address/0xa801061f49970Ef796e0fD0998348f3436ccCb1d) |
 | Escrow Proxy | [0xEAC34764333F697c31a7C72ee74ED33D1dEfff0d](https://sepolia.etherscan.io/address/0xeac34764333f697c31a7c72ee74ed33d1defff0d) |
+
+
+## Licensing
+The primary license for the Midcontract protocol is MIT, see [`LICENSE`](LICENSE)
