@@ -36,6 +36,7 @@ anvil :; anvil -m 'test test test test test test test test test test test junk' 
 # change ETH_RPC_URL to another one (e.g., FTM_RPC_URL) for different chains
 FORK_URL := ${SEPOLIA_ALCHEMY_RPC_URL} 
 test-fork :; source .env && forge test --match-contract EndToEndTest --rpc-url ${FORK_URL} -vvv
+trace-fork :; source .env && forge test --match-contract EndToEndTest --rpc-url ${FORK_URL} -vvvv
 
 # Deploy to local environment
 deploy-registry-local :; forge script script/deploy/01_DeployRegistry.s.sol:DeployRegistryScript --rpc-url http://localhost:8545 --private-key $(DEPLOYER_PRIVATE_KEY) -vvvv
