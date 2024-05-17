@@ -38,7 +38,7 @@ make deploy-escrow
 ## Contracts on Ethereum Sepolia Testnet:
 | Name | Address |
 | :--- | :--- |
-| Escrow | [0x6ff9DFae2ca36CCd06f30Fb272bCcb2A88848568](https://sepolia.etherscan.io/address/0x6ff9dfae2ca36ccd06f30fb272bccb2a88848568) |
+| Escrow | [0xd4c83df44115999261b97a9321d44467fa12a94e](https://sepolia.etherscan.io/address/0xd4c83df44115999261b97a9321d44467fa12a94e) |
 | Factory | [0xE732a3625499885cE800f795A076C6Daf69e9E3d](https://sepolia.etherscan.io/address/0xe732a3625499885ce800f795a076c6daf69e9e3d) |
 | Registry | [0xcda8DF73fFA90c151879F0E5A46B2ad659502C73](https://sepolia.etherscan.io/address/0xcda8df73ffa90c151879f0e5a46b2ad659502c73) |
 | FeeManager | [0xA4857B1178425cfaaaeedBcFc220F242b4A518fA](https://sepolia.etherscan.io/address/0xa4857b1178425cfaaaeedbcfc220f242b4a518fa) |
@@ -47,4 +47,4 @@ make deploy-escrow
 
 
 ## Licensing
-The primary license for the Midcontract protocol is MIT, see [`LICENSE`](LICENSE)
+The primary license for the Midcontract platform is MIT, see [`LICENSE`](LICENSE)
