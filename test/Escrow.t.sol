@@ -231,7 +231,7 @@ contract EscrowUnitTest is Test {
         vm.prank(contractor);
         escrow2.submit(currentContractId, contractData, salt);
         vm.prank(client);
-        escrow2.approve(currentContractId, 1 ether, 0, contractor);
+        escrow2.approve(currentContractId, 1 ether, contractor);
 
         vm.prank(owner);
         registry2.updateFeeManager(address(0));
@@ -381,10 +381,9 @@ contract EscrowUnitTest is Test {
     }
 
     ////////////////////////////////////////////
-    //        approve & refill tests          //
+    //             approve tests              //
     ////////////////////////////////////////////
 
-    // amountApprove > 0, amountAdditional == 0
     function test_approve() public {
         test_submit();
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -404,99 +403,16 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 1); //Status.SUBMITTED
 
         uint256 amountApprove = 1 ether;
-        uint256 amountAdditional = 0 ether;
 
         vm.startPrank(client);
         vm.expectEmit(true, true, true, true);
         emit Approved(currentContractId, amountApprove, contractor);
-        escrow.approve(currentContractId, amountApprove, amountAdditional, contractor);
+        escrow.approve(currentContractId, amountApprove, contractor);
         (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove);
         assertEq(uint256(_status), 0); //Status.PENDING
         vm.stopPrank();
-    }
-
-    // amountApprove == 0, amountAdditional > 0
-    function test_approve2() public {
-        test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
-        (
-            address _contractor,
-            ,
-            uint256 _amount,
-            uint256 _amountToClaim,
-            ,
-            bytes32 _contractorData,
-            Enums.FeeConfig _feeConfig,
-            Enums.Status _status
-        ) = escrow.deposits(currentContractId);
-        assertEq(_contractor, contractor);
-        assertEq(_amount, 1 ether);
-        assertEq(_amountToClaim, 0);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
-
-        uint256 amountApprove = 0 ether;
-        uint256 amountAdditional = 0.5 ether;
-
-        uint256 escrowBalanceBefore = paymentToken.balanceOf(address(escrow));
-        vm.startPrank(client);
-        (uint256 depositAmount,) =
-            _computeDepositAndFeeAmount(client, amountAdditional, Enums.FeeConfig.CLIENT_COVERS_ALL);
-        paymentToken.mint(address(client), depositAmount);
-        paymentToken.approve(address(escrow), depositAmount);
-        vm.expectEmit(true, true, true, true);
-        emit Refilled(currentContractId, amountAdditional);
-        escrow.approve(currentContractId, amountApprove, amountAdditional, contractor);
-        (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(_amount, 1 ether + amountAdditional);
-        assertEq(_amountToClaim, amountApprove); //0
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
-        vm.stopPrank();
-        assertEq(paymentToken.balanceOf(address(escrow)), escrowBalanceBefore + depositAmount);
-        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
-    }
-
-    // amountApprove > 0, amountAdditional > 0
-    function test_approve_refill() public {
-        test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
-        (
-            address _contractor,
-            ,
-            uint256 _amount,
-            uint256 _amountToClaim,
-            ,
-            bytes32 _contractorData,
-            Enums.FeeConfig _feeConfig,
-            Enums.Status _status
-        ) = escrow.deposits(currentContractId);
-        assertEq(_contractor, contractor);
-        assertEq(_amount, 1 ether);
-        assertEq(_amountToClaim, 0);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
-
-        uint256 amountApprove = 1 ether;
-        uint256 amountAdditional = 0.5 ether;
-
-        uint256 escrowBalanceBefore = paymentToken.balanceOf(address(escrow));
-        vm.startPrank(client);
-        (uint256 depositAmount,) =
-            _computeDepositAndFeeAmount(client, amountAdditional, Enums.FeeConfig.CLIENT_COVERS_ALL);
-        paymentToken.mint(address(client), depositAmount);
-        paymentToken.approve(address(escrow), depositAmount);
-        vm.expectEmit(true, true, true, true);
-        emit Refilled(currentContractId, amountAdditional);
-        vm.expectEmit(true, true, true, true);
-        emit Approved(currentContractId, amountApprove, contractor);
-        escrow.approve(currentContractId, amountApprove, amountAdditional, contractor);
-        (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(_amount, 1 ether + amountAdditional);
-        assertEq(_amountToClaim, amountApprove);
-        assertEq(uint256(_status), 0); //Status.PENDING
-        vm.stopPrank();
-        assertEq(paymentToken.balanceOf(address(escrow)), escrowBalanceBefore + depositAmount);
-        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
     }
 
     function test_approve_reverts_InvalidStatusForApprove() public {
@@ -516,11 +432,10 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 0); //Status.PENDING
 
         uint256 amountApprove = 1 ether;
-        uint256 amountAdditional = 0 ether;
 
         vm.startPrank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusForApprove.selector);
-        escrow.approve(currentContractId, amountApprove, amountAdditional, contractor);
+        escrow.approve(currentContractId, amountApprove, contractor);
         (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 0); //Status.PENDING
         vm.stopPrank();
@@ -545,16 +460,15 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 1); //Status.SUBMITTED
 
         uint256 amountApprove = 1 ether;
-        uint256 amountAdditional = 0 ether;
 
         vm.startPrank(client);
         vm.expectRevert(IEscrow.Escrow__UnauthorizedReceiver.selector);
-        escrow.approve(currentContractId, amountApprove, amountAdditional, address(0));
+        escrow.approve(currentContractId, amountApprove, address(0));
         (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 1); //Status.SUBMITTED
 
         vm.expectRevert(IEscrow.Escrow__UnauthorizedReceiver.selector);
-        escrow.approve(currentContractId, amountApprove, amountAdditional, address(123));
+        escrow.approve(currentContractId, amountApprove, address(123));
         (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 1); //Status.SUBMITTED
         vm.stopPrank();
@@ -580,9 +494,86 @@ contract EscrowUnitTest is Test {
 
         vm.startPrank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
-        escrow.approve(currentContractId, 0, 0, contractor);
+        escrow.approve(currentContractId, 0, contractor);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 1); //Status.SUBMITTED
+        vm.stopPrank();
+    }
+
+    ////////////////////////////////////////////
+    //              refill tests              //
+    ////////////////////////////////////////////
+
+    function test_refill() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            ,
+            ,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
+        assertEq(uint256(_status), 0); //Status.PENDING
+        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.08 ether
+        uint256 amountAdditional = 1 ether;
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), totalDepositAmount);
+        paymentToken.approve(address(escrow), totalDepositAmount);
+        vm.expectEmit(true, true, true, true);
+        emit Refilled(currentContractId, amountAdditional);
+        escrow.refill(currentContractId, amountAdditional);
+        vm.stopPrank();
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + totalDepositAmount);
+        (_contractor,, _amount, _amountToClaim,,, _feeConfig, _status) =
+            escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(_amount, 2 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
+        assertEq(uint256(_status), 0); //Status.PENDING
+    }
+
+    function test_refill_revert() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            ,
+            ,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_feeConfig), 0);
+        assertEq(uint256(_status), 0);
+        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.08 ether
+        uint256 amountAdditional = 1 ether;
+        vm.startPrank(address(this));
+        paymentToken.mint(address(this), totalDepositAmount);
+        paymentToken.approve(address(escrow), totalDepositAmount);
+        vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender);
+        escrow.refill(currentContractId, amountAdditional);
+        vm.stopPrank();
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), totalDepositAmount);
+        paymentToken.approve(address(escrow), totalDepositAmount);
+        vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
+        escrow.refill(currentContractId, 0 ether);
         vm.stopPrank();
     }
 
@@ -629,11 +620,10 @@ contract EscrowUnitTest is Test {
 
     function test_claim_reverts() public {
         uint256 amountApprove = 0 ether;
-        uint256 amountAdditional = 0.5 ether;
-        test_approve2();
+        test_submit();
         uint256 currentContractId = escrow.getCurrentContractId();
         (,, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) = escrow.deposits(currentContractId);
-        assertEq(_amount, 1 ether + amountAdditional);
+        assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove); //0
         assertEq(uint256(_status), 1); //Status.SUBMITTED
 
@@ -644,7 +634,7 @@ contract EscrowUnitTest is Test {
         vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
         escrow.claim(currentContractId);
         (,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(_amount, 1 ether + amountAdditional);
+        assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove); //0
         assertEq(uint256(_status), 1); //Status.SUBMITTED
     }
@@ -680,9 +670,8 @@ contract EscrowUnitTest is Test {
         escrow.submit(currentContractId, contractData, salt);
 
         uint256 amountApprove = 1 ether;
-        uint256 amountAdditional = 0 ether;
         vm.prank(client);
-        escrow.approve(currentContractId, amountApprove, amountAdditional, contractor);
+        escrow.approve(currentContractId, amountApprove, contractor);
 
         (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.deposits(currentContractId);
@@ -746,9 +735,8 @@ contract EscrowUnitTest is Test {
         escrow.submit(currentContractId_2, contractData, salt);
 
         uint256 amountApprove = 1 ether;
-        uint256 amountAdditional = 0 ether;
         vm.prank(client);
-        escrow.approve(currentContractId_2, amountApprove, amountAdditional, contractor);
+        escrow.approve(currentContractId_2, amountApprove, contractor);
 
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
             _computeClaimableAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);

@@ -94,7 +94,7 @@ contract ExecuteEscrowScript is Script {
         Escrow(escrowProxy).submit(currentContractId, contractData, salt);
 
         // approve
-        Escrow(escrowProxy).approve(currentContractId, 1000e6, 0 ether, address(deployerPublicKey));
+        Escrow(escrowProxy).approve(currentContractId, 1000e6, address(deployerPublicKey));
 
         // claim
         Escrow(escrowProxy).claim(currentContractId);

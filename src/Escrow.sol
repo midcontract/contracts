@@ -8,8 +8,6 @@ import {Enums} from "src/libs/Enums.sol";
 import {Ownable} from "src/libs/Ownable.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
-import {console2} from "lib/forge-std/src/console2.sol";
-
 /// @title Escrow Contract
 /// @notice Manages deposits, approvals, submissions, and claims within the escrow system.
 contract Escrow is IEscrow, Ownable {
@@ -81,25 +79,6 @@ contract Escrow is IEscrow, Ownable {
         );
     }
 
-    /// @notice Withdraws funds from a deposit.
-    /// @param _contractId ID of the deposit from which funds are to be withdrawn.
-    function withdraw(uint256 _contractId) external onlyClient {
-        Deposit storage D = deposits[_contractId];
-        if (uint256(D.status) != uint256(Enums.Status.PENDING)) revert Escrow__InvalidStatusForWithdraw(); // TODO test
-
-        (uint256 withdrawAmount, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
-
-        // TODO Update deposit amount
-        D.amount = D.amount - (withdrawAmount - feeAmount);
-
-        // allows to withdraw totalDepositAmount: depositAmount + feeAmmount
-        SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
-
-        // TODO TBC change status: D.status = Status.CANCELLED;
-
-        emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
-    }
-
     /// @notice Submits a deposit by the contractor.
     /// @dev This function allows the contractor to submit a deposit with their data and salt.
     /// @param _contractId ID of the deposit to be submitted.
@@ -124,13 +103,9 @@ contract Escrow is IEscrow, Ownable {
     /// @dev This function allows the client to approve a submitted deposit, specifying the amount to approve and any additional amount.
     /// @param _contractId ID of the deposit to be approved.
     /// @param _amountApprove Amount to approve for the deposit.
-    /// @param _amountAdditional Additional amount to be added to the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
-    function approve(uint256 _contractId, uint256 _amountApprove, uint256 _amountAdditional, address _receiver)
-        external
-        onlyClient
-    {
-        if (_amountApprove == 0 && _amountAdditional == 0) revert Escrow__InvalidAmount();
+    function approve(uint256 _contractId, uint256 _amountApprove, address _receiver) external onlyClient {
+        if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
         Deposit storage D = deposits[_contractId];
 
@@ -138,19 +113,31 @@ contract Escrow is IEscrow, Ownable {
 
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
-        if (_amountAdditional > 0) {
-            _refill(_contractId, _amountAdditional);
+        D.status = Enums.Status.PENDING; // TODO TBC the correct status
+        if (D.amount >= D.amountToClaim) {
+            D.amountToClaim += _amountApprove;
+            emit Approved(_contractId, _amountApprove, _receiver);
+        } else {
+            revert Escrow__NotEnoughDeposit(); // TODO test
         }
+    }
 
-        if (_amountApprove > 0) {
-            D.status = Enums.Status.PENDING; // TODO TBC the correct status
-            if (D.amount >= (D.amountToClaim + _amountAdditional)) {
-                D.amountToClaim += _amountApprove;
-                emit Approved(_contractId, _amountApprove, _receiver);
-            } else {
-                revert Escrow__NotEnoughDeposit(); // TODO test
-            }
-        }
+    /// @notice Refills the deposit with an additional amount.
+    /// @dev This function allows adding additional funds to the deposit, updating the deposit amount accordingly.
+    /// @param _contractId ID of the deposit to be refilled.
+    /// @param _amountAdditional Additional amount to be added to the deposit.
+    function refill(uint256 _contractId, uint256 _amountAdditional) external onlyClient {
+        if (_amountAdditional == 0) revert Escrow__InvalidAmount();
+
+        Deposit storage D = deposits[_contractId];
+
+        (uint256 totalAmountAdditional, uint256 feeApplied) =
+            _computeDepositAmountAndFee(msg.sender, _amountAdditional, D.feeConfig);
+        (feeApplied);
+
+        SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalAmountAdditional);
+        D.amount += _amountAdditional;
+        emit Refilled(_contractId, _amountAdditional);
     }
 
     /// @notice Claims the approved amount by the contractor.
@@ -173,7 +160,7 @@ contract Escrow is IEscrow, Ownable {
         // TBC else  can't be completed in case 1st milestone..
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, claimAmount);
-        
+
         if (feeAmount > 0 || clientFee > 0) {
             _sendPlatformFee(D.paymentToken, feeAmount + clientFee);
         }
@@ -181,19 +168,23 @@ contract Escrow is IEscrow, Ownable {
         emit Claimed(msg.sender, _contractId, D.paymentToken, claimAmount);
     }
 
-    /// @notice Refills the deposit with an additional amount.
-    /// @dev This internal function allows adding additional funds to the deposit, updating the deposit amount accordingly.
-    /// @param _contractId ID of the deposit to be refilled.
-    /// @param _amountAdditional Additional amount to be added to the deposit.
-    function _refill(uint256 _contractId, uint256 _amountAdditional) internal {
+    /// @notice Withdraws funds from a deposit.
+    /// @param _contractId ID of the deposit from which funds are to be withdrawn.
+    function withdraw(uint256 _contractId) external onlyClient {
         Deposit storage D = deposits[_contractId];
+        if (uint256(D.status) != uint256(Enums.Status.PENDING)) revert Escrow__InvalidStatusForWithdraw(); // TODO test
 
-        (uint256 totalAmountAdditional, uint256 feeApplied) =
-            _computeDepositAmountAndFee(msg.sender, _amountAdditional, D.feeConfig);
+        (uint256 withdrawAmount, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
 
-        SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalAmountAdditional);
-        D.amount += _amountAdditional;
-        emit Refilled(_contractId, _amountAdditional);
+        // TODO Update deposit amount
+        D.amount = D.amount - (withdrawAmount - feeAmount);
+
+        // allows to withdraw totalDepositAmount: depositAmount + feeAmmount
+        SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
+
+        // TODO TBC change status: D.status = Status.CANCELLED;
+
+        emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
     }
 
     /// @notice Computes the total deposit amount and the applied fee.
