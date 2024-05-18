@@ -187,6 +187,39 @@ contract Escrow is IEscrow, Ownable {
         emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                ESCROW RETURN REQUEST & DISPUTE LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    error Escrow__ReturnNotAllowed();
+    error Escrow__NoReturnRequested();
+    error Escrow__UnauthorizedToApproveReturn();
+
+    event ReturnRequested(uint256 contractId);
+    event ReturnApproved(uint256 contractId);
+
+    /// @notice Requests the return of funds by the client.
+    /// @param _contractId ID of the deposit for which the return is requested.
+    function requestReturn(uint256 _contractId) external onlyClient {
+        Deposit storage D = deposits[_contractId];
+        if (D.status != Enums.Status.PENDING && D.status != Enums.Status.SUBMITTED) revert Escrow__ReturnNotAllowed();
+
+        D.status = Enums.Status.RETURN_REQUESTED;
+        emit ReturnRequested(_contractId);
+    }
+
+    /// @notice Approves the return of funds, callable by contractor or platform owner/admin.
+    /// @param _contractId ID of the deposit for which the return is approved.
+    function approveReturn(uint256 _contractId) external {
+        Deposit storage D = deposits[_contractId];
+        if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
+        if (msg.sender != D.contractor && msg.sender != owner()) revert Escrow__UnauthorizedToApproveReturn();
+
+        D.status = Enums.Status.REFUND_APPROVED;
+        emit ReturnApproved(_contractId);
+    }
+
+
     /// @notice Computes the total deposit amount and the applied fee.
     /// @dev This internal function calculates the total deposit amount and the fee applied based on the client, deposit amount, and fee configuration.
     /// @param _client Address of the client making the deposit.
