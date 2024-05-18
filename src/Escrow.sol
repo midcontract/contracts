@@ -168,21 +168,20 @@ contract Escrow is IEscrow, Ownable {
         emit Claimed(msg.sender, _contractId, D.paymentToken, claimAmount);
     }
 
-    /// @notice Withdraws funds from a deposit.
+    /// @notice Withdraws funds from a deposit under specific conditions.
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
     function withdraw(uint256 _contractId) external onlyClient {
         Deposit storage D = deposits[_contractId];
-        if (uint256(D.status) != uint256(Enums.Status.PENDING)) revert Escrow__InvalidStatusForWithdraw(); // TODO test
+        if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {
+            revert Escrow__InvalidStatusToWithdraw();
+        }
 
         (uint256 withdrawAmount, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
 
-        // TODO Update deposit amount
-        D.amount = D.amount - (withdrawAmount - feeAmount);
-
-        // allows to withdraw totalDepositAmount: depositAmount + feeAmmount
+        D.amount = 0; // Reset deposit amount after withdrawal
+        D.status = Enums.Status.CANCELLED; // Mark the deposit as cancelled after funds are withdrawn
+        
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
-
-        // TODO TBC change status: D.status = Status.CANCELLED;
 
         emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
     }
@@ -218,7 +217,6 @@ contract Escrow is IEscrow, Ownable {
         D.status = Enums.Status.REFUND_APPROVED;
         emit ReturnApproved(_contractId);
     }
-
 
     /// @notice Computes the total deposit amount and the applied fee.
     /// @dev This internal function calculates the total deposit amount and the fee applied based on the client, deposit amount, and fee configuration.

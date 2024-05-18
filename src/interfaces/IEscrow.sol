@@ -12,7 +12,7 @@ interface IEscrow {
 
     error Escrow__FeeTooHigh();
 
-    error Escrow__InvalidStatusForWithdraw();
+    error Escrow__InvalidStatusToWithdraw();
 
     error Escrow__InvalidStatusForSubmit();
 

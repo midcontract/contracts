@@ -273,17 +273,22 @@ contract EscrowUnitTest is Test {
     ///////////////////////////////////////////
 
     function test_withdraw() public {
-        test_deposit();
+        test_requestReturn_whenPending();
         (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
-        // assertEq(paymentToken.balanceOf(address(treasury)), 0.11 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
 
         uint256 currentContractId = escrow.getCurrentContractId();
-        (,, uint256 _amount, uint256 _amountToClaim,,, Enums.FeeConfig _feeConfig, Enums.Status _status) =
+        (,, uint256 _amount, ,,, Enums.FeeConfig _feeConfig, Enums.Status _status) =
             escrow.deposits(currentContractId);
 
         (uint256 withdrawAmount, uint256 feeAmount) = _computeDepositAndFeeAmount(client, _amount, _feeConfig);
+
+        vm.prank(owner);
+        escrow.approveReturn(currentContractId);
+        (,, _amount,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
@@ -291,9 +296,9 @@ contract EscrowUnitTest is Test {
         escrow.withdraw(currentContractId);
         (,, uint256 _amountAfter,,,,, Enums.Status _statusAfter) = escrow.deposits(currentContractId);
         assertEq(_amountAfter, 0);
-        // TODO add assert for Enums.Status _statusAfter if it's changed
-        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount - (_amount + feeAmount));
-        assertEq(paymentToken.balanceOf(address(client)), 0 ether + withdrawAmount); //==totalDepositAmount
+        assertEq(uint256(_statusAfter), 8); //Status.CANCELLED
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amount + feeAmount)
+        assertEq(paymentToken.balanceOf(address(client)), withdrawAmount); //==totalDepositAmount = _amount + feeAmount
     }
 
     function test_withdraw_reverts_UnauthorizedAccount() public {
@@ -303,15 +308,13 @@ contract EscrowUnitTest is Test {
         vm.prank(notClient);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
         escrow.withdraw(currentContractId);
-        vm.prank(client);
-        escrow.withdraw(currentContractId);
     }
 
     function test_withdraw_reverts_InvalidStatusForWithdraw() public {
         test_submit();
         uint256 currentContractId = escrow.getCurrentContractId();
         vm.prank(client);
-        vm.expectRevert(IEscrow.Escrow__InvalidStatusForWithdraw.selector);
+        vm.expectRevert(IEscrow.Escrow__InvalidStatusToWithdraw.selector);
         escrow.withdraw(currentContractId);
     }
 
