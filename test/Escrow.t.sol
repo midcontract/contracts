@@ -59,6 +59,7 @@ contract EscrowUnitTest is Test {
     event RegistryUpdated(address registry);
     event ReturnRequested(uint256 contractId);
     event ReturnApproved(uint256 contractId);
+    event DisputeCreated(uint256 contractId);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -966,5 +967,74 @@ contract EscrowUnitTest is Test {
         (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
+    // if client wants to dispute logged hours
+    function test_createDispute_by_client() public {
+        test_requestReturn_whenSubmitted();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        vm.prank(client);
+        vm.expectEmit(true, true, true, true);
+        emit DisputeCreated(currentContractId);
+        escrow.createDispute(currentContractId);
+        (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 5); //Status.DISPUTED
+    }
+
+    // if contractor doesn’t want to approve “Escrow Return Request”
+    // or if a client doesn’t Approve Submitted work and sends Change Requests
+    function test_createDispute_by_contractor() public {
+        test_requestReturn_whenSubmitted();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        vm.prank(contractor);
+        vm.expectEmit(true, true, true, true);
+        emit DisputeCreated(currentContractId);
+        escrow.createDispute(currentContractId);
+        (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 5); //Status.DISPUTED
+    }
+
+    function test_createDispute_reverts_CreateDisputeNotAllowed() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 0); //Status.PENDING
+        vm.prank(client);
+        vm.expectRevert(Escrow.Escrow__CreateDisputeNotAllowed.selector);
+        escrow.createDispute(currentContractId);
+        (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 0); //Status.PENDING
+    }
+
+    function test_createDispute_reverts_UnauthorizedToApproveDispute() public {
+        test_requestReturn_whenSubmitted();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        vm.prank(address(this));
+        vm.expectRevert(Escrow.Escrow__UnauthorizedToApproveDispute.selector);
+        escrow.createDispute(currentContractId);
+        (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
     }
 }

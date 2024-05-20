@@ -180,7 +180,7 @@ contract Escrow is IEscrow, Ownable {
 
         D.amount = 0; // Reset deposit amount after withdrawal
         D.status = Enums.Status.CANCELLED; // Mark the deposit as cancelled after funds are withdrawn
-        
+
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
 
         emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
@@ -193,9 +193,12 @@ contract Escrow is IEscrow, Ownable {
     error Escrow__ReturnNotAllowed();
     error Escrow__NoReturnRequested();
     error Escrow__UnauthorizedToApproveReturn();
+    error Escrow__UnauthorizedToApproveDispute();
+    error Escrow__CreateDisputeNotAllowed();
 
     event ReturnRequested(uint256 contractId);
     event ReturnApproved(uint256 contractId);
+    event DisputeCreated(uint256 contractId);
 
     /// @notice Requests the return of funds by the client.
     /// @param _contractId ID of the deposit for which the return is requested.
@@ -216,6 +219,17 @@ contract Escrow is IEscrow, Ownable {
 
         D.status = Enums.Status.REFUND_APPROVED;
         emit ReturnApproved(_contractId);
+    }
+
+    /// @notice Creates a dispute over a specific deposit.
+    /// @param _contractId ID of the deposit where the dispute occurred.
+    function createDispute(uint256 _contractId) external {
+        Deposit storage D = deposits[_contractId]; // TODO TBC Enums.Status.PENDING for the client
+        if (D.status != Enums.Status.RETURN_REQUESTED && D.status != Enums.Status.SUBMITTED) revert Escrow__CreateDisputeNotAllowed();
+        if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
+
+        D.status = Enums.Status.DISPUTED;
+        emit DisputeCreated(_contractId);
     }
 
     /// @notice Computes the total deposit amount and the applied fee.
