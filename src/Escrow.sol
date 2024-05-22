@@ -195,9 +195,12 @@ contract Escrow is IEscrow, Ownable {
     error Escrow__UnauthorizedToApproveReturn();
     error Escrow__UnauthorizedToApproveDispute();
     error Escrow__CreateDisputeNotAllowed();
+    error Escrow__DisputeNotActiveForThisDeposit();
+    error Escrow__InvalidStatusProvided();
 
     event ReturnRequested(uint256 contractId);
     event ReturnApproved(uint256 contractId);
+    event ReturnCancelled(uint256 contractId);
     event DisputeCreated(uint256 contractId);
 
     /// @notice Requests the return of funds by the client.
@@ -221,11 +224,29 @@ contract Escrow is IEscrow, Ownable {
         emit ReturnApproved(_contractId);
     }
 
+    /// @notice Cancels a previously requested return and resets the deposit's status.
+    /// @dev This function allows a client to cancel a return request, setting the deposit status back to either PENDING or SUBMITTED.
+    /// @param _contractId The unique identifier of the deposit for which the return is being cancelled.
+    /// @param _status The new status to set for the deposit, must be either PENDING or SUBMITTED.
+    /// @custom:modifier onlyClient Ensures that only the client associated with the deposit can execute this function.
+    function cancelReturn(uint256 _contractId, Enums.Status _status) external onlyClient {
+        Deposit storage D = deposits[_contractId];
+        if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
+        if (_status != Enums.Status.PENDING && _status != Enums.Status.SUBMITTED) {
+            revert Escrow__InvalidStatusProvided();
+        }
+
+        D.status = _status;
+        emit ReturnCancelled(_contractId);
+    }
+
     /// @notice Creates a dispute over a specific deposit.
     /// @param _contractId ID of the deposit where the dispute occurred.
     function createDispute(uint256 _contractId) external {
         Deposit storage D = deposits[_contractId]; // TODO TBC Enums.Status.PENDING for the client
-        if (D.status != Enums.Status.RETURN_REQUESTED && D.status != Enums.Status.SUBMITTED) revert Escrow__CreateDisputeNotAllowed();
+        if (D.status != Enums.Status.RETURN_REQUESTED && D.status != Enums.Status.SUBMITTED) {
+            revert Escrow__CreateDisputeNotAllowed();
+        }
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         D.status = Enums.Status.DISPUTED;

@@ -59,6 +59,7 @@ contract EscrowUnitTest is Test {
     event RegistryUpdated(address registry);
     event ReturnRequested(uint256 contractId);
     event ReturnApproved(uint256 contractId);
+    event ReturnCancelled(uint256 contractId);
     event DisputeCreated(uint256 contractId);
 
     function setUp() public {
@@ -968,6 +969,89 @@ contract EscrowUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 1); //Status.SUBMITTED
     }
+
+    function test_cancelReturn() public {
+        test_requestReturn_whenPending();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        Enums.Status status = Enums.Status.PENDING;
+        vm.prank(client);
+        vm.expectEmit(true, true, true, true);
+        emit ReturnCancelled(currentContractId);
+        escrow.cancelReturn(currentContractId, status);
+        (,,,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(uint256(_status), 0); //Status.PENDING
+    }
+
+    function test_cancelReturn_submitted() public {
+        test_requestReturn_whenSubmitted();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(uint256(_status),  4); //Status.RETURN_REQUESTED
+        Enums.Status status = Enums.Status.SUBMITTED;
+        vm.prank(client);
+        vm.expectEmit(true, true, true, true);
+        emit ReturnCancelled(currentContractId);
+        escrow.cancelReturn(currentContractId, status);
+        (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
+    function test_cancelReturn_reverts() public {
+        test_requestReturn_whenPending();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        Enums.Status status = Enums.Status.PENDING;
+        vm.prank(owner);
+        vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
+        escrow.cancelReturn(currentContractId, status);
+        (,,,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        status = Enums.Status.CANCELLED;
+        vm.prank(client);
+        vm.expectRevert(Escrow.Escrow__InvalidStatusProvided.selector);
+        escrow.cancelReturn(currentContractId, status);
+        (,,,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+    }
+
+    function test_cancelReturn_reverts_submitted() public {
+        test_requestReturn_whenSubmitted();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        Enums.Status status = Enums.Status.RESOLVED;
+        vm.prank(client);
+        vm.expectRevert(Escrow.Escrow__InvalidStatusProvided.selector);
+        escrow.cancelReturn(currentContractId, status);
+        (,,,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+    }
+
+    function test_cancelReturn_reverts_submitted_NoReturnRequested() public {
+        test_submit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        Enums.Status status = Enums.Status.PENDING;
+        vm.prank(client);
+        vm.expectRevert(Escrow.Escrow__NoReturnRequested.selector);
+        escrow.cancelReturn(currentContractId, status);
+        (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
+    ////////////////////////////////////////////
+    //              dispute tests             //
+    ////////////////////////////////////////////
 
     // if client wants to dispute logged hours
     function test_createDispute_by_client() public {
