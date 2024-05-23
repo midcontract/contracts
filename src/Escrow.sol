@@ -197,11 +197,13 @@ contract Escrow is IEscrow, Ownable {
     error Escrow__CreateDisputeNotAllowed();
     error Escrow__DisputeNotActiveForThisDeposit();
     error Escrow__InvalidStatusProvided();
+    error Escrow__InvalidWinnerSpecified();
 
     event ReturnRequested(uint256 contractId);
     event ReturnApproved(uint256 contractId);
     event ReturnCancelled(uint256 contractId);
     event DisputeCreated(uint256 contractId);
+    event DisputeResolved(uint256 contractId);
 
     /// @notice Requests the return of funds by the client.
     /// @param _contractId ID of the deposit for which the return is requested.
@@ -251,6 +253,27 @@ contract Escrow is IEscrow, Ownable {
 
         D.status = Enums.Status.DISPUTED;
         emit DisputeCreated(_contractId);
+    }
+
+    /// @notice Resolves a dispute over a specific deposit.
+    /// @param _contractId ID of the deposit where the dispute occurred.
+    /// @param _winner Indicates whether the client ("client") or the contractor ("contractor") wins the dispute.
+    /// @param _amountToClaim Amount approved for the contractor to claim if they win the dispute.
+    function resolveDispute(uint256 _contractId, uint256 _amountToClaim, Enums.Winner _winner) external onlyOwner {
+        Deposit storage D = deposits[_contractId];
+        if (D.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
+
+        if (_winner == Enums.Winner.Client) {
+            D.status = Enums.Status.RESOLVED; // Client can now withdraw the full amount
+        } else if (_winner == Enums.Winner.Contractor) {
+            if (D.amount < _amountToClaim) revert Escrow__NotEnoughDeposit();
+            D.amountToClaim = _amountToClaim; // Set the amount the contractor can claim
+            D.status = Enums.Status.APPROVED; // Change status to approved, enabling claim
+        } else {
+            revert Escrow__InvalidWinnerSpecified();
+        }
+
+        emit DisputeResolved(_contractId);
     }
 
     /// @notice Computes the total deposit amount and the applied fee.

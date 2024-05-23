@@ -23,4 +23,12 @@ library Enums {
         REFUND_APPROVED,    // Refund has been approved, funds can be withdrawn
         CANCELLED           // Contract has been cancelled after a refund or resolution
     }
+
+    /// @notice Enumerates the potential outcomes of a dispute resolution.
+    /// @dev Describes who the winner of a dispute can be in various contexts, including partial resolutions.
+    enum Winner {
+        Client,  // Indicates the dispute was resolved in favor of the client
+        Contractor, // Indicates the dispute was resolved in favor of the contractor
+        Split // Indicates the dispute resolution benefits both parties
+    }
 }
