@@ -1137,46 +1137,77 @@ contract EscrowUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
     }
-/*
+
     function test_resolveDispute_winnerClient() public {
         test_createDispute_by_client();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor,,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_status), 5); //Status.DISPUTED
-        // uint256 amountToClaim
         Enums.Winner _winner = Enums.Winner.CLIENT;
+        uint256 clientAmount = _amount;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
         emit DisputeResolved(currentContractId);
-        escrow.resolveDispute(currentContractId, 0, _winner);
-        (_contractor,,,,,,,, _status) = escrow.deposits(currentContractId);
+        escrow.resolveDispute(currentContractId, _winner, clientAmount, 0);
+        (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, clientAmount);
         assertEq(uint256(_status), 6); //Status.RESOLVED
     }
 
     function test_resolveDispute_winnerContractor() public {
         test_createDispute_by_contractor();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor,, uint256 _amount, uint256 _amountToClaim,,,,, Enums.Status _status) =
+        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) =
             escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_status), 5); //Status.DISPUTED
-        uint256 amountToClaim = _amount;
         Enums.Winner _winner = Enums.Winner.CONTRACTOR;
+        uint256 contractorAmount = _amount;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
         emit DisputeResolved(currentContractId);
-        escrow.resolveDispute(currentContractId, amountToClaim, _winner);
-        (_contractor,, _amount, _amountToClaim,,,,, _status) = escrow.deposits(currentContractId);
+        escrow.resolveDispute(currentContractId, _winner, 0, contractorAmount);
+        (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(_amountToClaim, amountToClaim);
+        assertEq(_amountToClaim, contractorAmount);
+        assertEq(_amountToWithdraw, 0);
         assertEq(uint256(_status), 2); //Status.APPROVED
     }
 
+    function test_resolveDispute_winnerSplit() public {
+        test_createDispute_by_contractor();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) =
+            escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 5); //Status.DISPUTED
+        Enums.Winner _winner = Enums.Winner.SPLIT;
+        uint256 clientAmount = _amount / 2;
+        uint256 contractorAmount = _amount / 2;
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit DisputeResolved(currentContractId);
+        escrow.resolveDispute(currentContractId, _winner, clientAmount, contractorAmount);
+        (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0.5 ether);
+        assertEq(_amountToWithdraw, 0.5 ether);
+        assertEq(uint256(_status), 6); //Status.RESOLVED
+    }
+/*
     function test_resolveDispute_reverts_DisputeNotActiveForThisDeposit() public {
         test_deposit();
         uint256 currentContractId = escrow.getCurrentContractId();

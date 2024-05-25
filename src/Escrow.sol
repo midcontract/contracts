@@ -145,7 +145,7 @@ contract Escrow is IEscrow, Ownable {
     /// @param _contractId ID of the deposit from which to claim funds.
     function claim(uint256 _contractId) external {
         Deposit storage D = deposits[_contractId];
-        // check the status
+        // check the status APPROVED || RESOLVED
         if (D.amountToClaim == 0) revert Escrow__NotApproved();
 
         if (D.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
@@ -198,6 +198,7 @@ contract Escrow is IEscrow, Ownable {
     error Escrow__DisputeNotActiveForThisDeposit();
     error Escrow__InvalidStatusProvided();
     error Escrow__InvalidWinnerSpecified();
+    error Escrow__ResolutionExceedsDepositedAmount();
 
     event ReturnRequested(uint256 contractId);
     event ReturnApproved(uint256 contractId);
@@ -222,6 +223,7 @@ contract Escrow is IEscrow, Ownable {
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
         if (msg.sender != D.contractor && msg.sender != owner()) revert Escrow__UnauthorizedToApproveReturn();
 
+        /// TODO D.amountToWithdraw = D.amount;
         D.status = Enums.Status.REFUND_APPROVED;
         emit ReturnApproved(_contractId);
     }
@@ -257,18 +259,31 @@ contract Escrow is IEscrow, Ownable {
 
     /// @notice Resolves a dispute over a specific deposit.
     /// @param _contractId ID of the deposit where the dispute occurred.
-    /// @param _winner Indicates whether the client ("client") or the contractor ("contractor") wins the dispute.
-    /// @param _amountToClaim Amount approved for the contractor to claim if they win the dispute.
-    function resolveDispute(uint256 _contractId, uint256 _amountToClaim, Enums.Winner _winner) external onlyOwner {
+    /// @param _winner Specifies who the winner is: Client, Contractor, or Split.
+    /// @param _clientAmount Amount to be allocated to the client if Split or Client wins.
+    /// @param _contractorAmount Amount to be allocated to the contractor if Split or Contractor wins.
+    function resolveDispute(uint256 _contractId, Enums.Winner _winner, uint256 _clientAmount, uint256 _contractorAmount) external onlyOwner {
         Deposit storage D = deposits[_contractId];
         if (D.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
 
-        if (_winner == Enums.Winner.Client) {
+        // Validate the total resolution does not exceed the available deposit amount.
+        uint256 totalResolutionAmount = _clientAmount + _contractorAmount;
+        if (totalResolutionAmount > D.amount) revert Escrow__ResolutionExceedsDepositedAmount();
+
+        // Apply resolution based on the winner
+        if (_winner == Enums.Winner.CLIENT) {
             D.status = Enums.Status.RESOLVED; // Client can now withdraw the full amount
-        } else if (_winner == Enums.Winner.Contractor) {
-            if (D.amount < _amountToClaim) revert Escrow__NotEnoughDeposit();
-            D.amountToClaim = _amountToClaim; // Set the amount the contractor can claim
-            D.status = Enums.Status.APPROVED; // Change status to approved, enabling claim
+            D.amountToWithdraw = _clientAmount; // Full amount for the client to withdraw
+            D.amountToClaim = 0; // No claimable amount for the contractor
+        } else if (_winner == Enums.Winner.CONTRACTOR) {
+            // if (D.amount < _amountToClaim) revert Escrow__NotEnoughDeposit();
+            D.status = Enums.Status.APPROVED; // Status that allows the contractor to claim
+            D.amountToClaim = _contractorAmount; // Amount the contractor can claim
+            D.amountToWithdraw = 0; // No amount for the client to withdraw
+        } else if (_winner == Enums.Winner.SPLIT) {
+            D.status = Enums.Status.RESOLVED; // Indicates a resolved dispute with split amounts
+            D.amountToClaim = _contractorAmount; // Set the claimable amount for the contractor
+            D.amountToWithdraw = _clientAmount; // Set the withdrawable amount for the client
         } else {
             revert Escrow__InvalidWinnerSpecified();
         }
