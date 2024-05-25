@@ -41,6 +41,7 @@ interface IEscrow {
         address paymentToken;
         uint256 amount;
         uint256 amountToClaim;
+        uint256 amountToWithdraw;
         uint256 timeLock; // TODO TBC possible lock for delay of disput or smth
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;

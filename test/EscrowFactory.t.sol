@@ -35,6 +35,7 @@ contract EscrowFactoryUnitTest is Test {
         address paymentToken;
         uint256 amount;
         uint256 amountToClaim;
+        uint256 amountToWithdraw;
         uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
@@ -71,6 +72,7 @@ contract EscrowFactoryUnitTest is Test {
             paymentToken: address(paymentToken),
             amount: 1 ether,
             amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
@@ -148,6 +150,7 @@ contract EscrowFactoryUnitTest is Test {
             address _paymentToken,
             uint256 _amount,
             uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
             uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
@@ -172,6 +175,7 @@ contract EscrowFactoryUnitTest is Test {
             paymentToken: address(paymentToken),
             amount: 2 ether,
             amountToClaim: 0.5 ether,
+            amountToWithdraw: 0 ether,
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.NO_FEES,
@@ -202,6 +206,7 @@ contract EscrowFactoryUnitTest is Test {
             address _paymentToken,
             uint256 _amount,
             uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
             uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
