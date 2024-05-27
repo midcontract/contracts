@@ -201,10 +201,10 @@ contract Escrow is IEscrow, Ownable {
     error Escrow__ResolutionExceedsDepositedAmount();
 
     event ReturnRequested(uint256 contractId);
-    event ReturnApproved(uint256 contractId);
-    event ReturnCancelled(uint256 contractId);
-    event DisputeCreated(uint256 contractId);
-    event DisputeResolved(uint256 contractId);
+    event ReturnApproved(uint256 contractId, address sender);
+    event ReturnCanceled(uint256 contractId);
+    event DisputeCreated(uint256 contractId, address sender);
+    event DisputeResolved(uint256 contractId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount);
 
     /// @notice Requests the return of funds by the client.
     /// @param _contractId ID of the deposit for which the return is requested.
@@ -225,7 +225,7 @@ contract Escrow is IEscrow, Ownable {
 
         /// TODO D.amountToWithdraw = D.amount;
         D.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(_contractId);
+        emit ReturnApproved(_contractId, msg.sender);
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status.
@@ -241,7 +241,7 @@ contract Escrow is IEscrow, Ownable {
         }
 
         D.status = _status;
-        emit ReturnCancelled(_contractId);
+        emit ReturnCanceled(_contractId);
     }
 
     /// @notice Creates a dispute over a specific deposit.
@@ -254,7 +254,7 @@ contract Escrow is IEscrow, Ownable {
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         D.status = Enums.Status.DISPUTED;
-        emit DisputeCreated(_contractId);
+        emit DisputeCreated(_contractId, msg.sender);
     }
 
     /// @notice Resolves a dispute over a specific deposit.
@@ -262,7 +262,10 @@ contract Escrow is IEscrow, Ownable {
     /// @param _winner Specifies who the winner is: Client, Contractor, or Split.
     /// @param _clientAmount Amount to be allocated to the client if Split or Client wins.
     /// @param _contractorAmount Amount to be allocated to the contractor if Split or Contractor wins.
-    function resolveDispute(uint256 _contractId, Enums.Winner _winner, uint256 _clientAmount, uint256 _contractorAmount) external onlyOwner {
+    function resolveDispute(uint256 _contractId, Enums.Winner _winner, uint256 _clientAmount, uint256 _contractorAmount)
+        external
+        onlyOwner
+    {
         Deposit storage D = deposits[_contractId];
         if (D.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
 
@@ -276,7 +279,6 @@ contract Escrow is IEscrow, Ownable {
             D.amountToWithdraw = _clientAmount; // Full amount for the client to withdraw
             D.amountToClaim = 0; // No claimable amount for the contractor
         } else if (_winner == Enums.Winner.CONTRACTOR) {
-            // if (D.amount < _amountToClaim) revert Escrow__NotEnoughDeposit();
             D.status = Enums.Status.APPROVED; // Status that allows the contractor to claim
             D.amountToClaim = _contractorAmount; // Amount the contractor can claim
             D.amountToWithdraw = 0; // No amount for the client to withdraw
@@ -284,11 +286,9 @@ contract Escrow is IEscrow, Ownable {
             D.status = Enums.Status.RESOLVED; // Indicates a resolved dispute with split amounts
             D.amountToClaim = _contractorAmount; // Set the claimable amount for the contractor
             D.amountToWithdraw = _clientAmount; // Set the withdrawable amount for the client
-        } else {
-            revert Escrow__InvalidWinnerSpecified();
         }
 
-        emit DisputeResolved(_contractId);
+        emit DisputeResolved(_contractId, _winner, _clientAmount, _contractorAmount);
     }
 
     /// @notice Computes the total deposit amount and the applied fee.

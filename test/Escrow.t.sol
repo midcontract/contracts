@@ -59,10 +59,10 @@ contract EscrowUnitTest is Test {
     event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
     event RegistryUpdated(address registry);
     event ReturnRequested(uint256 contractId);
-    event ReturnApproved(uint256 contractId);
-    event ReturnCancelled(uint256 contractId);
-    event DisputeCreated(uint256 contractId);
-    event DisputeResolved(uint256 contractId);
+    event ReturnApproved(uint256 contractId, address sender);
+    event ReturnCanceled(uint256 contractId);
+    event DisputeCreated(uint256 contractId, address sender);
+    event DisputeResolved(uint256 contractId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -604,8 +604,8 @@ contract EscrowUnitTest is Test {
     function test_claim_clientCoversAll() public {
         test_approve();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,,, Enums.Status _status) =
-            escrow.deposits(currentContractId);
+        (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,,, Enums.Status _status)
+        = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 1 ether);
@@ -694,8 +694,8 @@ contract EscrowUnitTest is Test {
         vm.prank(client);
         escrow.approve(currentContractId, amountApprove, contractor);
 
-        (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,,, Enums.Status _status) =
-            escrow.deposits(currentContractId);
+        (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,,, Enums.Status _status)
+        = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 1 ether);
@@ -917,7 +917,7 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit ReturnApproved(currentContractId);
+        emit ReturnApproved(currentContractId, owner);
         escrow.approveReturn(currentContractId);
         (_contractor,, _amount,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
@@ -934,7 +934,7 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit ReturnApproved(currentContractId);
+        emit ReturnApproved(currentContractId, contractor);
         escrow.approveReturn(currentContractId);
         (_contractor,, _amount,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -994,7 +994,7 @@ contract EscrowUnitTest is Test {
         Enums.Status status = Enums.Status.PENDING;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit ReturnCancelled(currentContractId);
+        emit ReturnCanceled(currentContractId);
         escrow.cancelReturn(currentContractId, status);
         (,,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 0); //Status.PENDING
@@ -1009,7 +1009,7 @@ contract EscrowUnitTest is Test {
         Enums.Status status = Enums.Status.SUBMITTED;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit ReturnCancelled(currentContractId);
+        emit ReturnCanceled(currentContractId);
         escrow.cancelReturn(currentContractId, status);
         (_contractor,,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -1079,7 +1079,7 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit DisputeCreated(currentContractId);
+        emit DisputeCreated(currentContractId, client);
         escrow.createDispute(currentContractId);
         (_contractor,, _amount,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -1098,7 +1098,7 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit DisputeCreated(currentContractId);
+        emit DisputeCreated(currentContractId, contractor);
         escrow.createDispute(currentContractId);
         (_contractor,, _amount,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -1141,7 +1141,17 @@ contract EscrowUnitTest is Test {
     function test_resolveDispute_winnerClient() public {
         test_createDispute_by_client();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            ,
+            ,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
@@ -1151,7 +1161,7 @@ contract EscrowUnitTest is Test {
         uint256 clientAmount = _amount;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(currentContractId);
+        emit DisputeResolved(currentContractId, _winner, clientAmount, 0);
         escrow.resolveDispute(currentContractId, _winner, clientAmount, 0);
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -1164,8 +1174,17 @@ contract EscrowUnitTest is Test {
     function test_resolveDispute_winnerContractor() public {
         test_createDispute_by_contractor();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) =
-            escrow.deposits(currentContractId);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            ,
+            ,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
@@ -1175,7 +1194,7 @@ contract EscrowUnitTest is Test {
         uint256 contractorAmount = _amount;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(currentContractId);
+        emit DisputeResolved(currentContractId, _winner, 0, contractorAmount);
         escrow.resolveDispute(currentContractId, _winner, 0, contractorAmount);
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -1188,8 +1207,17 @@ contract EscrowUnitTest is Test {
     function test_resolveDispute_winnerSplit() public {
         test_createDispute_by_contractor();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) =
-            escrow.deposits(currentContractId);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            ,
+            ,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
@@ -1200,7 +1228,7 @@ contract EscrowUnitTest is Test {
         uint256 contractorAmount = _amount / 2;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(currentContractId);
+        emit DisputeResolved(currentContractId, _winner, clientAmount, contractorAmount);
         escrow.resolveDispute(currentContractId, _winner, clientAmount, contractorAmount);
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -1213,8 +1241,17 @@ contract EscrowUnitTest is Test {
     function test_resolveDispute_winnerSplit_ZeroAllocationToEachParty() public {
         test_createDispute_by_contractor();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) =
-            escrow.deposits(currentContractId);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            ,
+            ,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
@@ -1223,7 +1260,7 @@ contract EscrowUnitTest is Test {
         Enums.Winner _winner = Enums.Winner.SPLIT;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(currentContractId);
+        emit DisputeResolved(currentContractId, _winner, 0, 0);
         escrow.resolveDispute(currentContractId, _winner, 0, 0);
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -1260,8 +1297,17 @@ contract EscrowUnitTest is Test {
     function test_resolveDispute_reverts_winnerClient_ResolutionExceedsDepositedAmount() public {
         test_createDispute_by_contractor();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) =
-            escrow.deposits(currentContractId);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            ,
+            ,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
@@ -1281,8 +1327,17 @@ contract EscrowUnitTest is Test {
     function test_resolveDispute_reverts_winnerContractor_ResolutionExceedsDepositedAmount() public {
         test_createDispute_by_contractor();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) =
-            escrow.deposits(currentContractId);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            ,
+            ,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
@@ -1302,8 +1357,17 @@ contract EscrowUnitTest is Test {
     function test_resolveDispute_reverts_winnerSplit_ResolutionExceedsDepositedAmount() public {
         test_createDispute_by_contractor();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) =
-            escrow.deposits(currentContractId);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            ,
+            ,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
@@ -1323,8 +1387,17 @@ contract EscrowUnitTest is Test {
     function test_resolveDispute_reverts_InvalidWinnerSpecified() public {
         test_createDispute_by_contractor();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,,, Enums.Status _status) =
-            escrow.deposits(currentContractId);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            ,
+            ,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
@@ -1332,7 +1405,7 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 5); //Status.DISPUTED
         vm.prank(owner);
         // vm.expectRevert(Escrow.Escrow__InvalidWinnerSpecified.selector);
-        vm.expectRevert();  // panic: failed to convert value into enum type (0x21)
+        vm.expectRevert(); // panic: failed to convert value into enum type (0x21)
         escrow.resolveDispute(currentContractId, Enums.Winner(uint256(3)), _amount, 0); // Invalid enum value for Winner
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
