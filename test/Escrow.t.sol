@@ -55,7 +55,7 @@ contract EscrowUnitTest is Test {
     event Submitted(address indexed sender, uint256 indexed contractId);
     event Approved(uint256 indexed contractId, uint256 indexed amountApprove, address indexed receiver);
     event Refilled(uint256 indexed contractId, uint256 indexed amountAdditional);
-    event Claimed(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+    event Claimed(uint256 indexed contractId, address indexed paymentToken, uint256 amount);
     event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
     event RegistryUpdated(address registry);
     event ReturnRequested(uint256 contractId);
@@ -762,7 +762,7 @@ contract EscrowUnitTest is Test {
 
         vm.startPrank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit Claimed(contractor, currentContractId, _paymentToken, _amountToClaim);
+        emit Claimed(currentContractId, _paymentToken, _amountToClaim);
         escrow.claim(currentContractId);
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
         assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee);
@@ -918,6 +918,119 @@ contract EscrowUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); // totalDepositAmount - _claimAmount
         assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee + _clientFee);
         assertEq(paymentToken.balanceOf(address(contractor)), claimAmount + _claimAmount);
+    }
+
+    function test_claim_whenResolveDispute_winnerSplit() public {
+        // this test need it's own setup
+        test_initialize();
+        deposit = IEscrow.Deposit({
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.PENDING
+        });
+
+        (uint256 depositAmount, uint256 feeApplied) =
+            _computeDepositAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        vm.startPrank(client);
+        paymentToken.mint(address(client), depositAmount); //1.03 ether
+        paymentToken.approve(address(escrow), depositAmount);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+        uint256 currentContractId = escrow.getCurrentContractId();
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(contractor);
+        escrow.submit(currentContractId, contractData, salt);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            ,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        vm.prank(client);
+        escrow.requestReturn(currentContractId);
+        (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+
+        vm.prank(contractor);
+        escrow.createDispute(currentContractId);
+        (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 5); //Status.DISPUTED
+
+        // uint256 clientAmount = _amount / 2;
+        // uint256 contractorAmount = _amount / 2;
+        vm.prank(owner);
+        escrow.resolveDispute(currentContractId, Enums.Winner.SPLIT, _amount / 2, _amount / 2);
+        (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0.5 ether);
+        assertEq(_amountToWithdraw, 0.5 ether);
+        assertEq(uint256(_status), 6); //Status.RESOLVED
+
+        (uint256 totalDepositAmount, uint256 feeAmount) =
+            _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + feeAmount + _amountToClaim);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
+
+        (, uint256 initialFeeAmount) = _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        // uint256 platformFee = initialFeeAmount - feeAmount;
+
+        vm.prank(client);
+        escrow.withdraw(currentContractId);
+        (,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0.5 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_status), 8); //Status.CANCELED
+        assertEq(paymentToken.balanceOf(address(escrow)), 0.5 ether);
+        assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount); //=0.5 ether
+        assertEq(paymentToken.balanceOf(address(treasury)), initialFeeAmount - feeAmount);
+        assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
+
+        vm.startPrank(contractor);
+        (uint256 claimAmount, uint256 claimFeeAmount,) = IEscrowFeeManager(feeManager).computeClaimableAmountAndFee(
+            contractor, _amount / 2, Enums.FeeConfig.CLIENT_COVERS_ONLY
+        );
+        escrow.claim(currentContractId);
+        (,, _amount, _amountToClaim, _amountToWithdraw,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_amount, 0.5 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_status), 8); //Status.CANCELED
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount);
+        assertEq(paymentToken.balanceOf(address(treasury)), initialFeeAmount - feeAmount + claimFeeAmount);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
+        vm.stopPrank();
     }
 
     ////////////////////////////////////////////

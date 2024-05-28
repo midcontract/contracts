@@ -67,7 +67,7 @@ interface IEscrow {
 
     event Refilled(uint256 indexed contractId, uint256 indexed amountAdditional);
 
-    event Claimed(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+    event Claimed(uint256 indexed contractId, address indexed paymentToken, uint256 amount);
 
     /// @notice Emitted when the registry address is updated in the escrow.
     /// @param registry The new registry address.

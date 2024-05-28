@@ -145,7 +145,7 @@ contract Escrow is IEscrow, Ownable {
     /// @param _contractId ID of the deposit from which to claim funds.
     function claim(uint256 _contractId) external {
         Deposit storage D = deposits[_contractId];
-        // check the status APPROVED || RESOLVED
+        // check the status APPROVED || RESOLVED || CANCELED
         if (D.amountToClaim == 0) revert Escrow__NotApproved();
 
         if (D.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
@@ -153,7 +153,7 @@ contract Escrow is IEscrow, Ownable {
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
             _computeClaimableAmountAndFee(msg.sender, D.amountToClaim, D.feeConfig);
 
-        D.amount = D.amount - D.amountToClaim;
+        D.amount -= D.amountToClaim;
         D.amountToClaim = 0;
 
         // if (D.amount == 0) D.status = Status.COMPLETED;
@@ -161,11 +161,13 @@ contract Escrow is IEscrow, Ownable {
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, claimAmount);
 
-        if (feeAmount > 0 || clientFee > 0) {
+        if ((D.status == Enums.Status.RESOLVED || D.status == Enums.Status.CANCELED) && feeAmount > 0) {
+            _sendPlatformFee(D.paymentToken, feeAmount);
+        } else if (feeAmount > 0 || clientFee > 0) {
             _sendPlatformFee(D.paymentToken, feeAmount + clientFee);
         }
 
-        emit Claimed(msg.sender, _contractId, D.paymentToken, claimAmount);
+        emit Claimed(_contractId, D.paymentToken, claimAmount);
     }
 
     /// @notice Withdraws funds from a deposit under specific conditions.
@@ -176,19 +178,20 @@ contract Escrow is IEscrow, Ownable {
             revert Escrow__InvalidStatusToWithdraw();
         }
 
-        if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw(); /// TODO test
+        if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
 
-        (, uint256 feeAmount) =
-            _computeDepositAmountAndFee(msg.sender, D.amountToWithdraw, D.feeConfig);
+        /// TODO test
 
+        (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amountToWithdraw, D.feeConfig);
+
+        // D.amount -= D.amountToWithdraw; TODO
         uint256 withdrawAmount = D.amountToWithdraw + feeAmount;
         D.amountToWithdraw = 0; // Prevent re-withdrawal
         D.status = Enums.Status.CANCELED; // Mark the deposit as canceled after funds are withdrawn
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
 
-        (, uint256 initialFeeAmount) =
-            _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
+        (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
 
         uint256 platformFee = initialFeeAmount - feeAmount;
         if (platformFee > 0) {
