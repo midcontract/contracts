@@ -235,7 +235,7 @@ contract Escrow is IEscrow, Ownable {
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
         if (msg.sender != D.contractor && msg.sender != owner()) revert Escrow__UnauthorizedToApproveReturn();
 
-        D.amountToWithdraw = D.amount; /// TODO test
+        D.amountToWithdraw = D.amount;
 
         D.status = Enums.Status.REFUND_APPROVED;
         emit ReturnApproved(_contractId, msg.sender);
