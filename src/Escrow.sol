@@ -156,9 +156,6 @@ contract Escrow is IEscrow, Ownable {
         D.amount -= D.amountToClaim;
         D.amountToClaim = 0;
 
-        // if (D.amount == 0) D.status = Status.COMPLETED;
-        // TBC else  can't be completed in case 1st milestone..
-
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, claimAmount);
 
         if ((D.status == Enums.Status.RESOLVED || D.status == Enums.Status.CANCELED) && feeAmount > 0) {
@@ -166,6 +163,9 @@ contract Escrow is IEscrow, Ownable {
         } else if (feeAmount > 0 || clientFee > 0) {
             _sendPlatformFee(D.paymentToken, feeAmount + clientFee);
         }
+
+        // if (D.amount == 0) D.status = Status.COMPLETED;
+        // TBC else  can't be completed in case 1st milestone..
 
         emit Claimed(_contractId, D.paymentToken, claimAmount);
     }
@@ -177,21 +177,18 @@ contract Escrow is IEscrow, Ownable {
         if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw();
         }
-
         if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
-
-        /// TODO test
 
         (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amountToWithdraw, D.feeConfig);
 
-        // D.amount -= D.amountToWithdraw; TODO
+        (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
+
+        D.amount -= D.amountToWithdraw;
         uint256 withdrawAmount = D.amountToWithdraw + feeAmount;
         D.amountToWithdraw = 0; // Prevent re-withdrawal
         D.status = Enums.Status.CANCELED; // Mark the deposit as canceled after funds are withdrawn
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
-
-        (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
 
         uint256 platformFee = initialFeeAmount - feeAmount;
         if (platformFee > 0) {
