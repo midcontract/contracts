@@ -51,7 +51,7 @@ contract EscrowUnitTest is Test {
         Enums.FeeConfig feeConfig
     );
 
-    event Withdrawn(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+    event Withdrawn(uint256 indexed contractId, address indexed paymentToken, uint256 amount);
     event Submitted(address indexed sender, uint256 indexed contractId);
     event Approved(uint256 indexed contractId, uint256 indexed amountApprove, address indexed receiver);
     event Refilled(uint256 indexed contractId, uint256 indexed amountAdditional);
@@ -281,32 +281,148 @@ contract EscrowUnitTest is Test {
     //           withdraw tests              //
     ///////////////////////////////////////////
 
-    function test_withdraw() public {
-        test_requestReturn_whenPending();
-        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+    function test_withdraw_whenRefundApprovedByOwner() public {
+        test_approveReturn_by_owner();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,, uint256 _amountToWithdraw,,,, Enums.Status _status) =
+            escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToWithdraw, 1 ether);
+        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
+
+        (uint256 totalDepositAmount, uint256 feeAmount) =
+            _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ALL);
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
 
-        uint256 currentContractId = escrow.getCurrentContractId();
-        (,, uint256 _amount,,,,, Enums.FeeConfig _feeConfig, Enums.Status _status) = escrow.deposits(currentContractId);
-
-        (uint256 withdrawAmount, uint256 feeAmount) = _computeDepositAndFeeAmount(client, _amount, _feeConfig);
-
-        vm.prank(owner);
-        escrow.approveReturn(currentContractId);
-        (,, _amount,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
+        (uint256 initialDepositAmount, uint256 initialFeeAmount) =
+            _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        uint256 platformFee = initialFeeAmount - feeAmount;
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, address(paymentToken), withdrawAmount);
+        emit Withdrawn(currentContractId, address(paymentToken), _amountToWithdraw + feeAmount);
         escrow.withdraw(currentContractId);
-        (,, uint256 _amountAfter,,,,,, Enums.Status _statusAfter) = escrow.deposits(currentContractId);
-        assertEq(_amountAfter, 0);
-        assertEq(uint256(_statusAfter), 8); //Status.CANCELLED
-        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amount + feeAmount)
-        assertEq(paymentToken.balanceOf(address(client)), withdrawAmount); //==totalDepositAmount = _amount + feeAmount
+        (,, uint256 _amountAfter,, uint256 _amountToWithdrawAfter,,,, Enums.Status _statusAfter) =
+            escrow.deposits(currentContractId);
+        assertEq(_amountAfter, 1 ether);
+        assertEq(_amountToWithdrawAfter, 0 ether);
+        assertEq(uint256(_statusAfter), 8); //Status.CANCELED
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw + feeAmount)
+        assertEq(paymentToken.balanceOf(address(client)), _amountToWithdraw + feeAmount); //==totalDepositAmount = _amountToWithdraw + feeAmount
+        assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
+    }
+
+    function test_withdraw_whenRefundApprovedByContractor() public {
+        test_approveReturn_by_contractor();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,, uint256 _amountToWithdraw,,,, Enums.Status _status) =
+            escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToWithdraw, 1 ether);
+        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
+
+        (uint256 totalDepositAmount, uint256 feeAmount) =
+            _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+
+        (uint256 initialDepositAmount, uint256 initialFeeAmount) =
+            _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        uint256 platformFee = initialFeeAmount - feeAmount;
+
+        vm.prank(client);
+        vm.expectEmit(true, true, true, true);
+        emit Withdrawn(currentContractId, address(paymentToken), totalDepositAmount);
+        escrow.withdraw(currentContractId);
+        (,, uint256 _amountAfter,, uint256 _amountToWithdrawAfter,,,, Enums.Status _statusAfter) =
+            escrow.deposits(currentContractId);
+        assertEq(_amountAfter, 1 ether);
+        assertEq(_amountToWithdrawAfter, 0 ether);
+        assertEq(uint256(_statusAfter), 8); //Status.CANCELED
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw + feeAmount)
+        assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount); //==totalDepositAmount = _amountToWithdraw + feeAmount
+        assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
+    }
+
+    function test_withdraw_whenDisputeResolved() public {
+        test_resolveDispute_winnerClient();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,, uint256 _amountToWithdraw,,,, Enums.Status _status) =
+            escrow.deposits(currentContractId);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToWithdraw, _amount);
+        assertEq(uint256(_status), 6); //Status.RESOLVED
+
+        (uint256 totalDepositAmount, uint256 feeAmount) =
+            _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+
+        (uint256 initialDepositAmount, uint256 initialFeeAmount) =
+            _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        uint256 platformFee = initialFeeAmount - feeAmount;
+
+        vm.prank(client);
+        vm.expectEmit(true, true, true, true);
+        emit Withdrawn(currentContractId, address(paymentToken), totalDepositAmount);
+        escrow.withdraw(currentContractId);
+        (,, uint256 _amountAfter,, uint256 _amountToWithdrawAfter,,,, Enums.Status _statusAfter) =
+            escrow.deposits(currentContractId);
+        assertEq(_amountAfter, 1 ether);
+        assertEq(_amountToWithdrawAfter, 0 ether);
+        assertEq(uint256(_statusAfter), 8); //Status.CANCELED
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount);
+        assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
+    }
+
+    function test_withdraw_whenDisputeResolvedSplit() public {
+        test_resolveDispute_winnerSplit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            ,
+            ,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0.5 ether);
+        assertEq(_amountToWithdraw, 0.5 ether);
+        assertEq(uint256(_status), 6); //Status.RESOLVED
+
+        (uint256 totalDepositAmount, uint256 feeAmount) =
+            _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + feeAmount + _amountToClaim);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+
+        (uint256 initialDepositAmount, uint256 initialFeeAmount) =
+            _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        uint256 platformFee = initialFeeAmount - feeAmount;
+
+        vm.prank(client);
+        vm.expectEmit(true, true, true, true);
+        emit Withdrawn(currentContractId, address(paymentToken), totalDepositAmount);
+        escrow.withdraw(currentContractId);
+        (,, uint256 _amountAfter,, uint256 _amountToWithdrawAfter,,,, Enums.Status _statusAfter) =
+            escrow.deposits(currentContractId);
+        assertEq(_amountAfter, 1 ether);
+        assertEq(_amountToWithdrawAfter, 0 ether);
+        assertEq(uint256(_statusAfter), 8); //Status.CANCELED
+        assertEq(paymentToken.balanceOf(address(escrow)), 0.5 ether);
+        assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount); //=0.5 ether
+        assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
     }
 
     function test_withdraw_reverts_UnauthorizedAccount() public {
@@ -1027,7 +1143,7 @@ contract EscrowUnitTest is Test {
         escrow.cancelReturn(currentContractId, status);
         (,,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
-        status = Enums.Status.CANCELLED;
+        status = Enums.Status.CANCELED;
         vm.prank(client);
         vm.expectRevert(Escrow.Escrow__InvalidStatusProvided.selector);
         escrow.cancelReturn(currentContractId, status);

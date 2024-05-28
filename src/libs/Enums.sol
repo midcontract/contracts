@@ -22,7 +22,7 @@ library Enums {
         DISPUTED, // A dispute has been raised following a denied return request
         RESOLVED, // The dispute has been resolved
         REFUND_APPROVED, // Refund has been approved, funds can be withdrawn
-        CANCELLED // Contract has been cancelled after a refund or resolution
+        CANCELED // Contract has been cancelled after a refund or resolution
 
     }
 

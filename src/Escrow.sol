@@ -176,14 +176,26 @@ contract Escrow is IEscrow, Ownable {
             revert Escrow__InvalidStatusToWithdraw();
         }
 
-        (uint256 withdrawAmount, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
+        if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw(); /// TODO test
 
-        D.amount = 0; // Reset deposit amount after withdrawal
-        D.status = Enums.Status.CANCELLED; // Mark the deposit as cancelled after funds are withdrawn
+        (, uint256 feeAmount) =
+            _computeDepositAmountAndFee(msg.sender, D.amountToWithdraw, D.feeConfig);
+
+        uint256 withdrawAmount = D.amountToWithdraw + feeAmount;
+        D.amountToWithdraw = 0; // Prevent re-withdrawal
+        D.status = Enums.Status.CANCELED; // Mark the deposit as canceled after funds are withdrawn
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
 
-        emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
+        (, uint256 initialFeeAmount) =
+            _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
+
+        uint256 platformFee = initialFeeAmount - feeAmount;
+        if (platformFee > 0) {
+            _sendPlatformFee(D.paymentToken, platformFee);
+        }
+
+        emit Withdrawn(_contractId, D.paymentToken, withdrawAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -223,7 +235,8 @@ contract Escrow is IEscrow, Ownable {
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
         if (msg.sender != D.contractor && msg.sender != owner()) revert Escrow__UnauthorizedToApproveReturn();
 
-        /// TODO D.amountToWithdraw = D.amount;
+        D.amountToWithdraw = D.amount; /// TODO test
+
         D.status = Enums.Status.REFUND_APPROVED;
         emit ReturnApproved(_contractId, msg.sender);
     }

@@ -36,6 +36,8 @@ interface IEscrow {
 
     error Escrow__NotSetFeeManager();
 
+    error Escrow__NoFundsAvailableForWithdraw();
+
     struct Deposit {
         address contractor;
         address paymentToken;
@@ -57,7 +59,7 @@ interface IEscrow {
         Enums.FeeConfig feeConfig
     );
 
-    event Withdrawn(address indexed sender, uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+    event Withdrawn(uint256 indexed contractId, address indexed paymentToken, uint256 amount);
 
     event Submitted(address indexed sender, uint256 indexed contractId);
 
