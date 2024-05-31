@@ -72,7 +72,7 @@ contract Escrow is IEscrow, Ownable {
         D.timeLock = _deposit.timeLock;
         D.contractorData = _deposit.contractorData;
         D.feeConfig = _deposit.feeConfig;
-        D.status = Enums.Status.PENDING;
+        D.status = Enums.Status.ACTIVE;
 
         emit Deposited(
             msg.sender, currentContractId, _deposit.paymentToken, _deposit.amount, _deposit.timeLock, _deposit.feeConfig
@@ -87,7 +87,7 @@ contract Escrow is IEscrow, Ownable {
     function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt) external {
         Deposit storage D = deposits[_contractId];
 
-        if (uint256(D.status) != uint256(Enums.Status.PENDING)) revert Escrow__InvalidStatusForSubmit(); // TODO test
+        if (uint256(D.status) != uint256(Enums.Status.ACTIVE)) revert Escrow__InvalidStatusForSubmit(); // TODO test
 
         bytes32 contractorDataHash = _getContractorDataHash(_data, _salt);
 
@@ -113,7 +113,7 @@ contract Escrow is IEscrow, Ownable {
 
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
-        D.status = Enums.Status.PENDING; // TODO TBC the correct status
+        D.status = Enums.Status.APPROVED;
         if (D.amount >= D.amountToClaim) {
             D.amountToClaim += _amountApprove;
             emit Approved(_contractId, _amountApprove, _receiver);
@@ -145,7 +145,10 @@ contract Escrow is IEscrow, Ownable {
     /// @param _contractId ID of the deposit from which to claim funds.
     function claim(uint256 _contractId) external {
         Deposit storage D = deposits[_contractId];
-        // check the status APPROVED || RESOLVED || CANCELED
+        if (D.status != Enums.Status.APPROVED && D.status != Enums.Status.RESOLVED && D.status != Enums.Status.CANCELED)
+        {
+            revert Escrow__InvalidStatusToClaim();
+        }
         if (D.amountToClaim == 0) revert Escrow__NotApproved();
 
         if (D.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
@@ -164,8 +167,7 @@ contract Escrow is IEscrow, Ownable {
             _sendPlatformFee(D.paymentToken, feeAmount + clientFee);
         }
 
-        // if (D.amount == 0) D.status = Status.COMPLETED;
-        // TBC else  can't be completed in case 1st milestone..
+        if (D.amount == 0) D.status = Enums.Status.COMPLETED;
 
         emit Claimed(_contractId, D.paymentToken, claimAmount);
     }
@@ -222,7 +224,7 @@ contract Escrow is IEscrow, Ownable {
     /// @param _contractId ID of the deposit for which the return is requested.
     function requestReturn(uint256 _contractId) external onlyClient {
         Deposit storage D = deposits[_contractId];
-        if (D.status != Enums.Status.PENDING && D.status != Enums.Status.SUBMITTED) revert Escrow__ReturnNotAllowed();
+        if (D.status != Enums.Status.ACTIVE && D.status != Enums.Status.SUBMITTED) revert Escrow__ReturnNotAllowed();
 
         D.status = Enums.Status.RETURN_REQUESTED;
         emit ReturnRequested(_contractId);
@@ -242,14 +244,14 @@ contract Escrow is IEscrow, Ownable {
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status.
-    /// @dev This function allows a client to cancel a return request, setting the deposit status back to either PENDING or SUBMITTED.
+    /// @dev This function allows a client to cancel a return request, setting the deposit status back to either ACTIVE or SUBMITTED.
     /// @param _contractId The unique identifier of the deposit for which the return is being cancelled.
-    /// @param _status The new status to set for the deposit, must be either PENDING or SUBMITTED.
+    /// @param _status The new status to set for the deposit, must be either ACTIVE or SUBMITTED.
     /// @custom:modifier onlyClient Ensures that only the client associated with the deposit can execute this function.
     function cancelReturn(uint256 _contractId, Enums.Status _status) external onlyClient {
         Deposit storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-        if (_status != Enums.Status.PENDING && _status != Enums.Status.SUBMITTED) {
+        if (_status != Enums.Status.ACTIVE && _status != Enums.Status.SUBMITTED) {
             revert Escrow__InvalidStatusProvided();
         }
 
@@ -260,7 +262,7 @@ contract Escrow is IEscrow, Ownable {
     /// @notice Creates a dispute over a specific deposit.
     /// @param _contractId ID of the deposit where the dispute occurred.
     function createDispute(uint256 _contractId) external {
-        Deposit storage D = deposits[_contractId]; // TODO TBC Enums.Status.PENDING for the client
+        Deposit storage D = deposits[_contractId]; // TODO TBC Enums.Status.ACTIVE for the client
         if (D.status != Enums.Status.RETURN_REQUESTED && D.status != Enums.Status.SUBMITTED) {
             revert Escrow__CreateDisputeNotAllowed();
         }

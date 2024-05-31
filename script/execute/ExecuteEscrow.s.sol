@@ -63,7 +63,7 @@ contract ExecuteEscrowScript is Script {
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: Enums.Status.PENDING
+            status: Enums.Status.ACTIVE
         });
     }
 

@@ -62,7 +62,7 @@ contract ExecuteEscrowEndToEndTest is Test {
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: Enums.Status.PENDING
+            status: Enums.Status.ACTIVE
         });
 
         vm.startPrank(client);
@@ -126,6 +126,6 @@ contract ExecuteEscrowEndToEndTest is Test {
         assertEq(_timeLock, 0); // Verifies that the time lock for the deposit is set to 0 (no delay).
         assertEq(_contractorData, contractorData); // Checks that the contractor data matches the expected initial value.
         assertEq(uint256(_feeConfig), 0); // Ensures the fee configuration is set to CLIENT_COVERS_ALL (assuming 0 is CLIENT_COVERS_ALL in the enum).
-        assertEq(uint256(_status), 0); // Confirms that the initial status of the deposit is PENDING (assuming 0 is PENDING in the enum).
+        assertEq(uint256(_status), 0); // Confirms that the initial status of the deposit is ACTIVE (assuming 0 is ACTIVE in the enum).
     }
 }

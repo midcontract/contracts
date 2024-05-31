@@ -20,6 +20,8 @@ interface IEscrow {
 
     error Escrow__InvalidStatusForApprove();
 
+    error Escrow__InvalidStatusToClaim();
+
     error Escrow__NotEnoughDeposit();
 
     error Escrow__UnauthorizedReceiver();

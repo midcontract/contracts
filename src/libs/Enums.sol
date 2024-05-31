@@ -9,12 +9,11 @@ library Enums {
         CLIENT_COVERS_ONLY, // Client pays only the coverage fee (3%), contractor responsible for the claim fee (5%)
         CONTRACTOR_COVERS_CLAIM, // Contractor pays the claim fee (5%), no coverage fee applied
         NO_FEES // No fees applied (0%)
-
     }
 
     /// @notice Enumerates the different statuses for a contract.
     enum Status {
-        PENDING, // Initial state, awaiting actions
+        ACTIVE, // The contract is active and ongoing
         SUBMITTED, // Work submitted by the contractor but not yet approved
         APPROVED, // Work has been approved
         COMPLETED, // The final claim has been done
@@ -23,7 +22,6 @@ library Enums {
         RESOLVED, // The dispute has been resolved
         REFUND_APPROVED, // Refund has been approved, funds can be withdrawn
         CANCELED // Contract has been cancelled after a refund or resolution
-
     }
 
     /// @notice Enumerates the potential outcomes of a dispute resolution.
@@ -32,6 +30,5 @@ library Enums {
         CLIENT, // Indicates the dispute was resolved in favor of the client
         CONTRACTOR, // Indicates the dispute was resolved in favor of the contractor
         SPLIT // Indicates the dispute resolution benefits both parties
-
     }
 }
