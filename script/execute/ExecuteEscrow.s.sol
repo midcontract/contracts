@@ -30,6 +30,7 @@ contract ExecuteEscrowScript is Script {
         address paymentToken;
         uint256 amount;
         uint256 amountToClaim;
+        uint256 amountToWithdraw;
         uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
@@ -58,10 +59,11 @@ contract ExecuteEscrowScript is Script {
             paymentToken: address(usdtToken),
             amount: 1000e6,
             amountToClaim: 0,
+            amountToWithdraw: 0,
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: Enums.Status.PENDING
+            status: Enums.Status.ACTIVE
         });
     }
 

@@ -35,6 +35,7 @@ contract EscrowFactoryUnitTest is Test {
         address paymentToken;
         uint256 amount;
         uint256 amountToClaim;
+        uint256 amountToWithdraw;
         uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
@@ -51,7 +52,7 @@ contract EscrowFactoryUnitTest is Test {
         treasury = makeAddr("treasury");
         client = makeAddr("client");
         contractor = makeAddr("contractor");
-        
+
         escrow = new Escrow();
         registry = new Registry(owner);
         paymentToken = new ERC20Mock();
@@ -71,10 +72,11 @@ contract EscrowFactoryUnitTest is Test {
             paymentToken: address(paymentToken),
             amount: 1 ether,
             amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: Enums.Status.PENDING
+            status: Enums.Status.ACTIVE
         });
 
         escrow.initialize(address(client), address(owner), address(registry));
@@ -148,6 +150,7 @@ contract EscrowFactoryUnitTest is Test {
             address _paymentToken,
             uint256 _amount,
             uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
             uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
@@ -160,7 +163,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(_timeLock, 0);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
-        assertEq(uint256(_status), 0); //Status.PENDING
+        assertEq(uint256(_status), 0); //Status.ACTIVE
         vm.stopPrank();
     }
 
@@ -172,10 +175,11 @@ contract EscrowFactoryUnitTest is Test {
             paymentToken: address(paymentToken),
             amount: 2 ether,
             amountToClaim: 0.5 ether,
+            amountToWithdraw: 0 ether,
             timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.NO_FEES,
-            status: Enums.Status.PENDING
+            status: Enums.Status.ACTIVE
         });
 
         (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 2 ether, Enums.FeeConfig.NO_FEES);
@@ -202,6 +206,7 @@ contract EscrowFactoryUnitTest is Test {
             address _paymentToken,
             uint256 _amount,
             uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
             uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
@@ -214,7 +219,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(_timeLock, 0);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 3); //Enums.FeeConfig.NO_FEES
-        assertEq(uint256(_status), 0); //Status.PENDING
+        assertEq(uint256(_status), 0); //Status.ACTIVE
         vm.stopPrank();
     }
 

@@ -11,10 +11,24 @@ library Enums {
         NO_FEES // No fees applied (0%)
     }
 
-    /// @notice Enumerates the different statuses for a contract or transaction.
+    /// @notice Enumerates the different statuses for a contract.
     enum Status {
-        PENDING, // Contract or transaction is pending
-        SUBMITTED, // Contract or transaction has been submitted but not yet approved
-        APPROVED // Contract or transaction has been approved
+        ACTIVE, // The contract is active and ongoing
+        SUBMITTED, // Work submitted by the contractor but not yet approved
+        APPROVED, // Work has been approved
+        COMPLETED, // The final claim has been done
+        RETURN_REQUESTED, // Client has requested a return of funds
+        DISPUTED, // A dispute has been raised following a denied return request
+        RESOLVED, // The dispute has been resolved
+        REFUND_APPROVED, // Refund has been approved, funds can be withdrawn
+        CANCELED // Contract has been cancelled after a refund or resolution
+    }
+
+    /// @notice Enumerates the potential outcomes of a dispute resolution.
+    /// @dev Describes who the winner of a dispute can be in various contexts, including partial resolutions.
+    enum Winner {
+        CLIENT, // Indicates the dispute was resolved in favor of the client
+        CONTRACTOR, // Indicates the dispute was resolved in favor of the contractor
+        SPLIT // Indicates the dispute resolution benefits both parties
     }
 }
