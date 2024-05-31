@@ -11,6 +11,10 @@ import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 /// @title Escrow Contract
 /// @notice Manages deposits, approvals, submissions, and claims within the escrow system.
 contract Escrow is IEscrow, Ownable {
+    /*///////////////////////////////////////////////////////////////
+                       CONFIGURATION & STORAGE
+    //////////////////////////////////////////////////////////////*/
+
     /// @dev Address of the registry contract.
     IRegistry public registry;
 
@@ -32,6 +36,10 @@ contract Escrow is IEscrow, Ownable {
         _;
     }
 
+    /*//////////////////////////////////////////////////////////////
+                            INITIALIZATION
+    //////////////////////////////////////////////////////////////*/
+
     /// @notice Initializes the escrow contract.
     /// @param _client Address of the client initiating actions within the escrow.
     /// @param _owner Address of the owner of the midcontract escrow platform.
@@ -49,6 +57,10 @@ contract Escrow is IEscrow, Ownable {
 
         initialized = true;
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        ESCROW UNDERLYING LOGIC
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice Creates a deposit within the escrow system.
     /// @param _deposit Details of the deposit to be created.
@@ -204,22 +216,6 @@ contract Escrow is IEscrow, Ownable {
                 ESCROW RETURN REQUEST & DISPUTE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    error Escrow__ReturnNotAllowed();
-    error Escrow__NoReturnRequested();
-    error Escrow__UnauthorizedToApproveReturn();
-    error Escrow__UnauthorizedToApproveDispute();
-    error Escrow__CreateDisputeNotAllowed();
-    error Escrow__DisputeNotActiveForThisDeposit();
-    error Escrow__InvalidStatusProvided();
-    error Escrow__InvalidWinnerSpecified();
-    error Escrow__ResolutionExceedsDepositedAmount();
-
-    event ReturnRequested(uint256 contractId);
-    event ReturnApproved(uint256 contractId, address sender);
-    event ReturnCanceled(uint256 contractId);
-    event DisputeCreated(uint256 contractId, address sender);
-    event DisputeResolved(uint256 contractId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount);
-
     /// @notice Requests the return of funds by the client.
     /// @param _contractId ID of the deposit for which the return is requested.
     function requestReturn(uint256 _contractId) external onlyClient {
@@ -306,6 +302,10 @@ contract Escrow is IEscrow, Ownable {
         emit DisputeResolved(_contractId, _winner, _clientAmount, _contractorAmount);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                        INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
     /// @notice Computes the total deposit amount and the applied fee.
     /// @dev This internal function calculates the total deposit amount and the fee applied based on the client, deposit amount, and fee configuration.
     /// @param _client Address of the client making the deposit.
@@ -365,6 +365,10 @@ contract Escrow is IEscrow, Ownable {
     function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(_data, _salt));
     }
+
+    /*//////////////////////////////////////////////////////////////
+                    EXTERNAL VIEW & MANAGER FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice Generates a hash for the contractor data.
     /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
