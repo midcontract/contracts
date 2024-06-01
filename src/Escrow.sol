@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
+
 import {IEscrow} from "./interfaces/IEscrow.sol";
 import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
 import {IRegistry} from "./interfaces/IRegistry.sol";
+import {ECDSA, ERC1271} from "src/libs/ERC1271.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {Ownable} from "src/libs/Ownable.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
 /// @title Escrow Contract
 /// @notice Manages deposits, approvals, submissions, and claims within the escrow system.
-contract Escrow is IEscrow, Ownable {
-    /*///////////////////////////////////////////////////////////////
+contract Escrow is IEscrow, ERC1271, Ownable {
+    using ECDSA for bytes32;
+
+    /*//////////////////////////////////////////////////////////////
                        CONFIGURATION & STORAGE
     //////////////////////////////////////////////////////////////*/
 
@@ -358,6 +363,24 @@ contract Escrow is IEscrow, Ownable {
         address treasury = IRegistry(registry).treasury();
         if (treasury == address(0)) revert Escrow__ZeroAddressProvided(); // TODO test
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
+    }
+
+    /// @notice Internal function to validate the signature of the provided data.
+    /// @dev Verifies if the signature is from the msg.sender, which can be an externally owned account (EOA) or a contract implementing ERC-1271.
+    /// @param _hash The hash of the data that was signed.
+    /// @param _signature The signature byte array associated with the hash.
+    /// @return True if the signature is valid, false otherwise.
+    function _isValidSignature(bytes32 _hash, bytes calldata _signature) internal view override returns (bool) {
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(_hash);
+        // Check if msg.sender is a contract
+        if (msg.sender.code.length > 0) {
+            // ERC-1271 signature verification
+            return SignatureChecker.isValidERC1271SignatureNow(msg.sender, ethSignedHash, _signature);
+        } else {
+            // EOA signature verification
+            address recoveredSigner = ECDSA.recover(ethSignedHash, _signature);
+            return recoveredSigner == msg.sender;
+        }
     }
 
     /// @notice Generates a hash for the contractor data.
