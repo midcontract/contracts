@@ -13,7 +13,7 @@ library Enums {
 
     /// @notice Enumerates the different statuses for a contract.
     enum Status {
-        PENDING, // Initial state, awaiting actions
+        ACTIVE, // The contract is active and ongoing
         SUBMITTED, // Work submitted by the contractor but not yet approved
         APPROVED, // Work has been approved
         COMPLETED, // The final claim has been done
