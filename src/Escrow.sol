@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {SignatureChecker, IERC1271} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
+import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
+
 import {IEscrow} from "./interfaces/IEscrow.sol";
 import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
 import {IRegistry} from "./interfaces/IRegistry.sol";
@@ -14,6 +15,10 @@ import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 /// @notice Manages deposits, approvals, submissions, and claims within the escrow system.
 contract Escrow is IEscrow, ERC1271, Ownable {
     using ECDSA for bytes32;
+
+    /*//////////////////////////////////////////////////////////////
+                       CONFIGURATION & STORAGE
+    //////////////////////////////////////////////////////////////*/
 
     /// @dev Address of the registry contract.
     IRegistry public registry;
