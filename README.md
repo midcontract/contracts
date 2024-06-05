@@ -38,7 +38,7 @@ make deploy-escrow
 ## Contracts on Ethereum Sepolia Testnet:
 | Name | Address |
 | :--- | :--- |
-| Escrow | [0x5C42320Ea8711E3fB811e136d87fe9a6B4d02025](https://sepolia.etherscan.io/address/0x5C42320Ea8711E3fB811e136d87fe9a6B4d02025) |
+| Escrow | [0xdF26423aa64eA4742209A1c52bBfe9dD0ab6D5B5](https://sepolia.etherscan.io/address/0xdF26423aa64eA4742209A1c52bBfe9dD0ab6D5B5) |
 | Factory | [0xE732a3625499885cE800f795A076C6Daf69e9E3d](https://sepolia.etherscan.io/address/0xe732a3625499885ce800f795a076c6daf69e9e3d) |
 | Registry | [0xcda8DF73fFA90c151879F0E5A46B2ad659502C73](https://sepolia.etherscan.io/address/0xcda8df73ffa90c151879f0e5a46b2ad659502c73) |
 | FeeManager | [0xA4857B1178425cfaaaeedBcFc220F242b4A518fA](https://sepolia.etherscan.io/address/0xa4857b1178425cfaaaeedbcfc220f242b4a518fa) |
