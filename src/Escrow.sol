@@ -84,6 +84,7 @@ contract Escrow is IEscrow, ERC1271, Ownable {
         }
 
         Deposit storage D = deposits[currentContractId];
+        D.contractor = _deposit.contractor;
         D.paymentToken = _deposit.paymentToken;
         D.amount = _deposit.amount;
         D.timeLock = _deposit.timeLock;
@@ -91,9 +92,7 @@ contract Escrow is IEscrow, ERC1271, Ownable {
         D.feeConfig = _deposit.feeConfig;
         D.status = Enums.Status.ACTIVE;
 
-        emit Deposited(
-            msg.sender, currentContractId, _deposit.paymentToken, _deposit.amount, _deposit.timeLock, _deposit.feeConfig
-        );
+        emit Deposited(msg.sender, currentContractId, _deposit.paymentToken, _deposit.amount, _deposit.feeConfig);
     }
 
     /// @notice Submits a deposit by the contractor.

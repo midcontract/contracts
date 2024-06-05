@@ -115,14 +115,12 @@ interface IEscrow {
     /// @param contractId The ID of the contract.
     /// @param paymentToken The address of the payment token.
     /// @param amount The amount deposited.
-    /// @param timeLock The time lock for the deposit.
     /// @param feeConfig The fee configuration.
     event Deposited(
         address indexed sender,
         uint256 indexed contractId,
-        address indexed paymentToken,
+        address paymentToken,
         uint256 amount,
-        uint256 timeLock,
         Enums.FeeConfig feeConfig
     );
 
