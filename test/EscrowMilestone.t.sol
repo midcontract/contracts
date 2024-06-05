@@ -73,17 +73,19 @@ contract EscrowMilestoneUnitTest is Test {
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
         // Initialize the deposits array within setUp
-        deposits.push(IEscrowMilestone.Deposit({
-            contractor: address(0),
-            paymentToken: address(paymentToken),
-            amount: 1 ether,
-            amountToClaim: 0,
-            amountToWithdraw: 0,
-            timeLock: 0,
-            contractorData: contractorData,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
-            status: Enums.Status.ACTIVE
-        }));
+        deposits.push(
+            IEscrowMilestone.Deposit({
+                contractor: address(0),
+                paymentToken: address(paymentToken),
+                amount: 1 ether,
+                amountToClaim: 0,
+                amountToWithdraw: 0,
+                timeLock: 0,
+                contractorData: contractorData,
+                feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+                status: Enums.Status.ACTIVE
+            })
+        );
     }
 
     ///////////////////////////////////////////
@@ -186,6 +188,43 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 0); //Status.ACTIVE
+    }
+
+    function test_deposit_existingContract() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 1);
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        vm.expectEmit(true, true, true, true);
+        emit Deposited(address(client), 1, 1, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        escrow.deposit(currentContractId, deposits);
+        vm.stopPrank();
+        (
+            address _contractor,
+            address _paymentToken,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            uint256 _timeLock,
+            bytes32 _contractorData,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _status
+        ) = escrow.contractMilestones(currentContractId, 1);
+        assertEq(_contractor, address(0));
+        assertEq(address(_paymentToken), address(paymentToken));
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(_timeLock, 0);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + totalDepositAmount); //2.06 ether
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
     }
 
 }

@@ -89,6 +89,10 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             contractId = _contractId;
         }
 
+        uint256 milestoneId = 0;
+        if (contractMilestones[_contractId].length > 0) {
+            milestoneId = contractMilestones[_contractId].length;
+        }
         uint256 depositsLength = _deposits.length;
         for (uint256 i; i < depositsLength;) {
             Deposit calldata D = _deposits[i];
@@ -116,10 +120,11 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             );
 
             // Emit an event for the deposit of each milestone
-            emit Deposited(msg.sender, contractId, i, D.paymentToken, D.amount, D.feeConfig);
+            emit Deposited(msg.sender, contractId, milestoneId, D.paymentToken, D.amount, D.feeConfig);
 
             unchecked {
                 i++;
+                milestoneId++;
             }
         }
     }
