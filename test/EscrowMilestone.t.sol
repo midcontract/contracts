@@ -227,4 +227,157 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
     }
 
+    function test_deposit_reverts() public {
+        vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
+        vm.prank(client);
+        escrow.deposit(0, deposits);
+        test_initialize();
+        address notClient = makeAddr("notClient");
+        vm.prank(notClient);
+        vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
+        escrow.deposit(0, deposits);
+
+        ERC20Mock notPaymentToken = new ERC20Mock();
+        IEscrowMilestone.Deposit[] memory _deposits = new IEscrowMilestone.Deposit[](1);
+        _deposits[0] = IEscrowMilestone.Deposit({
+            contractor: address(0),
+            paymentToken: address(notPaymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            status: Enums.Status.ACTIVE
+        });
+        vm.prank(client);
+        vm.expectRevert(IEscrowMilestone.Escrow__NotSupportedPaymentToken.selector);
+        escrow.deposit(0, _deposits);
+
+        _deposits[0] = IEscrowMilestone.Deposit({
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 0 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            status: Enums.Status.ACTIVE
+        });
+        vm.prank(client);
+        vm.expectRevert(IEscrowMilestone.Escrow__ZeroDepositAmount.selector);
+        escrow.deposit(0, _deposits);
+
+        _deposits = new IEscrowMilestone.Deposit[](0);
+        vm.prank(client);
+        vm.expectRevert(IEscrowMilestone.Escrow__NoDepositsProvided.selector);
+        escrow.deposit(0, _deposits);
+
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        _deposits = new IEscrowMilestone.Deposit[](1);
+        _deposits[0] = IEscrowMilestone.Deposit({
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            status: Enums.Status.ACTIVE
+        });
+        vm.expectRevert(IEscrowMilestone.Escrow__InvalidContractId.selector);
+        escrow.deposit(1, _deposits);
+    }
+
+    function test_deposit_severalMilestones() public {
+        test_initialize();
+        IEscrowMilestone.Deposit[] memory _deposits = new IEscrowMilestone.Deposit[](3);
+        _deposits[0] = IEscrowMilestone.Deposit({
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            status: Enums.Status.ACTIVE
+        });
+        (uint256 depositAmountMilestone1,) =
+            _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        _deposits[1] = IEscrowMilestone.Deposit({
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 2 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.ACTIVE
+        });
+        (uint256 depositAmountMilestone2,) =
+            _computeDepositAndFeeAmount(client, 2 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        _deposits[2] = IEscrowMilestone.Deposit({
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 3 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.ACTIVE
+        });
+        (uint256 depositAmountMilestone3,) =
+            _computeDepositAndFeeAmount(client, 3 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        uint256 totalDepositAmount = depositAmountMilestone1 + depositAmountMilestone2 + depositAmountMilestone3;
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), totalDepositAmount);
+        paymentToken.approve(address(escrow), totalDepositAmount);
+        escrow.deposit(0, _deposits);
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (
+            address _contractor,
+            address _paymentToken,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            uint256 _timeLock,
+            bytes32 _contractorData,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _status
+        ) = escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, address(0));
+        assertEq(address(_paymentToken), address(paymentToken));
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(_timeLock, 0);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+        (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,, _feeConfig, _status) =
+            escrow.contractMilestones(currentContractId, 1);
+        assertEq(_contractor, address(0));
+        assertEq(_amount, 2 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+        (,, _amount, _amountToClaim, _amountToWithdraw,,, _feeConfig, _status) =
+            escrow.contractMilestones(currentContractId, 2);
+        assertEq(_amount, 3 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+    }
 }
