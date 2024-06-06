@@ -103,6 +103,10 @@ contract Escrow is IEscrow, ERC1271, Ownable {
     function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt) external {
         Deposit storage D = deposits[_contractId];
 
+        if (D.contractor != address(0)) {
+            if (msg.sender != D.contractor) revert Escrow__UnauthorizedAccount(msg.sender);
+        }
+
         if (uint256(D.status) != uint256(Enums.Status.ACTIVE)) revert Escrow__InvalidStatusForSubmit(); // TODO test
 
         bytes32 contractorDataHash = _getContractorDataHash(_data, _salt);

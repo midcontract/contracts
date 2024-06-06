@@ -575,6 +575,32 @@ contract EscrowUnitTest is Test {
         vm.stopPrank();
     }
 
+    function test_submit_withContractorAddress() public {
+        test_deposit_withContractorAddress();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,,,,,, bytes32 _contractorData, Enums.FeeConfig _feeConfig, Enums.Status _status) =
+            escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(address(this));
+        vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
+        escrow.submit(currentContractId, contractData, salt);
+        vm.prank(contractor);
+        vm.expectEmit(true, true, true, true);
+        emit Submitted(contractor, currentContractId);
+        escrow.submit(currentContractId, contractData, salt);
+        (_contractor,,,,,, _contractorData, _feeConfig, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorDataHash);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
     ////////////////////////////////////////////
     //             approve tests              //
     ////////////////////////////////////////////
