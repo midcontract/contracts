@@ -107,7 +107,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             // Add the new deposit as a new milestone
             contractMilestones[contractId].push(
                 Deposit({
-                    contractor: address(0), // Initialize with no contractor assigned
+                    contractor: D.contractor, // Initialize with contractor assigned, could be zero address on initial stage
                     paymentToken: D.paymentToken,
                     amount: D.amount,
                     amountToClaim: 0, // Initialize claimable amount to zero

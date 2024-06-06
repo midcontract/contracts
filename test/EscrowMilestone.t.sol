@@ -380,4 +380,51 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
     }
+
+    function test_deposit_withContractorAddress() public {
+        test_initialize();
+        IEscrowMilestone.Deposit[] memory _deposits = new IEscrowMilestone.Deposit[](1);
+        _deposits[0] = IEscrowMilestone.Deposit({
+            contractor: contractor,
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            timeLock: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.ACTIVE
+        });
+        (uint256 depositAmountMilestone1,) =
+            _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), depositAmountMilestone1);
+        paymentToken.approve(address(escrow), depositAmountMilestone1);
+        escrow.deposit(0, _deposits);
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (
+            address _contractor,
+            address _paymentToken,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            uint256 _timeLock,
+            bytes32 _contractorData,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _status
+        ) = escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(address(_paymentToken), address(paymentToken));
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(_timeLock, 0);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(paymentToken.balanceOf(address(escrow)), depositAmountMilestone1);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+    }
+
 }
