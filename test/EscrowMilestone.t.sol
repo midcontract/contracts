@@ -51,6 +51,7 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 amount,
         Enums.FeeConfig feeConfig
     );
+    event Submitted(address indexed sender, uint256 indexed contractId);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -291,6 +292,7 @@ contract EscrowMilestoneUnitTest is Test {
         });
         vm.expectRevert(IEscrowMilestone.Escrow__InvalidContractId.selector);
         escrow.deposit(1, _deposits);
+        vm.stopPrank();
     }
 
     function test_deposit_severalMilestones() public {
@@ -379,6 +381,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        vm.stopPrank();
     }
 
     function test_deposit_withContractorAddress() public {
@@ -425,6 +428,130 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), depositAmountMilestone1);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        vm.stopPrank();
+    }
+
+    ///////////////////////////////////////////
+    //             submit tests              //
+    ///////////////////////////////////////////
+
+    function test_submit() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,,,, bytes32 _contractorData,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, address(0));
+        assertEq(_amount, 1 ether);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(contractor);
+        vm.expectEmit(true, true, true, true);
+        emit Submitted(contractor, currentContractId);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        (_contractor,, _amount,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorDataHash);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
+    function test_submit_withContractorAddress() public {
+        test_deposit_withContractorAddress();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,,,, bytes32 _contractorData,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(contractor);
+        vm.expectEmit(true, true, true, true);
+        emit Submitted(contractor, currentContractId);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        (_contractor,, _amount,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorDataHash);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
+    function test_submit_reverts_InvalidStatusForSubmit() public {
+        test_submit_withContractorAddress();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, ,,,, bytes32 _contractorData,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.startPrank(contractor);
+        vm.expectRevert(IEscrowMilestone.Escrow__InvalidStatusForSubmit.selector);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        (_contractor,,,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
+    function test_submit_reverts_InvalidContractorDataHash() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount,,,, bytes32 _contractorData,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, address(0));
+        assertEq(_amount, 1 ether);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+
+        contractData = bytes("contract_data_");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.startPrank(contractor);
+        vm.expectRevert(IEscrowMilestone.Escrow__InvalidContractorDataHash.selector);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        (_contractor,,,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, address(0));
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(43)));
+        contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.startPrank(contractor);
+        vm.expectRevert(IEscrowMilestone.Escrow__InvalidContractorDataHash.selector);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        (_contractor,,,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, address(0));
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+    }
+
+    function test_submit_reverts_UnauthorizedAccount() public {
+        test_deposit_withContractorAddress();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, ,,,, bytes32 _contractorData,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(address(this));
+        vm.expectRevert(); //IEscrowMilestone.Escrow__UnauthorizedAccount.selector
+        escrow.submit(currentContractId, 0, contractData, salt);
+        (_contractor,, ,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorDataHash);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
     }
 
 }

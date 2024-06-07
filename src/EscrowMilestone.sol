@@ -137,11 +137,15 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     function submit(uint256 _contractId, uint256 _milestoneId, bytes calldata _data, bytes32 _salt) external {
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
 
-        if (uint256(D.status) != uint256(Enums.Status.ACTIVE)) revert Escrow__InvalidStatusForSubmit(); // TODO test
+        if (D.contractor != address(0)) {
+            if (msg.sender != D.contractor) revert Escrow__UnauthorizedAccount(msg.sender);
+        }
+
+        if (uint256(D.status) != uint256(Enums.Status.ACTIVE)) revert Escrow__InvalidStatusForSubmit();
 
         bytes32 contractorDataHash = _getContractorDataHash(_data, _salt);
 
-        if (D.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash(); // TODO check not zero
+        if (D.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
 
         D.contractor = msg.sender;
         D.status = Enums.Status.SUBMITTED;

@@ -601,6 +601,46 @@ contract EscrowUnitTest is Test {
         assertEq(uint256(_status), 1); //Status.SUBMITTED
     }
 
+    function test_submit_reverts_UnauthorizedAccount() public {
+        test_deposit_withContractorAddress();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,,,,,, , , Enums.Status _status) =
+            escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(address(this));
+        vm.expectRevert(); //IEscrowMilestone.Escrow__UnauthorizedAccount.selector
+        escrow.submit(currentContractId, contractData, salt);
+        (_contractor,, ,,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+    }
+
+    function test_submit_reverts_InvalidStatusForSubmit() public {
+        test_submit_withContractorAddress();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,,,,,, bytes32 _contractorData, , Enums.Status _status) =
+            escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidStatusForSubmit.selector);
+        escrow.submit(currentContractId, contractData, salt);
+        (_contractor,,,,,, _contractorData, , _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorDataHash);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
     ////////////////////////////////////////////
     //             approve tests              //
     ////////////////////////////////////////////
