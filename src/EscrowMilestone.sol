@@ -451,6 +451,13 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         return currentContractId;
     }
 
+    /// @notice Retrieves the number of milestones for a given contract ID.
+    /// @param _contractId The contract ID for which to retrieve the milestone count.
+    /// @return The number of milestones associated with the given contract ID.
+    function getMilestoneCount(uint256 _contractId) external view returns (uint256) {
+        return contractMilestones[_contractId].length;
+    }
+
     /// @notice Updates the registry address used for fetching escrow implementations.
     /// @param _registry New registry address.
     function updateRegistry(address _registry) external onlyOwner {

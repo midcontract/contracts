@@ -189,6 +189,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(escrow.getMilestoneCount(currentContractId), 1);
     }
 
     function test_deposit_existingContract() public {
@@ -226,6 +227,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + totalDepositAmount); //2.06 ether
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        assertEq(escrow.getMilestoneCount(currentContractId), 2);
     }
 
     function test_deposit_reverts() public {
@@ -381,6 +383,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        assertEq(escrow.getMilestoneCount(currentContractId), 3);
         vm.stopPrank();
     }
 
