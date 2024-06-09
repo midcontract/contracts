@@ -119,13 +119,14 @@ interface IEscrowMilestone {
     /// @notice Emitted when a deposit is made.
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
+    /// @param milestoneId The ID of the milestone.
     /// @param paymentToken The address of the payment token.
     /// @param amount The amount deposited.
     /// @param feeConfig The fee configuration.
     event Deposited(
         address indexed sender,
         uint256 indexed contractId,
-        uint256 milestoneId,
+        uint256 indexed milestoneId,
         address paymentToken,
         uint256 amount,
         Enums.FeeConfig feeConfig
@@ -138,9 +139,10 @@ interface IEscrowMilestone {
 
     /// @notice Emitted when an approval is made.
     /// @param contractId The ID of the contract.
+    /// @param milestoneId The ID of the milestone.
     /// @param amountApprove The approved amount.
     /// @param receiver The address of the receiver.
-    event Approved(uint256 indexed contractId, uint256 indexed amountApprove, address indexed receiver);
+    event Approved(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amountApprove, address receiver);
 
     /// @notice Emitted when a contract is refilled.
     /// @param contractId The ID of the contract.

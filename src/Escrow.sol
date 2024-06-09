@@ -133,13 +133,12 @@ contract Escrow is IEscrow, ERC1271, Ownable {
 
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
+        if (D.amountToClaim + _amountApprove > D.amount) revert Escrow__NotEnoughDeposit();
+
+        D.amountToClaim += _amountApprove;
         D.status = Enums.Status.APPROVED;
-        if (D.amount >= D.amountToClaim) {
-            D.amountToClaim += _amountApprove;
-            emit Approved(_contractId, _amountApprove, _receiver);
-        } else {
-            revert Escrow__NotEnoughDeposit(); // TODO test
-        }
+        
+        emit Approved(_contractId, _amountApprove, _receiver);
     }
 
     /// @notice Refills the deposit with an additional amount.
