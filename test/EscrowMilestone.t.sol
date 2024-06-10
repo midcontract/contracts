@@ -54,6 +54,7 @@ contract EscrowMilestoneUnitTest is Test {
     event Submitted(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
     event Approved(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amountApprove, address receiver);
     event Refilled(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amountAdditional);
+    event Claimed(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amount);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -760,5 +761,80 @@ contract EscrowMilestoneUnitTest is Test {
 
         (,, _amount,,,,,,) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_amount, 1 ether);
+    }
+
+    ////////////////////////////////////////////
+    //              claim tests               //
+    ////////////////////////////////////////////
+
+    function test_claim_clientCoversOnly() public {
+        test_approve();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            ,
+            ,
+            ,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _status
+        ) = escrow.contractMilestones(currentContractId, --milestoneId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 1 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_status), 2); //Status.APPROVED
+
+        (uint256 totalDepositAmount, uint256 feeApplied) =
+            _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
+
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(feeApplied, clientFee);
+
+        vm.startPrank(contractor);
+        vm.expectEmit(true, true, true, true);
+        emit Claimed(currentContractId, milestoneId, claimAmount);
+        escrow.claim(currentContractId, milestoneId);
+
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
+
+        (,, _amount, _amountToClaim,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_amount, 0 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 3); //Status.COMPLETED
+        vm.stopPrank();
+    }
+
+    function test_claim_reverts() public {
+        uint256 amountApprove = 0 ether;
+        test_submit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
+        (,, uint256 _amount, uint256 _amountToClaim,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, amountApprove); //0
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        vm.prank(contractor);
+        vm.expectRevert(IEscrowMilestone.Escrow__InvalidStatusToClaim.selector);
+        // vm.expectRevert(IEscrow.Escrow__NotApproved.selector); //TODO test
+        escrow.claim(currentContractId, milestoneId);
+        vm.prank(address(this));
+        vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
+        escrow.claim(currentContractId, milestoneId);
+        (,, _amount, _amountToClaim,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, amountApprove); //0
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
     }
 }

@@ -202,6 +202,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @notice Claims the approved amount by the contractor.
     /// @dev This function allows the contractor to claim the approved amount from the deposit.
     /// @param _contractId ID of the deposit from which to claim funds.
+    /// @param _milestoneId ID of the milestone within the contract to be refilled.
     function claim(uint256 _contractId, uint256 _milestoneId) external {
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
         if (D.status != Enums.Status.APPROVED && D.status != Enums.Status.RESOLVED && D.status != Enums.Status.CANCELED)
@@ -228,7 +229,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
         if (D.amount == 0) D.status = Enums.Status.COMPLETED;
 
-        emit Claimed(_contractId, D.paymentToken, claimAmount);
+        emit Claimed(_contractId, _milestoneId, claimAmount);
     }
 
     /// @notice Withdraws funds from a deposit under specific conditions.
