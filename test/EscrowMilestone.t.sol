@@ -53,6 +53,7 @@ contract EscrowMilestoneUnitTest is Test {
     );
     event Submitted(address indexed sender, uint256 indexed contractId);
     event Approved(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amountApprove, address receiver);
+    event Refilled(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amountAdditional);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -695,5 +696,69 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_status), 1); //Status.SUBMITTED
+    }
+
+    ////////////////////////////////////////////
+    //              refill tests              //
+    ////////////////////////////////////////////
+
+    function test_refill() public {
+        test_approve_reverts_NotEnoughDeposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
+        (address _contractor,, uint256 _amount, uint256 _amountToClaim,,,,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, --milestoneId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.03 ether
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+
+        uint256 amountAdditional = 1 ether;
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), totalDepositAmount);
+        paymentToken.approve(address(escrow), totalDepositAmount);
+        vm.expectEmit(true, true, true, true);
+        emit Refilled(currentContractId, milestoneId, amountAdditional);
+        escrow.refill(currentContractId, milestoneId, amountAdditional);
+        vm.stopPrank();
+        (_contractor,, _amount, _amountToClaim,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 2 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + totalDepositAmount); //2.06 ether
+    }
+
+    function test_refill_reverts() public {
+        test_deposit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
+        (,, uint256 _amount,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+
+        uint256 amountAdditional = 1 ether;
+        vm.startPrank(address(this));
+        paymentToken.mint(address(client), amountAdditional);
+        paymentToken.approve(address(escrow), amountAdditional);
+        vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender);
+        escrow.refill(currentContractId, milestoneId, amountAdditional);
+        vm.stopPrank();
+
+        amountAdditional = 0 ether;
+        vm.startPrank(client);
+        paymentToken.mint(address(client), amountAdditional);
+        paymentToken.approve(address(escrow), amountAdditional);
+        vm.expectRevert(IEscrowMilestone.Escrow__InvalidAmount.selector);
+        escrow.refill(currentContractId, milestoneId, amountAdditional);
+        vm.stopPrank();
+
+        (,, _amount,,,,,,) = escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_amount, 1 ether);
     }
 }
