@@ -135,7 +135,8 @@ interface IEscrowMilestone {
     /// @notice Emitted when a submission is made.
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
-    event Submitted(address indexed sender, uint256 indexed contractId);
+    /// @param milestoneId The ID of the milestone.
+    event Submitted(address indexed sender, uint256 indexed milestoneId, uint256 indexed contractId);
 
     /// @notice Emitted when an approval is made.
     /// @param contractId The ID of the contract.
@@ -146,8 +147,9 @@ interface IEscrowMilestone {
 
     /// @notice Emitted when a contract is refilled.
     /// @param contractId The ID of the contract.
+    /// @param milestoneId The ID of the milestone.
     /// @param amountAdditional The additional amount added.
-    event Refilled(uint256 indexed contractId, uint256 indexed amountAdditional);
+    event Refilled(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amountAdditional);
 
     /// @notice Emitted when a claim is made.
     /// @param contractId The ID of the contract.

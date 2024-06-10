@@ -51,7 +51,7 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 amount,
         Enums.FeeConfig feeConfig
     );
-    event Submitted(address indexed sender, uint256 indexed contractId);
+    event Submitted(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
     event Approved(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amountApprove, address receiver);
     event Refilled(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amountAdditional);
 
@@ -455,7 +455,7 @@ contract EscrowMilestoneUnitTest is Test {
         bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit Submitted(contractor, currentContractId);
+        emit Submitted(contractor, currentContractId, 0);
         escrow.submit(currentContractId, 0, contractData, salt);
         (_contractor,, _amount,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
@@ -478,7 +478,7 @@ contract EscrowMilestoneUnitTest is Test {
         bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit Submitted(contractor, currentContractId);
+        emit Submitted(contractor, currentContractId, 0);
         escrow.submit(currentContractId, 0, contractData, salt);
         (_contractor,, _amount,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);

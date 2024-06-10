@@ -132,6 +132,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @notice Submits a deposit by the contractor.
     /// @dev This function allows the contractor to submit a deposit with their data and salt.
     /// @param _contractId ID of the deposit to be submitted.
+    /// @param _milestoneId ID of the milestone within the contract to be refilled.
     /// @param _data Contractor data for the deposit.
     /// @param _salt Salt value for generating the contractor data hash.
     function submit(uint256 _contractId, uint256 _milestoneId, bytes calldata _data, bytes32 _salt) external {
@@ -150,12 +151,13 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         D.contractor = msg.sender;
         D.status = Enums.Status.SUBMITTED;
 
-        emit Submitted(msg.sender, _contractId);
+        emit Submitted(msg.sender, _contractId, _milestoneId);
     }
 
     /// @notice Approves a deposit by the client.
     /// @dev This function allows the client to approve a submitted deposit, specifying the amount to approve and any additional amount.
     /// @param _contractId ID of the deposit to be approved.
+    /// @param _milestoneId ID of the milestone within the contract to be refilled.
     /// @param _amountApprove Amount to approve for the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
     function approve(uint256 _contractId, uint256 _milestoneId, uint256 _amountApprove, address _receiver)
@@ -181,6 +183,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @notice Refills the deposit with an additional amount.
     /// @dev This function allows adding additional funds to the deposit, updating the deposit amount accordingly.
     /// @param _contractId ID of the deposit to be refilled.
+    /// @param _milestoneId ID of the milestone within the contract to be refilled.
     /// @param _amountAdditional Additional amount to be added to the deposit.
     function refill(uint256 _contractId, uint256 _milestoneId, uint256 _amountAdditional) external onlyClient {
         if (_amountAdditional == 0) revert Escrow__InvalidAmount();
@@ -193,7 +196,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
         SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalAmountAdditional);
         D.amount += _amountAdditional;
-        emit Refilled(_contractId, _amountAdditional);
+        emit Refilled(_contractId, _milestoneId, _amountAdditional);
     }
 
     /// @notice Claims the approved amount by the contractor.
