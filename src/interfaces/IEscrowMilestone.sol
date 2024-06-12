@@ -159,9 +159,9 @@ interface IEscrowMilestone {
 
     /// @notice Emitted when a withdrawal is made.
     /// @param contractId The ID of the contract.
-    /// @param paymentToken The address of the payment token.
+    /// @param milestoneId The ID of the milestone.
     /// @param amount The amount withdrawn.
-    event Withdrawn(uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+    event Withdrawn(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount);
 
     /// @notice Emitted when a return is requested.
     /// @param contractId The ID of the contract.

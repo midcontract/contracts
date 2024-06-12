@@ -257,7 +257,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             _sendPlatformFee(D.paymentToken, platformFee);
         }
 
-        emit Withdrawn(_contractId, D.paymentToken, withdrawAmount);
+        emit Withdrawn(_contractId, _milestoneId, withdrawAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
