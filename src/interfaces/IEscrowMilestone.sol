@@ -165,28 +165,33 @@ interface IEscrowMilestone {
 
     /// @notice Emitted when a return is requested.
     /// @param contractId The ID of the contract.
-    event ReturnRequested(uint256 contractId);
+    /// @param milestoneId The ID of the milestone.
+    event ReturnRequested(uint256 contractId, uint256 milestoneId);
 
     /// @notice Emitted when a return is approved.
     /// @param contractId The ID of the contract.
+    /// @param milestoneId The ID of the milestone.
     /// @param sender The address of the sender.
-    event ReturnApproved(uint256 contractId, address sender);
+    event ReturnApproved(uint256 contractId, uint256 milestoneId, address sender);
 
     /// @notice Emitted when a return is canceled.
     /// @param contractId The ID of the contract.
-    event ReturnCanceled(uint256 contractId);
+    /// @param milestoneId The ID of the milestone.
+    event ReturnCanceled(uint256 contractId, uint256 milestoneId);
 
     /// @notice Emitted when a dispute is created.
     /// @param contractId The ID of the contract.
+    /// @param milestoneId The ID of the milestone.
     /// @param sender The address of the sender.
-    event DisputeCreated(uint256 contractId, address sender);
+    event DisputeCreated(uint256 contractId, uint256 milestoneId, address sender);
 
     /// @notice Emitted when a dispute is resolved.
     /// @param contractId The ID of the contract.
+    /// @param milestoneId The ID of the milestone.
     /// @param winner The winner of the dispute.
     /// @param clientAmount The amount awarded to the client.
     /// @param contractorAmount The amount awarded to the contractor.
-    event DisputeResolved(uint256 contractId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount);
+    event DisputeResolved(uint256 contractId, uint256 milestoneId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount);
 
     /// @notice Emitted when the registry address is updated in the escrow.
     /// @param registry The new registry address.

@@ -271,7 +271,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         if (D.status != Enums.Status.ACTIVE && D.status != Enums.Status.SUBMITTED) revert Escrow__ReturnNotAllowed();
 
         D.status = Enums.Status.RETURN_REQUESTED;
-        emit ReturnRequested(_contractId);
+        emit ReturnRequested(_contractId, _milestoneId);
     }
 
     /// @notice Approves the return of funds, callable by contractor or platform owner/admin.
@@ -284,7 +284,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         D.amountToWithdraw = D.amount;
 
         D.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(_contractId, msg.sender);
+        emit ReturnApproved(_contractId, _milestoneId, msg.sender);
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status.
@@ -300,7 +300,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         }
 
         D.status = _status;
-        emit ReturnCanceled(_contractId);
+        emit ReturnCanceled(_contractId, _milestoneId);
     }
 
     /// @notice Creates a dispute over a specific deposit.
@@ -313,7 +313,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         D.status = Enums.Status.DISPUTED;
-        emit DisputeCreated(_contractId, msg.sender);
+        emit DisputeCreated(_contractId, _milestoneId, msg.sender);
     }
 
     /// @notice Resolves a dispute over a specific deposit.
@@ -350,7 +350,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             D.amountToWithdraw = _clientAmount; // Set the withdrawable amount for the client
         }
 
-        emit DisputeResolved(_contractId, _winner, _clientAmount, _contractorAmount);
+        emit DisputeResolved(_contractId, _milestoneId, _winner, _clientAmount, _contractorAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
