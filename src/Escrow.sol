@@ -124,7 +124,9 @@ contract Escrow is IEscrow, ERC1271, Ownable {
     /// @param _contractId ID of the deposit to be approved.
     /// @param _amountApprove Amount to approve for the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
-    function approve(uint256 _contractId, uint256 _amountApprove, address _receiver) external onlyClient {
+    function approve(uint256 _contractId, uint256 _amountApprove, address _receiver) external {
+        if (msg.sender != client && msg.sender != owner()) revert Escrow__UnauthorizedAccount(msg.sender);
+
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
         Deposit storage D = deposits[_contractId];
@@ -137,7 +139,7 @@ contract Escrow is IEscrow, ERC1271, Ownable {
 
         D.amountToClaim += _amountApprove;
         D.status = Enums.Status.APPROVED;
-        
+
         emit Approved(_contractId, _amountApprove, _receiver);
     }
 

@@ -596,6 +596,30 @@ contract EscrowMilestoneUnitTest is Test {
         vm.stopPrank();
     }
 
+    function test_approve_byOwner() public {
+        test_submit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
+        milestoneId--;
+        (address _contractor,, uint256 _amount, uint256 _amountToClaim,,,,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        uint256 amountApprove = 1 ether;
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit Approved(currentContractId, milestoneId, amountApprove, contractor);
+        escrow.approve(currentContractId, milestoneId, amountApprove, contractor);
+        (_contractor,, _amount, _amountToClaim,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, amountApprove);
+        assertEq(uint256(_status), 2); //Status.APPROVED
+        vm.stopPrank();
+    }
+
     function test_approve_reverts_UnauthorizedAccount() public {
         test_submit();
         uint256 currentContractId = escrow.getCurrentContractId();

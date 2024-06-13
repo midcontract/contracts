@@ -160,10 +160,9 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @param _milestoneId ID of the milestone within the contract to be refilled.
     /// @param _amountApprove Amount to approve for the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
-    function approve(uint256 _contractId, uint256 _milestoneId, uint256 _amountApprove, address _receiver)
-        external
-        onlyClient
-    {
+    function approve(uint256 _contractId, uint256 _milestoneId, uint256 _amountApprove, address _receiver) external {
+        if (msg.sender != client && msg.sender != owner()) revert Escrow__UnauthorizedAccount(msg.sender);
+
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
@@ -176,7 +175,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
         D.amountToClaim += _amountApprove;
         D.status = Enums.Status.APPROVED;
-        
+
         emit Approved(_contractId, _milestoneId, _amountApprove, _receiver);
     }
 

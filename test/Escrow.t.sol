@@ -666,6 +666,29 @@ contract EscrowUnitTest is Test {
         vm.stopPrank();
     }
 
+    function test_approve_byOwner() public {
+        test_submit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,, uint256 _amount, uint256 _amountToClaim,,,,, Enums.Status _status) =
+            escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        uint256 amountApprove = 1 ether;
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit Approved(currentContractId, amountApprove, contractor);
+        escrow.approve(currentContractId, amountApprove, contractor);
+        (_contractor,, _amount, _amountToClaim,,,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, amountApprove);
+        assertEq(uint256(_status), 2); //Status.APPROVED
+        vm.stopPrank();
+    }
+
     function test_approve_reverts_UnauthorizedAccount() public {
         test_submit();
         uint256 currentContractId = escrow.getCurrentContractId();
