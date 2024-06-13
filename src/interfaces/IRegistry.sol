@@ -42,9 +42,17 @@ interface IRegistry {
     /// @return True if the token is enabled, false otherwise.
     function paymentTokens(address token) external view returns (bool);
 
-    /// @notice Retrieves the current escrow contract address stored in the registry.
-    /// @return The address of the escrow contract.
-    function escrow() external view returns (address);
+    /// @notice Retrieves the current fixed price escrow contract address stored in the registry.
+    /// @return The address of the fixed price escrow contract.
+    function escrowFixedPrice() external view returns (address);
+
+    /// @notice Retrieves the current milestone escrow contract address stored in the registry.
+    /// @return The address of the milestone escrow contract.
+    function escrowMilestone() external view returns (address);
+
+    /// @notice Retrieves the current hourly escrow contract address stored in the registry.
+    /// @return The address of the hourly escrow contract.
+    function escrowHourly() external view returns (address);
 
     /// @notice Retrieves the current factory contract address stored in the registry.
     /// @return The address of the factory contract.
@@ -58,10 +66,17 @@ interface IRegistry {
     /// @return The address of the treasury account.
     function treasury() external view returns (address);
 
-    /// @notice Updates the address of the Escrow contract used in the system.
-    /// @dev This function allows the system administrator to set a new escrow contract address.
-    /// @param _escrow The new address of the Escrow contract to be used across the platform.
-    function updateEscrow(address _escrow) external;
+    /// @notice Updates the address of the fixed price escrow contract used in the system.
+    /// @param _escrowFixedPrice The new address of the fixed price escrow contract to be used across the platform.
+    function updateEscrowFixedPrice(address _escrowFixedPrice) external;
+
+    /// @notice Updates the address of the milestone escrow contract used in the system.
+    /// @param _escrowMilestone The new address of the milestone escrow contract to be used.
+    function updateEscrowMilestone(address _escrowMilestone) external;
+
+    /// @notice Updates the address of the hourly escrow contract used in the system.
+    /// @param _escrowHourly The new address of the hourly escrow contract to be used.
+    function updateEscrowHourly(address _escrowHourly) external;
 
     /// @notice Updates the address of the Factory contract used in the system.
     /// @dev This function allows the system administrator to set a new factory contract address.
