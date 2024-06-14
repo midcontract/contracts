@@ -25,6 +25,7 @@ contract ExecuteEscrowEndToEndTest is Test {
     IEscrow.Deposit deposit;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
+    Enums.EscrowType escrowType;
     bytes32 contractorData;
     bytes32 salt;
     bytes contractData;
@@ -84,7 +85,7 @@ contract ExecuteEscrowEndToEndTest is Test {
         // Step 1: Deploy their own contract instance to interact with the factory.
         // The client deploys an Escrow contract via the factory specifying fee configurations.
         address deployedEscrowProxy =
-            EscrowFactory(factory).deployEscrow(address(client), address(owner), address(registry));
+            EscrowFactory(factory).deployEscrow(escrowType, address(client), address(owner), address(registry));
         Escrow escrowProxy = Escrow(address(deployedEscrowProxy));
 
         // Step 2: Client approves the payment token with the respective deposit token amount.
