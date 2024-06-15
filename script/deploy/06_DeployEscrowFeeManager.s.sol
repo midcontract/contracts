@@ -8,10 +8,10 @@ import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
 contract DeployEscrowFeeManagerScript is Script {
-    EscrowFeeManager public feeManager;
-    address public registry;
-    address public deployerPublicKey;
-    uint256 public deployerPrivateKey;
+    EscrowFeeManager feeManager;
+    address registry;
+    address deployerPublicKey;
+    uint256 deployerPrivateKey;
 
     function setUp() public {
         deployerPublicKey = vm.envAddress("DEPLOYER_PUBLIC_KEY");
