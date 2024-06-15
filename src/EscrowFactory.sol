@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Escrow} from "./Escrow.sol";
 import {IEscrowFactory} from "./interfaces/IEscrowFactory.sol";
 import {IRegistry} from "./interfaces/IRegistry.sol";
+import {Enums} from "./libs/Enums.sol";
 import {LibClone} from "./libs/LibClone.sol";
 import {Ownable} from "./libs/Ownable.sol";
 import {Pausable} from "./libs/Pausable.sol";
@@ -32,33 +33,46 @@ contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
     }
 
     /// @notice Deploys a new escrow contract clone with unique settings for each project.
+    /// @param _escrowType The type of escrow to deploy, which determines the template used for cloning.
     /// @param _client The client's address who initiates the escrow, msg.sender.
     /// @param _owner The owner's address who has administrative privileges over the escrow.
     /// @param _registry Address of the registry contract to fetch escrow implementation.
     /// @return deployedProxy The address of the newly deployed escrow proxy.
-    /// @dev Clones the escrow template and initializes it with specific parameters for the project.
-    function deployEscrow(address _client, address _owner, address _registry)
+    /// @dev This function clones the specified escrow template and initializes it with specific parameters for the project.
+    /// It uses the clone factory pattern for deployment to minimize gas costs and manage multiple escrow contract versions.
+    function deployEscrow(Enums.EscrowType _escrowType, address _client, address _owner, address _registry)
         external
         whenNotPaused
         returns (address deployedProxy)
     {
+        address escrowImplement = _getEscrowImplementation(_escrowType);
+
         bytes32 salt = keccak256(abi.encode(msg.sender, factoryNonce[msg.sender]));
-
-        address escrowImplement = IRegistry(registry).escrow();
-
         address clone = LibClone.cloneDeterministic(escrowImplement, salt);
-
-        Escrow(clone).initialize(_client, _owner, _registry);
+        Escrow(clone).initialize(_client, _owner, _registry); // TODO or IEscrowCommon.initialize
 
         deployedProxy = address(clone);
-
         existingEscrow[deployedProxy] = true;
 
         unchecked {
             factoryNonce[msg.sender]++;
         }
 
-        emit EscrowProxyDeployed(msg.sender, deployedProxy);
+        emit EscrowProxyDeployed(msg.sender, deployedProxy, _escrowType);
+    }
+
+    /// @notice Fetches the appropriate escrow contract implementation address from the registry based on the escrow type.
+    /// @param _escrowType The type of escrow contract (FixedPrice, Milestone, or Hourly).
+    /// @return escrowImpl The address of the escrow implementation.
+    /// @dev This internal helper function queries the registry to obtain the correct implementation address for cloning.
+    function _getEscrowImplementation(Enums.EscrowType _escrowType) internal view returns (address escrowImpl) {
+        if (_escrowType == Enums.EscrowType.FixedPrice) {
+            return IRegistry(registry).escrowFixedPrice();
+        } else if (_escrowType == Enums.EscrowType.Milestone) {
+            return IRegistry(registry).escrowMilestone();
+        } else if (_escrowType == Enums.EscrowType.Hourly) {
+            return IRegistry(registry).escrowHourly();
+        }
     }
 
     /// @notice Updates the registry address used for fetching escrow implementations.

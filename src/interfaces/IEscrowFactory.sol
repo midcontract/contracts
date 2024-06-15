@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IEscrow} from "./IEscrow.sol";
+import {Enums} from "../libs/Enums.sol";
 
 /// @title Interface for the Escrow Factory
 /// @dev Interface defining the functionality for an escrow factory, responsible for deploying new escrow contracts.
@@ -12,7 +13,8 @@ interface IEscrowFactory {
     /// @notice Emitted when a new escrow proxy is successfully deployed.
     /// @param sender The address of the sender who initiated the escrow deployment.
     /// @param deployedProxy The address of the newly deployed escrow proxy.
-    event EscrowProxyDeployed(address sender, address deployedProxy);
+    /// @param escrowType The type of escrow to deploy, which determines the template used for cloning.
+    event EscrowProxyDeployed(address sender, address deployedProxy, Enums.EscrowType escrowType);
 
     /// @notice Emitted when the registry address is updated in the factory.
     /// @param registry The new registry address.
@@ -24,11 +26,13 @@ interface IEscrowFactory {
     function existingEscrow(address escrow) external returns (bool);
 
     /// @notice Deploys a new escrow contract with specified parameters.
+    /// @param escrowType The type of escrow to deploy, which determines the template used for cloning.
     /// @param client The address of the client for whom the escrow is being created.
     /// @param admin The address with administrative privileges over the new escrow.
     /// @param registry The address of the registry containing escrow configurations.
     /// @return The address of the newly deployed escrow contract.
     function deployEscrow(
+        Enums.EscrowType escrowType,
         address client,
         address admin,
         address registry

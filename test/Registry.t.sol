@@ -100,20 +100,54 @@ contract RegistryUnitTest is Test {
         vm.stopPrank();
     }
 
-    function test_updateEscrow() public {
-        assertEq(registry.escrow(), address(0));
+    function test_updateEscrowFixedPrice() public {
+        assertEq(registry.escrowFixedPrice(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
         vm.expectRevert(Ownable.Unauthorized.selector);
-        registry.updateEscrow(address(escrow));
+        registry.updateEscrowFixedPrice(address(escrow));
         vm.startPrank(address(owner));
         vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
-        registry.updateEscrow(address(0));
-        assertEq(registry.escrow(), address(0));
+        registry.updateEscrowFixedPrice(address(0));
+        assertEq(registry.escrowFixedPrice(), address(0));
         vm.expectEmit(true, false, false, true);
         emit EscrowUpdated(address(escrow));
-        registry.updateEscrow(address(escrow));
-        assertEq(registry.escrow(), address(escrow));
+        registry.updateEscrowFixedPrice(address(escrow));
+        assertEq(registry.escrowFixedPrice(), address(escrow));
+        vm.stopPrank();
+    }
+
+    function test_updateEscrowMilestone() public {
+        assertEq(registry.escrowMilestone(), address(0));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        registry.updateEscrowMilestone(address(escrow));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        registry.updateEscrowMilestone(address(0));
+        assertEq(registry.escrowMilestone(), address(0));
+        vm.expectEmit(true, false, false, true);
+        emit EscrowUpdated(address(escrow));
+        registry.updateEscrowMilestone(address(escrow));
+        assertEq(registry.escrowMilestone(), address(escrow));
+        vm.stopPrank();
+    }
+
+    function test_updateEscrowHourly() public {
+        assertEq(registry.escrowHourly(), address(0));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        registry.updateEscrowHourly(address(escrow));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        registry.updateEscrowHourly(address(0));
+        assertEq(registry.escrowHourly(), address(0));
+        vm.expectEmit(true, false, false, true);
+        emit EscrowUpdated(address(escrow));
+        registry.updateEscrowHourly(address(escrow));
+        assertEq(registry.escrowHourly(), address(escrow));
         vm.stopPrank();
     }
 

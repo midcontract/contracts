@@ -9,6 +9,7 @@ library Enums {
         CLIENT_COVERS_ONLY, // Client pays only the coverage fee (3%), contractor responsible for the claim fee (5%)
         CONTRACTOR_COVERS_CLAIM, // Contractor pays the claim fee (5%), no coverage fee applied
         NO_FEES // No fees applied (0%)
+
     }
 
     /// @notice Enumerates the different statuses for a contract.
@@ -22,6 +23,7 @@ library Enums {
         RESOLVED, // The dispute has been resolved
         REFUND_APPROVED, // Refund has been approved, funds can be withdrawn
         CANCELED // Contract has been cancelled after a refund or resolution
+
     }
 
     /// @notice Enumerates the potential outcomes of a dispute resolution.
@@ -30,5 +32,14 @@ library Enums {
         CLIENT, // Indicates the dispute was resolved in favor of the client
         CONTRACTOR, // Indicates the dispute was resolved in favor of the contractor
         SPLIT // Indicates the dispute resolution benefits both parties
+
+    }
+
+    /// @notice Defines the types of escrow contracts that can be created.
+    /// @dev Used in the factory contract to specify which type of escrow contract to deploy.
+    enum EscrowType {
+        FixedPrice, // Represents a fixed price contract where the payment is made as a lump sum.
+        Milestone, // Represents a contract where payment is divided into milestones, each payable upon completion.
+        Hourly // Represents a contract where payment is made based on hourly rates and actual time worked.
     }
 }

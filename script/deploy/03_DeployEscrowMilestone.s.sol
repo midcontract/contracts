@@ -3,12 +3,12 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 
-import {Escrow} from "src/Escrow.sol";
+import {EscrowMilestone} from "src/EscrowMilestone.sol";
 import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
-contract DeployEscrowScript is Script {
-    Escrow escrow;
+contract DeployEscrowMilestoneScript is Script {
+    EscrowMilestone escrow;
     address registry;
     address ownerPublicKey;
     uint256 ownerPrivateKey;
@@ -25,15 +25,15 @@ contract DeployEscrowScript is Script {
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        escrow = new Escrow();
-        escrow.initialize(address(deployerPublicKey), address(deployerPublicKey), address(registry));
+        escrow = new EscrowMilestone();
+        escrow.initialize(address(deployerPublicKey), address(ownerPublicKey), address(registry));
         vm.stopBroadcast();
 
         vm.startBroadcast(ownerPrivateKey);
-        Registry(registry).updateEscrowFixedPrice(address(escrow));
+        Registry(registry).updateEscrowMilestone(address(escrow));
         console.log("==escrow addr=%s", address(escrow));
         assert(address(escrow) != address(0));
-        assert(Registry(registry).escrowFixedPrice() == address(escrow));
+        assert(Registry(registry).escrowMilestone() == address(escrow));
         vm.stopBroadcast();
     }
 }

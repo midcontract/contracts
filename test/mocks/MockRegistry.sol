@@ -11,15 +11,20 @@ contract MockRegistry is IRegistry, Ownable {
     /// @dev Used to represent the native blockchain currency in payment tokens mapping.
     address public constant NATIVE_TOKEN = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    /// @notice Address of the Escrow contract currently in use.
-    /// @dev This can be updated by the owner as new versions of the Escrow contract are deployed.
-    address public escrow;
+    /// @notice Address of the escrow fixed price contract currently in use.
+    address public escrowFixedPrice;
 
-    /// @notice Address of the Factory contract currently in use.
+    /// @notice Address of the escrow milestone contract currently in use.
+    address public escrowMilestone;
+
+    /// @notice Address of the escrow hourly contract currently in use.
+    address public escrowHourly;
+
+    /// @notice Address of the factory contract currently in use.
     /// @dev This can be updated by the owner as new versions of the Factory contract are deployed.
     address public factory;
 
-    /// @notice Address of the FeeManager contract currently in use.
+    /// @notice Address of the fee manager contract currently in use.
     /// @dev This can be updated by the owner as new versions of the FeeManager contract are deployed.
     address public feeManager;
 
@@ -52,15 +57,31 @@ contract MockRegistry is IRegistry, Ownable {
         emit PaymentTokenRemoved(_token);
     }
 
-    /// @notice Updates the address of the Escrow contract.
-    /// @param _escrow The new address of the Escrow contract to be used.
-    function updateEscrow(address _escrow) external onlyOwner {
-        // if (_escrow == address(0)) revert Registry__ZeroAddressProvided();
-        escrow = _escrow;
-        emit EscrowUpdated(_escrow);
+    /// @notice Updates the address of the escrow fixed price contract.
+    /// @param _escrowFixedPrice The new address of the EscrowFixedPrice contract to be used.
+    function updateEscrowFixedPrice(address _escrowFixedPrice) external onlyOwner {
+        // if (_escrowFixedPrice == address(0)) revert Registry__ZeroAddressProvided();
+        escrowFixedPrice = _escrowFixedPrice;
+        emit EscrowUpdated(_escrowFixedPrice);
     }
 
-    /// @notice Updates the address of the Factory contract.
+    /// @notice Updates the address of the escrow milestone contract.
+    /// @param _escrowMilestone The new address of the EscrowMilestone contract to be used.
+    function updateEscrowMilestone(address _escrowMilestone) external onlyOwner {
+        // if (_escrowMilestone == address(0)) revert Registry__ZeroAddressProvided();
+        escrowMilestone = _escrowMilestone;
+        emit EscrowUpdated(_escrowMilestone);
+    }
+
+    /// @notice Updates the address of the escrow hourly contract.
+    /// @param _escrowHourly The new address of the EscrowHourly contract to be used.
+    function updateEscrowHourly(address _escrowHourly) external onlyOwner {
+        // if (_escrowHourly == address(0)) revert Registry__ZeroAddressProvided();
+        escrowHourly = _escrowHourly;
+        emit EscrowUpdated(_escrowHourly);
+    }
+
+    /// @notice Updates the address of the factory contract.
     /// @param _factory The new address of the Factory contract to be used.
     function updateFactory(address _factory) external onlyOwner {
         // if (_factory == address(0)) revert Registry__ZeroAddressProvided();
@@ -68,7 +89,7 @@ contract MockRegistry is IRegistry, Ownable {
         emit FactoryUpdated(_factory);
     }
 
-    /// @notice Updates the address of the FeeManager contract.
+    /// @notice Updates the address of the fee manager contract.
     /// @param _feeManager The new address of the FeeManager contract to be used.
     function updateFeeManager(address _feeManager) external onlyOwner {
         // if (_feeManager == address(0)) revert Registry__ZeroAddressProvided();
@@ -78,7 +99,6 @@ contract MockRegistry is IRegistry, Ownable {
 
     /// @notice Sets the treasury address where collected fees and other payments will be sent.
     /// @param _treasury New treasury address.
-    /// @dev Reverts if a zero address is provided.
     function setTreasury(address _treasury) external onlyOwner {
         // if (_treasury == address(0)) revert Registry__ZeroAddressProvided();
         treasury = _treasury;
