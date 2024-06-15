@@ -273,7 +273,7 @@ contract EscrowFactoryUnitTest is Test {
 
     function test_deploy_and_deposit_milestone() public {
         address deployedEscrowProxy;
-        Enums.EscrowType escrowType = Enums.EscrowType.Milestone;
+        Enums.EscrowType escrowType = Enums.EscrowType.MILESTONE;
         // 1. deploy
         vm.startPrank(client);
         vm.expectEmit(true, true, false, false);

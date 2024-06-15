@@ -70,7 +70,7 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
             })
         );
 
-        escrowType = Enums.EscrowType.Milestone;
+        escrowType = Enums.EscrowType.MILESTONE;
 
         vm.startPrank(client);
         MockUSDT(usdtToken).mint(client, 1030e6);
