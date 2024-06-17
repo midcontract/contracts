@@ -132,7 +132,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @notice Submits a deposit by the contractor.
     /// @dev This function allows the contractor to submit a deposit with their data and salt.
     /// @param _contractId ID of the deposit to be submitted.
-    /// @param _milestoneId ID of the milestone within the contract to be refilled.
+    /// @param _milestoneId ID of the milestone within the contract to be submitted.
     /// @param _data Contractor data for the deposit.
     /// @param _salt Salt value for generating the contractor data hash.
     function submit(uint256 _contractId, uint256 _milestoneId, bytes calldata _data, bytes32 _salt) external {
@@ -157,7 +157,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @notice Approves a deposit by the client.
     /// @dev This function allows the client to approve a submitted deposit, specifying the amount to approve and any additional amount.
     /// @param _contractId ID of the deposit to be approved.
-    /// @param _milestoneId ID of the milestone within the contract to be refilled.
+    /// @param _milestoneId ID of the milestone within the contract to be approved.
     /// @param _amountApprove Amount to approve for the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
     function approve(uint256 _contractId, uint256 _milestoneId, uint256 _amountApprove, address _receiver) external {
@@ -201,7 +201,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @notice Claims the approved amount by the contractor.
     /// @dev This function allows the contractor to claim the approved amount from the deposit.
     /// @param _contractId ID of the deposit from which to claim funds.
-    /// @param _milestoneId ID of the milestone within the contract to be refilled.
+    /// @param _milestoneId ID of the milestone within the contract to be claimed.
     function claim(uint256 _contractId, uint256 _milestoneId) external {
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
         if (D.status != Enums.Status.APPROVED && D.status != Enums.Status.RESOLVED && D.status != Enums.Status.CANCELED)
@@ -233,6 +233,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
     /// @notice Withdraws funds from a deposit under specific conditions.
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
+    /// @param _milestoneId ID of the milestone within the contract to be withdrawn.
     function withdraw(uint256 _contractId, uint256 _milestoneId) external onlyClient {
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
         if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {
@@ -265,6 +266,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
     /// @notice Requests the return of funds by the client.
     /// @param _contractId ID of the deposit for which the return is requested.
+    /// @param _milestoneId ID of the milestone for which the return is requested.
     function requestReturn(uint256 _contractId, uint256 _milestoneId) external onlyClient {
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
         if (D.status != Enums.Status.ACTIVE && D.status != Enums.Status.SUBMITTED) revert Escrow__ReturnNotAllowed();
@@ -275,6 +277,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
     /// @notice Approves the return of funds, callable by contractor or platform owner/admin.
     /// @param _contractId ID of the deposit for which the return is approved.
+    /// @param _milestoneId ID of the milestone for which the return is approved.
     function approveReturn(uint256 _contractId, uint256 _milestoneId) external {
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
@@ -289,6 +292,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @notice Cancels a previously requested return and resets the deposit's status.
     /// @dev This function allows a client to cancel a return request, setting the deposit status back to either ACTIVE or SUBMITTED.
     /// @param _contractId The unique identifier of the deposit for which the return is being cancelled.
+    /// @param _milestoneId ID of the milestone for which the return is being cancelled.
     /// @param _status The new status to set for the deposit, must be either ACTIVE or SUBMITTED.
     /// @custom:modifier onlyClient Ensures that only the client associated with the deposit can execute this function.
     function cancelReturn(uint256 _contractId, uint256 _milestoneId, Enums.Status _status) external onlyClient {
@@ -304,6 +308,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
     /// @notice Creates a dispute over a specific deposit.
     /// @param _contractId ID of the deposit where the dispute occurred.
+    /// @param _milestoneId ID of the deposit where the dispute occurred.
     function createDispute(uint256 _contractId, uint256 _milestoneId) external {
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
         if (D.status != Enums.Status.RETURN_REQUESTED && D.status != Enums.Status.SUBMITTED) {
@@ -317,6 +322,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
     /// @notice Resolves a dispute over a specific deposit.
     /// @param _contractId ID of the deposit where the dispute occurred.
+    /// @param _milestoneId ID of the deposit where the dispute occurred.
     /// @param _winner Specifies who the winner is: Client, Contractor, or Split.
     /// @param _clientAmount Amount to be allocated to the client if Split or Client wins.
     /// @param _contractorAmount Amount to be allocated to the contractor if Split or Contractor wins.
