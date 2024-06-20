@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
-import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
+import {EscrowHourly, IEscrowHourly} from "src/EscrowHourly.sol";
 import {EscrowFactory, IEscrowFactory} from "src/EscrowFactory.sol";
 import {Registry, IRegistry} from "src/modules/Registry.sol";
 import {Enums} from "src/libs/Enums.sol";
@@ -11,8 +11,8 @@ import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 import {MockDAI} from "test/mocks/MockDAI.sol";
 import {MockUSDT} from "test/mocks/MockUSDT.sol";
 
-contract ExecuteEscrowMilestoneEndToEndTest is Test {
-    EscrowMilestone escrow = EscrowMilestone(EthSepoliaConfig.ESCROW_MILESTONE);
+contract ExecuteEscrowHourlyEndToEndTest is Test {
+    EscrowHourly escrow = EscrowHourly(EthSepoliaConfig.ESCROW_HOURLY);
     Registry registry = Registry(EthSepoliaConfig.REGISTRY);
     EscrowFactory factory = EscrowFactory(EthSepoliaConfig.FACTORY);
     MockDAI daiToken = MockDAI(EthSepoliaConfig.MOCK_DAI);
@@ -22,7 +22,7 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
     address contractor;
     address owner;
 
-    // IEscrowMilestone.Deposit deposit;
+    // IEscrowHourly.Deposit deposit;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
@@ -42,7 +42,7 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
         Enums.Status status;
     }
 
-    IEscrowMilestone.Deposit[] deposits;
+    IEscrowHourly.Deposit[] deposits;
 
     function setUp() public {
         client = vm.envAddress("DEPLOYER_PUBLIC_KEY");
@@ -57,10 +57,10 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
         deposits.push(
-            IEscrowMilestone.Deposit({
+            IEscrowHourly.Deposit({
                 contractor: address(0),
                 paymentToken: address(usdtToken),
-                amount: 1000e6,
+                amount: 0,
                 amountToClaim: 0,
                 amountToWithdraw: 0 ether,
                 timeLock: 0,
@@ -70,11 +70,11 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
             })
         );
 
-        escrowType = Enums.EscrowType.MILESTONE;
+        escrowType = Enums.EscrowType.HOURLY;
 
-        vm.startPrank(client);
-        MockUSDT(usdtToken).mint(client, 1030e6);
-        vm.stopPrank();
+        // vm.startPrank(client);
+        // MockUSDT(usdtToken).mint(client, 1030e6);
+        // vm.stopPrank();
     }
 
     /// @dev This test verifies the complete flow of creating a deposit in an escrow system using a mocked ERC20 token.
@@ -87,27 +87,27 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
         // The client deploys an Escrow contract via the factory specifying fee configurations.
         address deployedEscrowProxy =
             EscrowFactory(factory).deployEscrow(escrowType, address(client), address(owner), address(registry));
-        EscrowMilestone escrowProxy = EscrowMilestone(address(deployedEscrowProxy));
+        EscrowHourly escrowProxy = EscrowHourly(address(deployedEscrowProxy));
 
         // Step 2: Client approves the payment token with the respective deposit token amount.
         // This approval enables the escrow contract to withdraw tokens from the client's account.
-        MockUSDT(usdtToken).approve(address(escrowProxy), 1030e6);
+        // MockUSDT(usdtToken).approve(address(escrowProxy), 1030e6);
 
         uint256 contractId = 0; // for newly created contract
 
         // Step 3: Client creates the first deposit on the deployed instance with contractId == 1.
         // The deposit function call involves transferring funds from the client to the escrow based on the approved amount.
-        EscrowMilestone(escrowProxy).deposit(contractId, deposits);
+        EscrowHourly(escrowProxy).deposit(contractId, deposits);
 
         // Stop impersonating the client after completing the test actions.
         vm.stopPrank();
 
         // Verify the parameters of the deposit created in the escrow contract.
         // Ensure the current contract ID is as expected, indicating that the deposit has been properly logged under the correct ID.
-        uint256 currentContractId = EscrowMilestone(escrowProxy).getCurrentContractId();
+        uint256 currentContractId = EscrowHourly(escrowProxy).getCurrentContractId();
         assertEq(currentContractId, 1);
 
-        uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
 
         // Retrieve the details of the created deposit using the currentContractId.
         (
@@ -120,13 +120,13 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
             Enums.Status _status
-        ) = EscrowMilestone(escrowProxy).contractMilestones(currentContractId, milestoneId);
+        ) = EscrowHourly(escrowProxy).contractWeeks(currentContractId, weekId);
 
         // Assertions to verify that the deposit parameters are correctly set according to the inputs provided during creation.
-        assertEq(MockUSDT(usdtToken).balanceOf(address(escrowProxy)), 1030e6); // Confirms that the escrow proxy has received appropriate amount of tokens.
+        assertEq(MockUSDT(usdtToken).balanceOf(address(escrowProxy)), 0); // Confirms that the escrow proxy has received appropriate amount of tokens.
         assertEq(_contractor, address(0)); // // Verifies that the contractor address is initially set to zero, indicating no contractor is assigned yet.
         assertEq(address(_paymentToken), address(usdtToken)); // Confirms that the correct payment token is associated with the deposit.
-        assertEq(_amount, 1000e6); // Ensures that the deposited amount is correctly recorded as 1 ether.
+        assertEq(_amount, 0); // Ensures that the deposited amount is correctly recorded as 1 ether.
         assertEq(_amountToClaim, 0 ether); // Checks that no amount is set to be claimable initially.
         assertEq(_amountToWithdraw, 0 ether); // Checks that no amount is set to be withdrawable initially.
         assertEq(_timeLock, 0); // Verifies that the time lock for the deposit is set to 0 (no delay).

@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
-import {IEscrowMilestone} from "./interfaces/IEscrowMilestone.sol";
+import {IEscrowHourly} from "./interfaces/IEscrowHourly.sol";
 import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
 import {IRegistry} from "./interfaces/IRegistry.sol";
 import {ECDSA, ERC1271} from "src/libs/ERC1271.sol";
@@ -11,10 +11,10 @@ import {Enums} from "src/libs/Enums.sol";
 import {Ownable} from "src/libs/Ownable.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
-/// @title Deposit management for Escrow Milestones
-/// @notice Manages the creation and addition of multiple milestones to escrow contracts.
-/// @dev Handles both the creation of a new escrow contract and the addition of milestones to existing contracts.
-contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
+/// @title Deposit management for Escrow Hourly
+/// @notice Manages the creation and addition of multiple weekly beels to escrow contracts.
+/// @dev Handles both the creation of a new escrow contract and the addition of weekly beels to existing contracts.
+contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     using ECDSA for bytes32;
 
     /*//////////////////////////////////////////////////////////////
@@ -34,7 +34,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     bool public initialized;
 
     /// @dev Maps a contract ID to an array of `Deposit` structures representing milestones.
-    mapping(uint256 contractId => Deposit[] milestoneDepositInfo) public contractMilestones;
+    mapping(uint256 contractId => Deposit[] weekDepositInfo) public contractWeeks;
 
     /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
@@ -65,14 +65,14 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     }
 
     /*//////////////////////////////////////////////////////////////
-                    ESCROW MILESTONE UNDERLYING LOGIC
+                    ESCROW HOURLY UNDERLYING LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Creates multiple milestones for a new or existing contract.
-    /// @dev This function allows the initialization of multiple milestones in a single transaction,
+    /// @notice Creates multiple weekly beels for a new or existing contract.
+    /// @dev This function allows the initialization of multiple weekly beels in a single transaction,
     ///     either by creating a new contract or adding to an existing one.
     /// @param _contractId ID of the contract for which the deposits are made; if zero, a new contract is initialized.
-    /// @param _deposits Array of details for each new milestone.
+    /// @param _deposits Array of details for each new week.
     function deposit(uint256 _contractId, Deposit[] calldata _deposits) external onlyClient {
         if (_deposits.length == 0) revert Escrow__NoDepositsProvided();
 
@@ -81,50 +81,49 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             // Create a new contract ID since _contractId is zero, indicating a new contract
             contractId = ++currentContractId;
         } else {
-            // Check if the provided _contractId is valid for adding new milestones
-            // require(contractMilestones[_contractId].length > 0 || _contractId <= currentContractId, "Escrow__InvalidContractId");
-            if (contractMilestones[_contractId].length == 0 && _contractId > currentContractId) {
+            // Check if the provided _contractId is valid for adding new weeks
+            if (contractWeeks[_contractId].length == 0 && _contractId > currentContractId) {
                 revert Escrow__InvalidContractId();
             }
             contractId = _contractId;
         }
 
-        uint256 milestoneId = 0;
-        if (contractMilestones[_contractId].length > 0) {
-            milestoneId = contractMilestones[_contractId].length;
+        uint256 weekId = 0;
+        if (contractWeeks[_contractId].length > 0) {
+            weekId = contractWeeks[_contractId].length;
         }
         uint256 depositsLength = _deposits.length;
         for (uint256 i; i < depositsLength;) {
             Deposit calldata D = _deposits[i];
 
             if (!registry.paymentTokens(D.paymentToken)) revert Escrow__NotSupportedPaymentToken();
-            if (D.amount == 0) revert Escrow__ZeroDepositAmount();
+            if (D.amount > 0) {
+                // Calculate the total deposit amount including any fees
+                (uint256 totalDepositAmount,) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
+                SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalDepositAmount);
+            }
 
-            // Calculate the total deposit amount including any fees
-            (uint256 totalDepositAmount,) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
-            SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalDepositAmount);
-
-            // Add the new deposit as a new milestone
-            contractMilestones[contractId].push(
+            // Add the new deposit as a new week
+            contractWeeks[contractId].push(
                 Deposit({
                     contractor: D.contractor, // Initialize with contractor assigned, could be zero address on initial stage
                     paymentToken: D.paymentToken,
-                    amount: D.amount,
+                    amount: D.amount, // Prepayment amount for the week can be zero
                     amountToClaim: 0, // Initialize claimable amount to zero
                     amountToWithdraw: 0, // Initialize withdrawable amount to zero
                     timeLock: D.timeLock,
                     contractorData: D.contractorData,
                     feeConfig: D.feeConfig,
-                    status: Enums.Status.ACTIVE // Set the initial status of the milestone
+                    status: Enums.Status.ACTIVE // Set the initial status of the week
                 })
             );
 
-            // Emit an event for the deposit of each milestone
-            emit Deposited(msg.sender, contractId, milestoneId, D.paymentToken, D.amount, D.feeConfig);
+            // Emit an event for the deposit of each week
+            emit Deposited(msg.sender, contractId, weekId, D.paymentToken, D.amount, D.feeConfig);
 
             unchecked {
                 i++;
-                milestoneId++;
+                weekId++;
             }
         }
     }
@@ -132,11 +131,11 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @notice Submits a deposit by the contractor.
     /// @dev This function allows the contractor to submit a deposit with their data and salt.
     /// @param _contractId ID of the deposit to be submitted.
-    /// @param _milestoneId ID of the milestone within the contract to be submitted.
+    /// @param _weekId ID of the week within the contract to be submitted.
     /// @param _data Contractor data for the deposit.
     /// @param _salt Salt value for generating the contractor data hash.
-    function submit(uint256 _contractId, uint256 _milestoneId, bytes calldata _data, bytes32 _salt) external {
-        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+    function submit(uint256 _contractId, uint256 _weekId, bytes calldata _data, bytes32 _salt) external {
+        Deposit storage D = contractWeeks[_contractId][_weekId];
 
         if (D.contractor != address(0)) {
             if (msg.sender != D.contractor) revert Escrow__UnauthorizedAccount(msg.sender);
@@ -151,21 +150,21 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         D.contractor = msg.sender;
         D.status = Enums.Status.SUBMITTED;
 
-        emit Submitted(msg.sender, _contractId, _milestoneId);
+        emit Submitted(msg.sender, _contractId, _weekId);
     }
 
     /// @notice Approves a deposit by the client.
     /// @dev This function allows the client to approve a submitted deposit, specifying the amount to approve and any additional amount.
     /// @param _contractId ID of the deposit to be approved.
-    /// @param _milestoneId ID of the milestone within the contract to be approved.
+    /// @param _weekId ID of the week within the contract to be approved.
     /// @param _amountApprove Amount to approve for the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
-    function approve(uint256 _contractId, uint256 _milestoneId, uint256 _amountApprove, address _receiver) external {
+    function approve(uint256 _contractId, uint256 _weekId, uint256 _amountApprove, address _receiver) external {
         if (msg.sender != client && msg.sender != owner()) revert Escrow__UnauthorizedAccount(msg.sender);
 
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
-        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+        Deposit storage D = contractWeeks[_contractId][_weekId];
 
         if (uint256(D.status) != uint256(Enums.Status.SUBMITTED)) revert Escrow__InvalidStatusForApprove();
 
@@ -176,18 +175,18 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         D.amountToClaim += _amountApprove;
         D.status = Enums.Status.APPROVED;
 
-        emit Approved(_contractId, _milestoneId, _amountApprove, _receiver);
+        emit Approved(_contractId, _weekId, _amountApprove, _receiver);
     }
 
     /// @notice Refills the deposit with an additional amount.
     /// @dev This function allows adding additional funds to the deposit, updating the deposit amount accordingly.
     /// @param _contractId ID of the deposit to be refilled.
-    /// @param _milestoneId ID of the milestone within the contract to be refilled.
+    /// @param _weekId ID of the week within the contract to be refilled.
     /// @param _amountAdditional Additional amount to be added to the deposit.
-    function refill(uint256 _contractId, uint256 _milestoneId, uint256 _amountAdditional) external onlyClient {
+    function refill(uint256 _contractId, uint256 _weekId, uint256 _amountAdditional) external onlyClient {
         if (_amountAdditional == 0) revert Escrow__InvalidAmount();
 
-        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+        Deposit storage D = contractWeeks[_contractId][_weekId];
 
         (uint256 totalAmountAdditional, uint256 feeApplied) =
             _computeDepositAmountAndFee(msg.sender, _amountAdditional, D.feeConfig);
@@ -195,15 +194,15 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
         SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalAmountAdditional);
         D.amount += _amountAdditional;
-        emit Refilled(_contractId, _milestoneId, _amountAdditional);
+        emit Refilled(_contractId, _weekId, _amountAdditional);
     }
 
     /// @notice Claims the approved amount by the contractor.
     /// @dev This function allows the contractor to claim the approved amount from the deposit.
     /// @param _contractId ID of the deposit from which to claim funds.
-    /// @param _milestoneId ID of the milestone within the contract to be claimed.
-    function claim(uint256 _contractId, uint256 _milestoneId) external {
-        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+    /// @param _weekId ID of the week within the contract to be claimed.
+    function claim(uint256 _contractId, uint256 _weekId) external {
+        Deposit storage D = contractWeeks[_contractId][_weekId];
         if (D.status != Enums.Status.APPROVED && D.status != Enums.Status.RESOLVED && D.status != Enums.Status.CANCELED)
         {
             revert Escrow__InvalidStatusToClaim();
@@ -228,14 +227,14 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
         if (D.amount == 0) D.status = Enums.Status.COMPLETED;
 
-        emit Claimed(_contractId, _milestoneId, claimAmount);
+        emit Claimed(_contractId, _weekId, claimAmount);
     }
 
     /// @notice Withdraws funds from a deposit under specific conditions.
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
-    /// @param _milestoneId ID of the milestone within the contract to be withdrawn.
-    function withdraw(uint256 _contractId, uint256 _milestoneId) external onlyClient {
-        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+    /// @param _weekId ID of the week within the contract to be withdrawn.
+    function withdraw(uint256 _contractId, uint256 _weekId) external onlyClient {
+        Deposit storage D = contractWeeks[_contractId][_weekId];
         if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw();
         }
@@ -257,7 +256,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             _sendPlatformFee(D.paymentToken, platformFee);
         }
 
-        emit Withdrawn(_contractId, _milestoneId, withdrawAmount);
+        emit Withdrawn(_contractId, _weekId, withdrawAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -266,74 +265,74 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
     /// @notice Requests the return of funds by the client.
     /// @param _contractId ID of the deposit for which the return is requested.
-    /// @param _milestoneId ID of the milestone for which the return is requested.
-    function requestReturn(uint256 _contractId, uint256 _milestoneId) external onlyClient {
-        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+    /// @param _weekId ID of the week for which the return is requested.
+    function requestReturn(uint256 _contractId, uint256 _weekId) external onlyClient {
+        Deposit storage D = contractWeeks[_contractId][_weekId];
         if (D.status != Enums.Status.ACTIVE && D.status != Enums.Status.SUBMITTED) revert Escrow__ReturnNotAllowed();
 
         D.status = Enums.Status.RETURN_REQUESTED;
-        emit ReturnRequested(_contractId, _milestoneId);
+        emit ReturnRequested(_contractId, _weekId);
     }
 
     /// @notice Approves the return of funds, callable by contractor or platform owner/admin.
     /// @param _contractId ID of the deposit for which the return is approved.
-    /// @param _milestoneId ID of the milestone for which the return is approved.
-    function approveReturn(uint256 _contractId, uint256 _milestoneId) external {
-        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+    /// @param _weekId ID of the deposit for which the return is approved.
+    function approveReturn(uint256 _contractId, uint256 _weekId) external {
+        Deposit storage D = contractWeeks[_contractId][_weekId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
         if (msg.sender != D.contractor && msg.sender != owner()) revert Escrow__UnauthorizedToApproveReturn();
 
         D.amountToWithdraw = D.amount;
 
         D.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(_contractId, _milestoneId, msg.sender);
+        emit ReturnApproved(_contractId, _weekId, msg.sender);
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status.
     /// @dev This function allows a client to cancel a return request, setting the deposit status back to either ACTIVE or SUBMITTED.
-    /// @param _contractId The unique identifier of the deposit for which the return is being cancelled.
-    /// @param _milestoneId ID of the milestone for which the return is being cancelled.
+    /// @param _contractId The unique identifier of the deposit for which the return is cancelled.
+    /// @param _weekId ID of the deposit for which the return is cancelled.
     /// @param _status The new status to set for the deposit, must be either ACTIVE or SUBMITTED.
     /// @custom:modifier onlyClient Ensures that only the client associated with the deposit can execute this function.
-    function cancelReturn(uint256 _contractId, uint256 _milestoneId, Enums.Status _status) external onlyClient {
-        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+    function cancelReturn(uint256 _contractId, uint256 _weekId, Enums.Status _status) external onlyClient {
+        Deposit storage D = contractWeeks[_contractId][_weekId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
         if (_status != Enums.Status.ACTIVE && _status != Enums.Status.SUBMITTED) {
             revert Escrow__InvalidStatusProvided();
         }
 
         D.status = _status;
-        emit ReturnCanceled(_contractId, _milestoneId);
+        emit ReturnCanceled(_contractId, _weekId);
     }
 
     /// @notice Creates a dispute over a specific deposit.
     /// @param _contractId ID of the deposit where the dispute occurred.
-    /// @param _milestoneId ID of the deposit where the dispute occurred.
-    function createDispute(uint256 _contractId, uint256 _milestoneId) external {
-        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+    /// @param _weekId ID of the deposit where the dispute occurred.
+    function createDispute(uint256 _contractId, uint256 _weekId) external {
+        Deposit storage D = contractWeeks[_contractId][_weekId];
         if (D.status != Enums.Status.RETURN_REQUESTED && D.status != Enums.Status.SUBMITTED) {
             revert Escrow__CreateDisputeNotAllowed();
         }
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         D.status = Enums.Status.DISPUTED;
-        emit DisputeCreated(_contractId, _milestoneId, msg.sender);
+        emit DisputeCreated(_contractId, _weekId, msg.sender);
     }
 
     /// @notice Resolves a dispute over a specific deposit.
     /// @param _contractId ID of the deposit where the dispute occurred.
-    /// @param _milestoneId ID of the deposit where the dispute occurred.
+    /// @param _weekId ID of the deposit where the dispute occurred.
     /// @param _winner Specifies who the winner is: Client, Contractor, or Split.
     /// @param _clientAmount Amount to be allocated to the client if Split or Client wins.
     /// @param _contractorAmount Amount to be allocated to the contractor if Split or Contractor wins.
     function resolveDispute(
         uint256 _contractId,
-        uint256 _milestoneId,
+        uint256 _weekId,
         Enums.Winner _winner,
         uint256 _clientAmount,
         uint256 _contractorAmount
     ) external onlyOwner {
-        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+        Deposit storage D = contractWeeks[_contractId][_weekId];
         if (D.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
 
         // Validate the total resolution does not exceed the available deposit amount.
@@ -355,7 +354,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             D.amountToWithdraw = _clientAmount; // Set the withdrawable amount for the client
         }
 
-        emit DisputeResolved(_contractId, _milestoneId, _winner, _clientAmount, _contractorAmount);
+        emit DisputeResolved(_contractId, _weekId, _winner, _clientAmount, _contractorAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -459,11 +458,11 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         return currentContractId;
     }
 
-    /// @notice Retrieves the number of milestones for a given contract ID.
-    /// @param _contractId The contract ID for which to retrieve the milestone count.
-    /// @return The number of milestones associated with the given contract ID.
-    function getMilestoneCount(uint256 _contractId) external view returns (uint256) {
-        return contractMilestones[_contractId].length;
+    /// @notice Retrieves the number of weeks for a given contract ID.
+    /// @param _contractId The contract ID for which to retrieve the week count.
+    /// @return The number of weeks associated with the given contract ID.
+    function getWeeksCount(uint256 _contractId) external view returns (uint256) {
+        return contractWeeks[_contractId].length;
     }
 
     /// @notice Updates the registry address used for fetching escrow implementations.

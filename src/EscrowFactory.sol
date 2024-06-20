@@ -66,11 +66,11 @@ contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
     /// @return escrowImpl The address of the escrow implementation.
     /// @dev This internal helper function queries the registry to obtain the correct implementation address for cloning.
     function _getEscrowImplementation(Enums.EscrowType _escrowType) internal view returns (address escrowImpl) {
-        if (_escrowType == Enums.EscrowType.FixedPrice) {
+        if (_escrowType == Enums.EscrowType.FIXED_PRICE) {
             return IRegistry(registry).escrowFixedPrice();
-        } else if (_escrowType == Enums.EscrowType.Milestone) {
+        } else if (_escrowType == Enums.EscrowType.MILESTONE) {
             return IRegistry(registry).escrowMilestone();
-        } else if (_escrowType == Enums.EscrowType.Hourly) {
+        } else if (_escrowType == Enums.EscrowType.HOURLY) {
             return IRegistry(registry).escrowHourly();
         }
     }
