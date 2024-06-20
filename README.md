@@ -39,11 +39,12 @@ make deploy-escrow
 | Name | Address |
 | :--- | :--- |
 | Escrow | [0xdF26423aa64eA4742209A1c52bBfe9dD0ab6D5B5](https://sepolia.etherscan.io/address/0xdF26423aa64eA4742209A1c52bBfe9dD0ab6D5B5) |
-| Factory | [0xE732a3625499885cE800f795A076C6Daf69e9E3d](https://sepolia.etherscan.io/address/0xe732a3625499885ce800f795a076c6daf69e9e3d) |
-| Registry | [0xcda8DF73fFA90c151879F0E5A46B2ad659502C73](https://sepolia.etherscan.io/address/0xcda8df73ffa90c151879f0e5a46b2ad659502c73) |
+| Escrow Milestone | [0x9fD178b75AE324B573f8A8a21a74159375F383c5](https://sepolia.etherscan.io/address/0x9fD178b75AE324B573f8A8a21a74159375F383c5) |
+| Escrow Hourly | [0x9161479c7Edb38D752BD17d31782c49784F52706](https://sepolia.etherscan.io/address/0x9161479c7Edb38D752BD17d31782c49784F52706) |
+| Factory | [0xeaD5265B6412103d316b6389c0c15EBA82a0cbDa](https://sepolia.etherscan.io/address/0xeaD5265B6412103d316b6389c0c15EBA82a0cbDa) |
+| Registry | [0xB536cc39702CE1103E12d6fBC3199cFC32d714f3](https://sepolia.etherscan.io/address/0xB536cc39702CE1103E12d6fBC3199cFC32d714f3) |
 | FeeManager | [0xA4857B1178425cfaaaeedBcFc220F242b4A518fA](https://sepolia.etherscan.io/address/0xa4857b1178425cfaaaeedbcfc220f242b4a518fa) |
 | Mock USDT | [0xa801061f49970Ef796e0fD0998348f3436ccCb1d](https://sepolia.etherscan.io/address/0xa801061f49970Ef796e0fD0998348f3436ccCb1d) |
-| Escrow Proxy | [0xEAC34764333F697c31a7C72ee74ED33D1dEfff0d](https://sepolia.etherscan.io/address/0xeac34764333f697c31a7c72ee74ed33d1defff0d) |
 
 
 ## Licensing
