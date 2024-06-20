@@ -12,8 +12,8 @@ import {Ownable} from "src/libs/Ownable.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
 /// @title Deposit management for Escrow Hourly
-/// @notice Manages the creation and addition of multiple weeks to escrow contracts.
-/// @dev Handles both the creation of a new escrow contract and the addition of weeks to existing contracts.
+/// @notice Manages the creation and addition of multiple weekly beels to escrow contracts.
+/// @dev Handles both the creation of a new escrow contract and the addition of weekly beels to existing contracts.
 contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     using ECDSA for bytes32;
 
@@ -65,11 +65,11 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     }
 
     /*//////////////////////////////////////////////////////////////
-                    ESCROW MILESTONE UNDERLYING LOGIC
+                    ESCROW HOURLY UNDERLYING LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Creates multiple milestones for a new or existing contract.
-    /// @dev This function allows the initialization of multiple milestones in a single transaction,
+    /// @notice Creates multiple weekly beels for a new or existing contract.
+    /// @dev This function allows the initialization of multiple weekly beels in a single transaction,
     ///     either by creating a new contract or adding to an existing one.
     /// @param _contractId ID of the contract for which the deposits are made; if zero, a new contract is initialized.
     /// @param _deposits Array of details for each new week.
@@ -82,7 +82,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
             contractId = ++currentContractId;
         } else {
             // Check if the provided _contractId is valid for adding new weeks
-            // require(contractWeeks[_contractId].length > 0 || _contractId <= currentContractId, "Escrow__InvalidContractId");
             if (contractWeeks[_contractId].length == 0 && _contractId > currentContractId) {
                 revert Escrow__InvalidContractId();
             }
@@ -98,7 +97,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
             Deposit calldata D = _deposits[i];
 
             if (!registry.paymentTokens(D.paymentToken)) revert Escrow__NotSupportedPaymentToken();
-            if (D.amount > 0) { // TODO tests
+            if (D.amount > 0) {
                 // Calculate the total deposit amount including any fees
                 (uint256 totalDepositAmount,) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
                 SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalDepositAmount);
@@ -132,7 +131,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @notice Submits a deposit by the contractor.
     /// @dev This function allows the contractor to submit a deposit with their data and salt.
     /// @param _contractId ID of the deposit to be submitted.
-    /// @param _weekId ID of the week within the contract to be refilled.
+    /// @param _weekId ID of the week within the contract to be submitted.
     /// @param _data Contractor data for the deposit.
     /// @param _salt Salt value for generating the contractor data hash.
     function submit(uint256 _contractId, uint256 _weekId, bytes calldata _data, bytes32 _salt) external {
@@ -459,10 +458,10 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         return currentContractId;
     }
 
-    /// @notice Retrieves the number of milestones for a given contract ID.
+    /// @notice Retrieves the number of weeks for a given contract ID.
     /// @param _contractId The contract ID for which to retrieve the week count.
-    /// @return The number of milestones associated with the given contract ID.
-    function getMilestoneCount(uint256 _contractId) external view returns (uint256) {
+    /// @return The number of weeks associated with the given contract ID.
+    function getWeeksCount(uint256 _contractId) external view returns (uint256) {
         return contractWeeks[_contractId].length;
     }
 
