@@ -94,7 +94,6 @@ interface IEscrow {
     /// @param amount The amount deposited.
     /// @param amountToClaim The amount to be claimed.
     /// @param amountToWithdraw The amount to be withdrawn.
-    /// @param timeLock The time lock for the deposit.
     /// @param contractorData The contractor's data hash.
     /// @param feeConfig The fee configuration.
     /// @param status The status of the deposit.
@@ -104,7 +103,6 @@ interface IEscrow {
         uint256 amount;
         uint256 amountToClaim;
         uint256 amountToWithdraw;
-        uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
         Enums.Status status;

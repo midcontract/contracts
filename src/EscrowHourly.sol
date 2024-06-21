@@ -111,7 +111,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
                     amount: D.amount, // Prepayment amount for the week can be zero
                     amountToClaim: 0, // Initialize claimable amount to zero
                     amountToWithdraw: 0, // Initialize withdrawable amount to zero
-                    timeLock: D.timeLock,
                     contractorData: D.contractorData,
                     feeConfig: D.feeConfig,
                     status: Enums.Status.ACTIVE // Set the initial status of the week

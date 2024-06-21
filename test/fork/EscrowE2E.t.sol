@@ -36,7 +36,6 @@ contract ExecuteEscrowEndToEndTest is Test {
         uint256 amount;
         uint256 amountToClaim;
         uint256 amountToWithdraw;
-        uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
         Enums.Status status;
@@ -60,7 +59,6 @@ contract ExecuteEscrowEndToEndTest is Test {
             amount: 1000e6,
             amountToClaim: 0,
             amountToWithdraw: 0 ether,
-            timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
             status: Enums.Status.ACTIVE
@@ -111,7 +109,6 @@ contract ExecuteEscrowEndToEndTest is Test {
             uint256 _amount,
             uint256 _amountToClaim,
             uint256 _amountToWithdraw,
-            uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
             Enums.Status _status
@@ -124,7 +121,6 @@ contract ExecuteEscrowEndToEndTest is Test {
         assertEq(_amount, 1000e6); // Ensures that the deposited amount is correctly recorded as 1 ether.
         assertEq(_amountToClaim, 0 ether); // Checks that no amount is set to be claimable initially.
         assertEq(_amountToWithdraw, 0 ether); // Checks that no amount is set to be withdrawable initially.
-        assertEq(_timeLock, 0); // Verifies that the time lock for the deposit is set to 0 (no delay).
         assertEq(_contractorData, contractorData); // Checks that the contractor data matches the expected initial value.
         assertEq(uint256(_feeConfig), 0); // Ensures the fee configuration is set to CLIENT_COVERS_ALL (assuming 0 is CLIENT_COVERS_ALL in the enum).
         assertEq(uint256(_status), 0); // Confirms that the initial status of the deposit is ACTIVE (assuming 0 is ACTIVE in the enum).

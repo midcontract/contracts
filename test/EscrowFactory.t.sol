@@ -39,7 +39,6 @@ contract EscrowFactoryUnitTest is Test {
         uint256 amount;
         uint256 amountToClaim;
         uint256 amountToWithdraw;
-        uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
         Enums.Status status;
@@ -78,7 +77,6 @@ contract EscrowFactoryUnitTest is Test {
             amount: 1 ether,
             amountToClaim: 0 ether,
             amountToWithdraw: 0 ether,
-            timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
             status: Enums.Status.ACTIVE
@@ -156,7 +154,6 @@ contract EscrowFactoryUnitTest is Test {
             uint256 _amount,
             uint256 _amountToClaim,
             uint256 _amountToWithdraw,
-            uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
             Enums.Status _status
@@ -165,7 +162,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
-        assertEq(_timeLock, 0);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
         assertEq(uint256(_status), 0); //Status.ACTIVE
@@ -181,7 +177,6 @@ contract EscrowFactoryUnitTest is Test {
             amount: 2 ether,
             amountToClaim: 0.5 ether,
             amountToWithdraw: 0 ether,
-            timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.NO_FEES,
             status: Enums.Status.ACTIVE
@@ -212,7 +207,6 @@ contract EscrowFactoryUnitTest is Test {
             uint256 _amount,
             uint256 _amountToClaim,
             uint256 _amountToWithdraw,
-            uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
             Enums.Status _status
@@ -221,7 +215,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_amount, 2 ether);
         assertEq(_amountToClaim, 0 ether);
-        assertEq(_timeLock, 0);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 3); //Enums.FeeConfig.NO_FEES
         assertEq(uint256(_status), 0); //Status.ACTIVE
@@ -303,7 +296,6 @@ contract EscrowFactoryUnitTest is Test {
             amount: 1 ether,
             amountToClaim: 0 ether,
             amountToWithdraw: 0 ether,
-            timeLock: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
             status: Enums.Status.ACTIVE
@@ -326,7 +318,6 @@ contract EscrowFactoryUnitTest is Test {
             uint256 _amount,
             uint256 _amountToClaim,
             uint256 _amountToWithdraw,
-            uint256 _timeLock,
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
             Enums.Status _status
@@ -335,7 +326,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
-        assertEq(_timeLock, 0);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 0); //Status.ACTIVE

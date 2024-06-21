@@ -87,7 +87,6 @@ contract Escrow is IEscrow, ERC1271, Ownable {
         D.contractor = _deposit.contractor;
         D.paymentToken = _deposit.paymentToken;
         D.amount = _deposit.amount;
-        D.timeLock = _deposit.timeLock;
         D.contractorData = _deposit.contractorData;
         D.feeConfig = _deposit.feeConfig;
         D.status = Enums.Status.ACTIVE;

@@ -112,7 +112,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
                     amount: D.amount,
                     amountToClaim: 0, // Initialize claimable amount to zero
                     amountToWithdraw: 0, // Initialize withdrawable amount to zero
-                    timeLock: D.timeLock,
                     contractorData: D.contractorData,
                     feeConfig: D.feeConfig,
                     status: Enums.Status.ACTIVE // Set the initial status of the milestone
