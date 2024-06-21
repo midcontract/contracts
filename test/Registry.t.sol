@@ -3,15 +3,15 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
-import {Registry, IRegistry} from "src/modules/Registry.sol";
-import {Escrow, IEscrow} from "src/Escrow.sol";
+import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
+import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowFactory, Ownable} from "src/EscrowFactory.sol";
 import {EscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
 contract RegistryUnitTest is Test {
-    Escrow escrow;
-    Registry registry;
+    EscrowFixedPrice escrow;
+    EscrowRegistry registry;
     ERC20Mock paymentToken;
     ERC20Mock newPaymentToken;
     EscrowFactory factory;
@@ -31,8 +31,8 @@ contract RegistryUnitTest is Test {
     function setUp() public {
         owner = makeAddr("owner");
         treasury = makeAddr("treasury");
-        escrow = new Escrow();
-        registry = new Registry(owner);
+        escrow = new EscrowFixedPrice();
+        registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
         newPaymentToken = new ERC20Mock();
         factory = new EscrowFactory(address(registry), owner);
@@ -53,14 +53,14 @@ contract RegistryUnitTest is Test {
         registry.addPaymentToken(address(paymentToken));
         assertFalse(registry.paymentTokens(address(paymentToken)));
         vm.startPrank(address(owner)); //current owner
-        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
         registry.addPaymentToken(address(0));
         assertFalse(registry.paymentTokens(address(paymentToken)));
         vm.expectEmit(true, false, false, true);
         emit PaymentTokenAdded(address(paymentToken));
         registry.addPaymentToken(address(paymentToken));
         assertTrue(registry.paymentTokens(address(paymentToken)));
-        vm.expectRevert(IRegistry.Registry__TokenAlreadyAdded.selector);
+        vm.expectRevert(IEscrowRegistry.Registry__TokenAlreadyAdded.selector);
         registry.addPaymentToken(address(paymentToken));
         vm.stopPrank();
     }
@@ -77,7 +77,7 @@ contract RegistryUnitTest is Test {
         emit PaymentTokenRemoved(address(paymentToken));
         registry.removePaymentToken(address(paymentToken));
         assertFalse(registry.paymentTokens(address(paymentToken)));
-        vm.expectRevert(IRegistry.Registry__PaymentTokenNotRegistered.selector);
+        vm.expectRevert(IEscrowRegistry.Registry__PaymentTokenNotRegistered.selector);
         registry.removePaymentToken(address(newPaymentToken));
         vm.stopPrank();
     }
@@ -107,7 +107,7 @@ contract RegistryUnitTest is Test {
         vm.expectRevert(Ownable.Unauthorized.selector);
         registry.updateEscrowFixedPrice(address(escrow));
         vm.startPrank(address(owner));
-        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
         registry.updateEscrowFixedPrice(address(0));
         assertEq(registry.escrowFixedPrice(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -124,7 +124,7 @@ contract RegistryUnitTest is Test {
         vm.expectRevert(Ownable.Unauthorized.selector);
         registry.updateEscrowMilestone(address(escrow));
         vm.startPrank(address(owner));
-        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
         registry.updateEscrowMilestone(address(0));
         assertEq(registry.escrowMilestone(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -141,7 +141,7 @@ contract RegistryUnitTest is Test {
         vm.expectRevert(Ownable.Unauthorized.selector);
         registry.updateEscrowHourly(address(escrow));
         vm.startPrank(address(owner));
-        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
         registry.updateEscrowHourly(address(0));
         assertEq(registry.escrowHourly(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -158,7 +158,7 @@ contract RegistryUnitTest is Test {
         vm.expectRevert(Ownable.Unauthorized.selector);
         registry.updateFactory(address(factory));
         vm.startPrank(address(owner));
-        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
         registry.updateFactory(address(0));
         assertEq(registry.factory(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -175,7 +175,7 @@ contract RegistryUnitTest is Test {
         vm.expectRevert(Ownable.Unauthorized.selector);
         registry.setTreasury(address(treasury));
         vm.startPrank(address(owner));
-        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
         registry.setTreasury(address(0));
         assertEq(registry.treasury(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -192,7 +192,7 @@ contract RegistryUnitTest is Test {
         vm.expectRevert(Ownable.Unauthorized.selector);
         registry.updateFeeManager(address(feeManager));
         vm.startPrank(address(owner));
-        vm.expectRevert(IRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
         registry.updateFeeManager(address(0));
         assertEq(registry.feeManager(), address(0));
         vm.expectEmit(true, false, false, true);

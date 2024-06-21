@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IRegistry} from "../interfaces/IRegistry.sol";
+import {IEscrowRegistry} from "../interfaces/IEscrowRegistry.sol";
 import {Ownable} from "../libs/Ownable.sol";
 
-/// @title Registry Contract
+/// @title EscrowRegistry Contract
 /// @dev This contract manages configuration settings for the escrow system including approved payment tokens.
-contract Registry is IRegistry, Ownable {
+contract EscrowRegistry is IEscrowRegistry, Ownable {
     /// @notice Constant for the native token of the chain.
     /// @dev Used to represent the native blockchain currency in payment tokens mapping.
     address public constant NATIVE_TOKEN = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;

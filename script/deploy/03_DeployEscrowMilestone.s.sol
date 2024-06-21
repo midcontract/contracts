@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import "forge-std/Script.sol";
 
 import {EscrowMilestone} from "src/EscrowMilestone.sol";
-import {Registry, IRegistry} from "src/modules/Registry.sol";
+import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
 contract DeployEscrowMilestoneScript is Script {
@@ -30,10 +30,10 @@ contract DeployEscrowMilestoneScript is Script {
         vm.stopBroadcast();
 
         vm.startBroadcast(ownerPrivateKey);
-        Registry(registry).updateEscrowMilestone(address(escrow));
+        EscrowRegistry(registry).updateEscrowMilestone(address(escrow));
         console.log("==escrow addr=%s", address(escrow));
         assert(address(escrow) != address(0));
-        assert(Registry(registry).escrowMilestone() == address(escrow));
+        assert(EscrowRegistry(registry).escrowMilestone() == address(escrow));
         vm.stopBroadcast();
     }
 }

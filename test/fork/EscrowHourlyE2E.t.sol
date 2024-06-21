@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {EscrowHourly, IEscrowHourly} from "src/EscrowHourly.sol";
 import {EscrowFactory, IEscrowFactory} from "src/EscrowFactory.sol";
-import {Registry, IRegistry} from "src/modules/Registry.sol";
+import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 import {MockDAI} from "test/mocks/MockDAI.sol";
@@ -13,7 +13,7 @@ import {MockUSDT} from "test/mocks/MockUSDT.sol";
 
 contract ExecuteEscrowHourlyEndToEndTest is Test {
     EscrowHourly escrow = EscrowHourly(EthSepoliaConfig.ESCROW_HOURLY);
-    Registry registry = Registry(EthSepoliaConfig.REGISTRY);
+    EscrowRegistry registry = EscrowRegistry(EthSepoliaConfig.REGISTRY);
     EscrowFactory factory = EscrowFactory(EthSepoliaConfig.FACTORY);
     MockDAI daiToken = MockDAI(EthSepoliaConfig.MOCK_DAI);
     MockUSDT usdtToken = MockUSDT(EthSepoliaConfig.MOCK_USDT);

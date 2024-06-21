@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import "forge-std/Script.sol";
 
 import {EscrowHourly} from "src/EscrowHourly.sol";
-import {Registry, IRegistry} from "src/modules/Registry.sol";
+import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
 contract DeployEscrowHourlyScript is Script {
@@ -30,10 +30,10 @@ contract DeployEscrowHourlyScript is Script {
         vm.stopBroadcast();
 
         vm.startBroadcast(ownerPrivateKey);
-        Registry(registry).updateEscrowHourly(address(escrow));
+        EscrowRegistry(registry).updateEscrowHourly(address(escrow));
         console.log("==escrow addr=%s", address(escrow));
         assert(address(escrow) != address(0));
-        assert(Registry(registry).escrowHourly() == address(escrow));
+        assert(EscrowRegistry(registry).escrowHourly() == address(escrow));
         vm.stopBroadcast();
     }
 }

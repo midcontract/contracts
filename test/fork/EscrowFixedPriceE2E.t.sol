@@ -3,17 +3,17 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
-import {Escrow, IEscrow} from "src/Escrow.sol";
+import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowFactory, IEscrowFactory} from "src/EscrowFactory.sol";
-import {Registry, IRegistry} from "src/modules/Registry.sol";
+import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 import {MockDAI} from "test/mocks/MockDAI.sol";
 import {MockUSDT} from "test/mocks/MockUSDT.sol";
 
 contract ExecuteEscrowEndToEndTest is Test {
-    Escrow escrow = Escrow(EthSepoliaConfig.ESCROW);
-    Registry registry = Registry(EthSepoliaConfig.REGISTRY);
+    EscrowFixedPrice escrow = EscrowFixedPrice(EthSepoliaConfig.ESCROW);
+    EscrowRegistry registry = EscrowRegistry(EthSepoliaConfig.REGISTRY);
     EscrowFactory factory = EscrowFactory(EthSepoliaConfig.FACTORY);
     MockDAI daiToken = MockDAI(EthSepoliaConfig.MOCK_DAI);
     MockUSDT usdtToken = MockUSDT(EthSepoliaConfig.MOCK_USDT);
@@ -22,7 +22,7 @@ contract ExecuteEscrowEndToEndTest is Test {
     address contractor;
     address owner;
 
-    IEscrow.Deposit deposit;
+    IEscrowFixedPrice.Deposit deposit;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
@@ -53,7 +53,7 @@ contract ExecuteEscrowEndToEndTest is Test {
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
-        deposit = IEscrow.Deposit({
+        deposit = IEscrowFixedPrice.Deposit({
             contractor: address(0),
             paymentToken: address(usdtToken),
             amount: 1000e6,
@@ -81,10 +81,10 @@ contract ExecuteEscrowEndToEndTest is Test {
         vm.startPrank(client);
 
         // Step 1: Deploy their own contract instance to interact with the factory.
-        // The client deploys an Escrow contract via the factory specifying fee configurations.
+        // The client deploys an EscrowFixedPrice contract via the factory specifying fee configurations.
         address deployedEscrowProxy =
             EscrowFactory(factory).deployEscrow(escrowType, address(client), address(owner), address(registry));
-        Escrow escrowProxy = Escrow(address(deployedEscrowProxy));
+        EscrowFixedPrice escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
 
         // Step 2: Client approves the payment token with the respective deposit token amount.
         // This approval enables the escrow contract to withdraw tokens from the client's account.
@@ -92,14 +92,14 @@ contract ExecuteEscrowEndToEndTest is Test {
 
         // Step 3: Client creates the first deposit on the deployed instance with contractId == 1.
         // The deposit function call involves transferring funds from the client to the escrow based on the approved amount.
-        Escrow(escrowProxy).deposit(deposit);
+        EscrowFixedPrice(escrowProxy).deposit(deposit);
 
         // Stop impersonating the client after completing the test actions.
         vm.stopPrank();
 
         // Verify the parameters of the deposit created in the escrow contract.
         // Ensure the current contract ID is as expected, indicating that the deposit has been properly logged under the correct ID.
-        uint256 currentContractId = Escrow(escrowProxy).getCurrentContractId();
+        uint256 currentContractId = EscrowFixedPrice(escrowProxy).getCurrentContractId();
         assertEq(currentContractId, 1);
 
         // Retrieve the details of the created deposit using the currentContractId.
@@ -112,7 +112,7 @@ contract ExecuteEscrowEndToEndTest is Test {
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
             Enums.Status _status
-        ) = Escrow(escrowProxy).deposits(currentContractId);
+        ) = EscrowFixedPrice(escrowProxy).deposits(currentContractId);
 
         // Assertions to verify that the deposit parameters are correctly set according to the inputs provided during creation.
         assertEq(MockUSDT(usdtToken).balanceOf(address(escrowProxy)), 1080e6); // Confirms that the escrow proxy has received appropriate amount of tokens.

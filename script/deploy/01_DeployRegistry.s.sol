@@ -3,13 +3,13 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 
-import {Registry} from "src/modules/Registry.sol";
+import {EscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {MockDAI} from "test/mocks/MockDAI.sol";
 import {MockUSDT} from "test/mocks/MockUSDT.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
 contract DeployRegistryScript is Script {
-    Registry registry;
+    EscrowRegistry registry;
     MockDAI daiToken;
     MockUSDT usdtToken;
     address ownerPublicKey;
@@ -28,7 +28,7 @@ contract DeployRegistryScript is Script {
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        registry = new Registry(deployerPublicKey);
+        registry = new EscrowRegistry(deployerPublicKey);
         // daiToken = new MockDAI();
         // registry.addPaymentToken(address(daiToken));
         // usdtToken = new MockUSDT();

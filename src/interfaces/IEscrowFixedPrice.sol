@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import {Enums} from "src/libs/Enums.sol";
 
-/// @title Escrow Interface
-/// @notice Interface for the Escrow contract that handles deposits, withdrawals, and disputes.
-interface IEscrow {
+/// @title EscrowFixedPrice Interface
+/// @notice Interface for the EscrowFixedPrice contract that handles deposits, withdrawals, and disputes.
+interface IEscrowFixedPrice {
     /// @notice Thrown when the escrow is already initialized.
     error Escrow__AlreadyInitialized();
 

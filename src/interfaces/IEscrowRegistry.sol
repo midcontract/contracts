@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title Interface for the Registry
+/// @title Interface for the EscrowRegistry
 /// @dev Interface for the registry that manages configuration settings such as payment tokens and contract addresses for an escrow system.
-interface IRegistry {
+interface IEscrowRegistry {
     /// @notice Thrown when a zero address is provided where a valid address is required.
     error Registry__ZeroAddressProvided();
 

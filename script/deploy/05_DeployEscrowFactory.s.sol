@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import "forge-std/Script.sol";
 
 import {EscrowFactory} from "src/EscrowFactory.sol";
-import {Registry, IRegistry} from "src/modules/Registry.sol";
+import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
 contract DeployEscrowFactoryScript is Script {
@@ -31,8 +31,8 @@ contract DeployEscrowFactoryScript is Script {
         vm.stopBroadcast();
 
         vm.startBroadcast(ownerPrivateKey);
-        IRegistry(registry).updateFactory(address(factory));
-        assert(IRegistry(registry).factory() == address(factory));
+        IEscrowRegistry(registry).updateFactory(address(factory));
+        assert(IEscrowRegistry(registry).factory() == address(factory));
         vm.stopBroadcast();
     }
 }

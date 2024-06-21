@@ -3,10 +3,10 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Script.sol";
 
-import {Escrow, IEscrow} from "src/Escrow.sol";
+import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowFactory, IEscrowFactory} from "src/EscrowFactory.sol";
 import {EscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
-import {Registry, IRegistry} from "src/modules/Registry.sol";
+import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {MockDAI} from "test/mocks/MockDAI.sol";
@@ -21,7 +21,7 @@ contract ExecuteEscrowScript is Script {
     address owner;
     address newOwner;
 
-    IEscrow.Deposit deposit;
+    IEscrowFixedPrice.Deposit deposit;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     bytes32 contractorData;
@@ -34,7 +34,6 @@ contract ExecuteEscrowScript is Script {
         uint256 amount;
         uint256 amountToClaim;
         uint256 amountToWithdraw;
-        uint256 timeLock;
         bytes32 contractorData;
         Enums.FeeConfig feeConfig;
         Enums.Status status;
@@ -75,22 +74,22 @@ contract ExecuteEscrowScript is Script {
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
 
-        Registry(registry).transferOwnership(newOwner);
-        assert(address(Escrow(escrow).owner()) == deployerPublicKey);
-        Escrow(escrow).transferOwnership(newOwner);
-        assert(address(Escrow(escrow).owner()) == newOwner);
+        EscrowRegistry(registry).transferOwnership(newOwner);
+        assert(address(EscrowFixedPrice(escrow).owner()) == deployerPublicKey);
+        EscrowFixedPrice(escrow).transferOwnership(newOwner);
+        assert(address(EscrowFixedPrice(escrow).owner()) == newOwner);
 
-        assert(address(Escrow(factory).owner()) == deployerPublicKey);
+        assert(address(EscrowFactory(factory).owner()) == deployerPublicKey);
         EscrowFactory(factory).transferOwnership(newOwner);
-        assert(address(Escrow(factory).owner()) == newOwner);
+        assert(address(EscrowFactory(factory).owner()) == newOwner);
 
         EscrowFeeManager(feeManager).transferOwnership(newOwner);
 
-        (bool sent, ) = newOwner.call{value: 0.055 ether}("");
+        (bool sent,) = newOwner.call{value: 0.055 ether}("");
         require(sent, "Failed to send Ether");
-        
+
         // // set treasury
-        // Registry(registry).setTreasury(owner);
+        // EscrowRegistry(registry).setTreasury(owner);
 
         // // deploy new escrow
         // address deployedEscrowProxy = EscrowFactory(factory).deployEscrow(

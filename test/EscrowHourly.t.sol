@@ -5,14 +5,14 @@ import "forge-std/Test.sol";
 
 import {EscrowHourly, IEscrowHourly, Ownable} from "src/EscrowHourly.sol";
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
-import {Registry, IRegistry} from "src/modules/Registry.sol";
+import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 import {MockRegistry} from "test/mocks/MockRegistry.sol";
 
 contract EscrowHourlyUnitTest is Test {
     EscrowHourly escrow;
-    Registry registry;
+    EscrowRegistry registry;
     ERC20Mock paymentToken;
     ERC20Mock newPaymentToken;
     EscrowFeeManager feeManager;
@@ -70,7 +70,7 @@ contract EscrowHourlyUnitTest is Test {
         contractor = makeAddr("contractor");
 
         escrow = new EscrowHourly();
-        registry = new Registry(owner);
+        registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
         feeManager = new EscrowFeeManager(3_00, 5_00, owner);
         vm.startPrank(owner);

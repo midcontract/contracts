@@ -5,7 +5,7 @@ import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecke
 
 import {IEscrowMilestone} from "./interfaces/IEscrowMilestone.sol";
 import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
-import {IRegistry} from "./interfaces/IRegistry.sol";
+import {IEscrowRegistry} from "./interfaces/IEscrowRegistry.sol";
 import {ECDSA, ERC1271} from "src/libs/ERC1271.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {Ownable} from "src/libs/Ownable.sol";
@@ -22,7 +22,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     //////////////////////////////////////////////////////////////*/
 
     /// @dev Address of the registry contract.
-    IRegistry public registry;
+    IEscrowRegistry public registry;
 
     /// @dev Address of the client initiating actions within the escrow.
     address public client;
@@ -58,7 +58,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         }
 
         client = _client;
-        registry = IRegistry(_registry);
+        registry = IEscrowRegistry(_registry);
         _initializeOwner(_owner);
 
         initialized = true;
@@ -410,7 +410,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @param _paymentToken Address of the payment token for the fee.
     /// @param _feeAmount Amount of the fee to be transferred.
     function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {
-        address treasury = IRegistry(registry).treasury();
+        address treasury = IEscrowRegistry(registry).treasury();
         if (treasury == address(0)) revert Escrow__ZeroAddressProvided(); // TODO test
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
     }
@@ -469,7 +469,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @param _registry New registry address.
     function updateRegistry(address _registry) external onlyOwner {
         if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
-        registry = IRegistry(_registry);
+        registry = IEscrowRegistry(_registry);
         emit RegistryUpdated(_registry);
     }
 }

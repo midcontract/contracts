@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Escrow} from "./Escrow.sol";
+import {EscrowFixedPrice} from "./EscrowFixedPrice.sol";
 import {IEscrowFactory} from "./interfaces/IEscrowFactory.sol";
-import {IRegistry} from "./interfaces/IRegistry.sol";
+import {IEscrowRegistry} from "./interfaces/IEscrowRegistry.sol";
 import {Enums} from "./libs/Enums.sol";
 import {LibClone} from "./libs/LibClone.sol";
 import {Ownable} from "./libs/Ownable.sol";
 import {Pausable} from "./libs/Pausable.sol";
 
-/// @title Escrow Factory Contract
+/// @title EscrowFixedPrice Factory Contract
 /// @dev This contract is used for creating new escrow contract instances using the clone factory pattern.
 contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
-    /// @notice Registry contract address storing escrow templates and configurations.
-    IRegistry public registry;
+    /// @notice EscrowRegistry contract address storing escrow templates and configurations.
+    IEscrowRegistry public registry;
 
     /// @notice Tracks the number of escrows deployed per deployer to generate unique salts for clones.
     mapping(address deployer => uint256 nonce) public factoryNonce;
@@ -28,7 +28,7 @@ contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
         if (_registry == address(0)) {
             revert Factory__ZeroAddressProvided();
         }
-        registry = IRegistry(_registry);
+        registry = IEscrowRegistry(_registry);
         _initializeOwner(_owner);
     }
 
@@ -49,7 +49,7 @@ contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
 
         bytes32 salt = keccak256(abi.encode(msg.sender, factoryNonce[msg.sender]));
         address clone = LibClone.cloneDeterministic(escrowImplement, salt);
-        Escrow(clone).initialize(_client, _owner, _registry); // TODO or IEscrowCommon.initialize
+        EscrowFixedPrice(clone).initialize(_client, _owner, _registry); // TODO or IEscrowCommon.initialize
 
         deployedProxy = address(clone);
         existingEscrow[deployedProxy] = true;
@@ -67,11 +67,11 @@ contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
     /// @dev This internal helper function queries the registry to obtain the correct implementation address for cloning.
     function _getEscrowImplementation(Enums.EscrowType _escrowType) internal view returns (address escrowImpl) {
         if (_escrowType == Enums.EscrowType.FIXED_PRICE) {
-            return IRegistry(registry).escrowFixedPrice();
+            return IEscrowRegistry(registry).escrowFixedPrice();
         } else if (_escrowType == Enums.EscrowType.MILESTONE) {
-            return IRegistry(registry).escrowMilestone();
+            return IEscrowRegistry(registry).escrowMilestone();
         } else if (_escrowType == Enums.EscrowType.HOURLY) {
-            return IRegistry(registry).escrowHourly();
+            return IEscrowRegistry(registry).escrowHourly();
         }
     }
 
@@ -79,7 +79,7 @@ contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
     /// @param _registry New registry address.
     function updateRegistry(address _registry) external onlyOwner {
         if (_registry == address(0)) revert Factory__ZeroAddressProvided();
-        registry = IRegistry(_registry);
+        registry = IEscrowRegistry(_registry);
         emit RegistryUpdated(_registry);
     }
 

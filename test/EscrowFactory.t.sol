@@ -3,18 +3,18 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
-import {Escrow, IEscrow} from "src/Escrow.sol";
+import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
 import {EscrowFactory, IEscrowFactory, Ownable, Pausable} from "src/EscrowFactory.sol";
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {Enums} from "src/libs/Enums.sol";
-import {Registry, IRegistry} from "src/modules/Registry.sol";
+import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
 contract EscrowFactoryUnitTest is Test {
     EscrowFactory factory;
-    Escrow escrow;
-    Registry registry;
+    EscrowFixedPrice escrow;
+    EscrowRegistry registry;
     ERC20Mock paymentToken;
     EscrowFeeManager feeManager;
     EscrowMilestone escrowMilestone;
@@ -24,7 +24,7 @@ contract EscrowFactoryUnitTest is Test {
     address treasury;
     address owner;
 
-    Escrow.Deposit deposit;
+    EscrowFixedPrice.Deposit deposit;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
@@ -55,9 +55,9 @@ contract EscrowFactoryUnitTest is Test {
         client = makeAddr("client");
         contractor = makeAddr("contractor");
 
-        escrow = new Escrow();
+        escrow = new EscrowFixedPrice();
         escrowMilestone = new EscrowMilestone();
-        registry = new Registry(owner);
+        registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
         feeManager = new EscrowFeeManager(3_00, 5_00, owner);
         vm.startPrank(owner);
@@ -71,7 +71,7 @@ contract EscrowFactoryUnitTest is Test {
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
-        deposit = IEscrow.Deposit({
+        deposit = IEscrowFixedPrice.Deposit({
             contractor: address(0),
             paymentToken: address(paymentToken),
             amount: 1 ether,
@@ -115,7 +115,7 @@ contract EscrowFactoryUnitTest is Test {
         emit EscrowProxyDeployed(client, deployedEscrowProxy, escrowType);
         deployedEscrowProxy = factory.deployEscrow(escrowType, client, owner, address(registry));
         vm.stopPrank();
-        Escrow escrowProxy = Escrow(address(deployedEscrowProxy));
+        EscrowFixedPrice escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
         assertEq(escrowProxy.client(), client);
         assertEq(escrowProxy.owner(), owner);
         assertEq(address(escrowProxy.registry()), address(registry));
@@ -125,11 +125,11 @@ contract EscrowFactoryUnitTest is Test {
         assertTrue(factory.existingEscrow(address(escrowProxy)));
     }
 
-    function test_deploy_and_deposit() public returns (Escrow escrowProxy) {
+    function test_deploy_and_deposit() public returns (EscrowFixedPrice escrowProxy) {
         vm.startPrank(client);
         // 1. deploy
         address deployedEscrowProxy = factory.deployEscrow(escrowType, client, owner, address(registry));
-        escrowProxy = Escrow(address(deployedEscrowProxy));
+        escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
         assertEq(escrowProxy.client(), client);
         assertEq(escrowProxy.owner(), owner);
         assertEq(address(escrowProxy.registry()), address(registry));
@@ -169,9 +169,9 @@ contract EscrowFactoryUnitTest is Test {
     }
 
     function test_deposit_next() public {
-        Escrow escrowProxy = test_deploy_and_deposit();
+        EscrowFixedPrice escrowProxy = test_deploy_and_deposit();
 
-        Escrow.Deposit memory deposit2 = IEscrow.Deposit({
+        EscrowFixedPrice.Deposit memory deposit2 = IEscrowFixedPrice.Deposit({
             contractor: address(0),
             paymentToken: address(paymentToken),
             amount: 2 ether,
@@ -223,7 +223,7 @@ contract EscrowFactoryUnitTest is Test {
 
     function test_deploy_next() public {
         address deployedEscrowProxy = test_deployEscrow();
-        Escrow escrowProxy = Escrow(address(deployedEscrowProxy));
+        EscrowFixedPrice escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
         assertEq(escrowProxy.client(), client);
         assertEq(escrowProxy.owner(), owner);
         assertEq(address(escrowProxy.registry()), address(registry));
@@ -234,7 +234,7 @@ contract EscrowFactoryUnitTest is Test {
 
         vm.startPrank(client);
         address deployedEscrowProxy2 = factory.deployEscrow(escrowType, client, owner, address(registry));
-        Escrow escrowProxy2 = Escrow(address(deployedEscrowProxy2));
+        EscrowFixedPrice escrowProxy2 = EscrowFixedPrice(address(deployedEscrowProxy2));
         assertEq(escrowProxy2.client(), client);
         assertEq(escrowProxy2.owner(), owner);
         assertEq(address(escrowProxy2.registry()), address(registry));
@@ -256,7 +256,7 @@ contract EscrowFactoryUnitTest is Test {
         vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
         factory.updateRegistry(address(0));
         assertEq(address(factory.registry()), address(registry));
-        Registry newRegistry = new Registry(owner);
+        EscrowRegistry newRegistry = new EscrowRegistry(owner);
         vm.expectEmit(true, false, false, true);
         emit RegistryUpdated(address(newRegistry));
         factory.updateRegistry(address(newRegistry));
@@ -284,7 +284,8 @@ contract EscrowFactoryUnitTest is Test {
 
         // 2. mint, approve payment token
         uint256 depositMilestoneAmount = 1 ether;
-        (uint256 totalDepositMilestoneAmount,) = _computeDepositAndFeeAmount(client, depositMilestoneAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        (uint256 totalDepositMilestoneAmount,) =
+            _computeDepositAndFeeAmount(client, depositMilestoneAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
         paymentToken.mint(address(client), totalDepositMilestoneAmount);
         paymentToken.approve(address(escrowProxy), totalDepositMilestoneAmount);
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 
-import {Escrow, IEscrow, Ownable} from "src/Escrow.sol";
+import {EscrowFixedPrice, IEscrowFixedPrice, Ownable} from "src/EscrowFixedPrice.sol";
 import {ERC1271, ECDSA} from "src/libs/ERC1271.sol";
 import {ERC1271WalletMock, ERC1271MaliciousMock} from "@openzeppelin/mocks/ERC1271WalletMock.sol";
 import {SignatureChecker, IERC1271} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
@@ -11,7 +11,7 @@ import {SignatureChecker, IERC1271} from "@openzeppelin/utils/cryptography/Signa
 contract EscrowERC1271UnitTest is Test {
     using ECDSA for bytes32;
 
-    Escrow escrow;
+    EscrowFixedPrice escrow;
     ERC1271WalletMock wallet;
     ERC1271MaliciousMock malicious;
 
@@ -25,7 +25,7 @@ contract EscrowERC1271UnitTest is Test {
     bytes32 private constant WRONG_MESSAGE = keccak256(abi.encodePacked("Nope"));
 
     function setUp() public {
-        escrow = new Escrow();
+        escrow = new EscrowFixedPrice();
         (signerPublicKey, signerPrivateKey) = makeAddrAndKey("signer");
         (otherPublicKey, otherPrivateKey) = makeAddrAndKey("other");
         wallet = new ERC1271WalletMock(signerPublicKey);
