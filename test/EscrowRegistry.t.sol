@@ -9,7 +9,7 @@ import {EscrowFactory, Ownable} from "src/EscrowFactory.sol";
 import {EscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
-contract RegistryUnitTest is Test {
+contract EscrowRegistryUnitTest is Test {
     EscrowFixedPrice escrow;
     EscrowRegistry registry;
     ERC20Mock paymentToken;

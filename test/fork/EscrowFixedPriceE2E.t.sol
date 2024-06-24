@@ -11,7 +11,7 @@ import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 import {MockDAI} from "test/mocks/MockDAI.sol";
 import {MockUSDT} from "test/mocks/MockUSDT.sol";
 
-contract ExecuteEscrowEndToEndTest is Test {
+contract ExecuteEscrowFixedPriceEndToEndTest is Test {
     EscrowFixedPrice escrow = EscrowFixedPrice(EthSepoliaConfig.ESCROW);
     EscrowRegistry registry = EscrowRegistry(EthSepoliaConfig.REGISTRY);
     EscrowFactory factory = EscrowFactory(EthSepoliaConfig.FACTORY);

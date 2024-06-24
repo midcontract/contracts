@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
-import {IEscrowMilestone} from "./interfaces/IEscrowMilestone.sol";
+import {IEscrowMilestone, IEscrow} from "./interfaces/IEscrowMilestone.sol";
 import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
 import {IEscrowRegistry} from "./interfaces/IEscrowRegistry.sol";
 import {ECDSA, ERC1271} from "src/libs/ERC1271.sol";
@@ -82,7 +82,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             contractId = ++currentContractId;
         } else {
             // Check if the provided _contractId is valid for adding new milestones
-            // require(contractMilestones[_contractId].length > 0 || _contractId <= currentContractId, "Escrow__InvalidContractId");
             if (contractMilestones[_contractId].length == 0 && _contractId > currentContractId) {
                 revert Escrow__InvalidContractId();
             }
