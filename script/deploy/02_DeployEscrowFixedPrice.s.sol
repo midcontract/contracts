@@ -7,7 +7,7 @@ import {EscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 
-contract DeployEscrowScript is Script {
+contract DeployEscrowFixedPriceScript is Script {
     EscrowFixedPrice escrow;
     address registry;
     address ownerPublicKey;
