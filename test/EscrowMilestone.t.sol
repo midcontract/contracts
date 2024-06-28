@@ -1056,14 +1056,12 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_status), 3); //Status.COMPLETED
 
-        (,, _amount, _amountToClaim,,,, _status) =
-            escrow.contractMilestones(currentContractId, 1);
+        (,, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, 1);
         assertEq(_amount, 0 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_status), 3); //Status.COMPLETED
 
-        (,, _amount, _amountToClaim,,,, _status) =
-            escrow.contractMilestones(currentContractId, 2);
+        (,, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, 2);
         assertEq(_amount, 0 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_status), 3); //Status.COMPLETED
@@ -1073,6 +1071,170 @@ contract EscrowMilestoneUnitTest is Test {
         );
         assertEq(paymentToken.balanceOf(address(treasury)), totalFeeAmount + totalClientFee);
         assertEq(paymentToken.balanceOf(address(contractor)), totalClaimAmount);
+    }
+
+    function test_claimAll_oneOfthree() public {
+        test_deposit_severalMilestones();
+        assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(escrow.getMilestoneCount(currentContractId), 3);
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+
+        vm.startPrank(contractor);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 1, contractData, salt);
+        escrow.submit(currentContractId, 2, contractData, salt);
+        vm.stopPrank();
+
+        vm.startPrank(client);
+        // escrow.approve(currentContractId, 0, 1 ether, contractor);
+        escrow.approve(currentContractId, 1, 2 ether, contractor);
+        // escrow.approve(currentContractId, 2, 3 ether, contractor);
+        vm.stopPrank();
+
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 2 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        vm.prank(contractor);
+        escrow.claimAll(currentContractId);
+
+        (,, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        (,, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, 1);
+        assertEq(_amount, 0 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 3); //Status.COMPLETED
+
+        (,, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, 2);
+        assertEq(_amount, 3 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether - claimAmount - (feeAmount + clientFee));
+        assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
+    }
+
+    function test_claimAll_twoOfthree() public {
+        test_deposit_severalMilestones();
+        assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(escrow.getMilestoneCount(currentContractId), 3);
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+
+        vm.startPrank(contractor);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 1, contractData, salt);
+        escrow.submit(currentContractId, 2, contractData, salt);
+        vm.stopPrank();
+
+        vm.startPrank(client);
+        escrow.approve(currentContractId, 0, 1 ether, contractor);
+        // escrow.approve(currentContractId, 1, 2 ether, contractor);
+        escrow.approve(currentContractId, 2, 3 ether, contractor);
+        vm.stopPrank();
+
+        uint256 totalClaimAmount;
+        uint256 totalFeeAmount;
+        uint256 totalClientFee;
+
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+
+        totalClaimAmount += claimAmount;
+        totalFeeAmount += feeAmount;
+        totalClientFee += clientFee;
+
+        (claimAmount, feeAmount, clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 3 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        totalClaimAmount += claimAmount;
+        totalFeeAmount += feeAmount;
+        totalClientFee += clientFee;
+
+        vm.prank(contractor);
+        escrow.claimAll(currentContractId);
+
+        (,, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_amount, 0 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 3); //Status.COMPLETED
+
+        (,, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, 1);
+        assertEq(_amount, 2 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        (,, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, 2);
+        assertEq(_amount, 0 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 3); //Status.COMPLETED
+
+        assertEq(
+            paymentToken.balanceOf(address(escrow)), 6.23 ether - totalClaimAmount - (totalFeeAmount + totalClientFee)
+        );
+        assertEq(paymentToken.balanceOf(address(treasury)), totalFeeAmount + totalClientFee);
+        assertEq(paymentToken.balanceOf(address(contractor)), totalClaimAmount);
+    }
+
+    function test_claimAll_invalidContractor() public {
+        test_deposit_severalMilestones();
+        assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(escrow.getMilestoneCount(currentContractId), 3);
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+
+        vm.startPrank(contractor);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 1, contractData, salt);
+        escrow.submit(currentContractId, 2, contractData, salt);
+        vm.stopPrank();
+
+        vm.startPrank(client);
+        escrow.approve(currentContractId, 0, 1 ether, contractor);
+        escrow.approve(currentContractId, 1, 2 ether, contractor);
+        escrow.approve(currentContractId, 2, 3 ether, contractor);
+        vm.stopPrank();
+
+        address invalidContractor = makeAddr("invalidContractor");
+
+        vm.prank(invalidContractor);
+        escrow.claimAll(currentContractId);
+
+        (,, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 1 ether);
+        assertEq(uint256(_status), 2); //Status.APPROVED
+
+        (,, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, 1);
+        assertEq(_amount, 2 ether);
+        assertEq(_amountToClaim, 2 ether);
+        assertEq(uint256(_status), 2); //Status.APPROVED
+
+        (,, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, 2);
+        assertEq(_amount, 3 ether);
+        assertEq(_amountToClaim, 3 ether);
+        assertEq(uint256(_status), 2); //Status.APPROVED
+
+        assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0);
+        assertEq(paymentToken.balanceOf(address(contractor)), 0);
+        assertEq(paymentToken.balanceOf(address(invalidContractor)), 0);
     }
 
     ///////////////////////////////////////////
