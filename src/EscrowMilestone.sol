@@ -196,7 +196,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         emit Refilled(_contractId, _milestoneId, _amountAdditional);
     }
 
-    /// @notice Claims the approved amount by the contractor.
+    /// @notice Claims the approved amount by the contractor for a given contract and milestone.
     /// @dev This function allows the contractor to claim the approved amount from the deposit.
     /// @param _contractId ID of the deposit from which to claim funds.
     /// @param _milestoneId ID of the milestone within the contract to be claimed.
@@ -227,6 +227,56 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         if (D.amount == 0) D.status = Enums.Status.COMPLETED;
 
         emit Claimed(_contractId, _milestoneId, claimAmount);
+    }
+
+    /// @notice Claims all approved amounts by the contractor for a given contract.
+    /// @dev This function allows the contractor to claim all approved amounts across all milestones within a specified contract.
+    /// @param _contractId ID of the contract from which to claim funds.
+    function claimAll(uint256 _contractId) external {
+        uint256 totalClaimedAmount = 0;
+        uint256 totalFeeAmount = 0;
+        uint256 totalClientFee = 0;
+
+        Deposit[] storage milestones = contractMilestones[_contractId];
+        uint256 length = milestones.length;
+
+        address paymentToken = milestones[0].paymentToken; // All milestones use the same payment token.
+
+        for (uint256 i; i < length; ++i) {
+            Deposit storage D = milestones[i];
+
+            // Check if the milestone is in a state that allows claiming.
+            if (
+                D.status == Enums.Status.APPROVED || D.status == Enums.Status.RESOLVED
+                    || D.status == Enums.Status.CANCELED
+            ) {
+                if (D.amountToClaim > 0 && D.contractor == msg.sender) {
+                    (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+                        _computeClaimableAmountAndFee(msg.sender, D.amountToClaim, D.feeConfig);
+
+                    D.amount -= D.amountToClaim;
+                    totalClaimedAmount += claimAmount;
+                    totalFeeAmount += feeAmount;
+                    totalClientFee += clientFee;
+
+                    D.amountToClaim = 0; // Reset the claimable amount after claiming.
+
+                    if (D.amount == 0) D.status = Enums.Status.COMPLETED; // Update the status if all funds have been claimed.
+
+                    emit Claimed(_contractId, i, claimAmount);
+                }
+            }
+        }
+
+        // Perform the token transfer at the end to reduce gas cost by consolidating all transfers into a single operation.
+        if (totalClaimedAmount > 0) {
+            SafeTransferLib.safeTransfer(paymentToken, msg.sender, totalClaimedAmount);
+        }
+
+        // Consolidate and send platform fees in one transaction if applicable.
+        if (totalFeeAmount > 0 || totalClientFee > 0) {
+            _sendPlatformFee(paymentToken, totalFeeAmount + totalClientFee);
+        }
     }
 
     /// @notice Withdraws funds from a deposit under specific conditions.

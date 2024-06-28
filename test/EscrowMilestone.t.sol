@@ -999,6 +999,82 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
     }
 
+    function test_claimAll() public {
+        test_deposit_severalMilestones();
+        assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
+
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(escrow.getMilestoneCount(currentContractId), 3);
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+
+        vm.startPrank(contractor);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 1, contractData, salt);
+        escrow.submit(currentContractId, 2, contractData, salt);
+        vm.stopPrank();
+
+        vm.startPrank(client);
+        escrow.approve(currentContractId, 0, 1 ether, contractor);
+        escrow.approve(currentContractId, 1, 2 ether, contractor);
+        escrow.approve(currentContractId, 2, 3 ether, contractor);
+        vm.stopPrank();
+
+        uint256 totalClaimAmount;
+        uint256 totalFeeAmount;
+        uint256 totalClientFee;
+
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+
+        totalClaimAmount += claimAmount;
+        totalFeeAmount += feeAmount;
+        totalClientFee += clientFee;
+
+        (claimAmount, feeAmount, clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 2 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        totalClaimAmount += claimAmount;
+        totalFeeAmount += feeAmount;
+        totalClientFee += clientFee;
+
+        (claimAmount, feeAmount, clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 3 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        totalClaimAmount += claimAmount;
+        totalFeeAmount += feeAmount;
+        totalClientFee += clientFee;
+
+        vm.prank(contractor);
+        escrow.claimAll(currentContractId);
+
+        (,, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_amount, 0 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 3); //Status.COMPLETED
+
+        (,, _amount, _amountToClaim,,,, _status) =
+            escrow.contractMilestones(currentContractId, 1);
+        assertEq(_amount, 0 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 3); //Status.COMPLETED
+
+        (,, _amount, _amountToClaim,,,, _status) =
+            escrow.contractMilestones(currentContractId, 2);
+        assertEq(_amount, 0 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 3); //Status.COMPLETED
+
+        assertEq(
+            paymentToken.balanceOf(address(escrow)), 6.23 ether - totalClaimAmount - (totalFeeAmount + totalClientFee)
+        );
+        assertEq(paymentToken.balanceOf(address(treasury)), totalFeeAmount + totalClientFee);
+        assertEq(paymentToken.balanceOf(address(contractor)), totalClaimAmount);
+    }
+
     ///////////////////////////////////////////
     //           withdraw tests              //
     ///////////////////////////////////////////
