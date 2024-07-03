@@ -11,6 +11,8 @@ import {Enums} from "src/libs/Enums.sol";
 import {Ownable} from "src/libs/Ownable.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
+import {console2} from "lib/forge-std/src/console2.sol";
+
 /// @title Deposit management for Escrow Milestones
 /// @notice Manages the creation and addition of multiple milestones to escrow contracts.
 /// @dev Handles both the creation of a new escrow contract and the addition of milestones to existing contracts.
@@ -257,7 +259,9 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
                     D.amount -= D.amountToClaim;
                     totalClaimedAmount += claimAmount;
                     totalFeeAmount += feeAmount;
-                    totalClientFee += clientFee;
+                    if (D.status != Enums.Status.RESOLVED && D.status != Enums.Status.CANCELED) {
+                        totalClientFee += clientFee;
+                    }
 
                     D.amountToClaim = 0; // Reset the claimable amount after claiming.
 
@@ -285,25 +289,46 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     function withdraw(uint256 _contractId, uint256 _milestoneId) external onlyClient {
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
         if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {
-            revert Escrow__InvalidStatusToWithdraw();
+            revert Escrow__InvalidStatusToWithdraw(); // TODO check && add D.status = Enums.Status.COMPLETED
         }
         if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
+        console2.log("D.status ", uint256(D.status));
 
         (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amountToWithdraw, D.feeConfig);
 
         (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
 
+
+        uint256 platformFee;
+        if (D.status == Enums.Status.REFUND_APPROVED) {
+            platformFee = initialFeeAmount - feeAmount;
+        } else if (D.amount == D.amountToWithdraw) { // case when resolveDispute Winner.CLIENT
+            platformFee = 0;
+
+        } else {
+            if (initialFeeAmount == feeAmount) {
+                // When claimed before withdraw
+                platformFee = feeAmount;
+            } else {
+                // When withdrawn before claim
+                platformFee = initialFeeAmount - feeAmount;
+            }
+        }
+
+
         D.amount -= D.amountToWithdraw;
         uint256 withdrawAmount = D.amountToWithdraw + feeAmount;
         D.amountToWithdraw = 0; // Prevent re-withdrawal
-        D.status = Enums.Status.CANCELED; // Mark the deposit as canceled after funds are withdrawn
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
 
-        uint256 platformFee = initialFeeAmount - feeAmount;
+       
+
         if (platformFee > 0) {
             _sendPlatformFee(D.paymentToken, platformFee);
         }
+
+        D.status = Enums.Status.CANCELED; // Mark the deposit as canceled after funds are withdrawn
 
         emit Withdrawn(_contractId, _milestoneId, withdrawAmount);
     }
