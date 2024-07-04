@@ -34,7 +34,7 @@ anvil :; anvil -m 'test test test test test test test test test test test junk' 
 
 # test with forks
 # change ETH_RPC_URL to another one (e.g., FTM_RPC_URL) for different chains
-FORK_URL := ${SEPOLIA_ALCHEMY_RPC_URL} 
+FORK_URL := ${POLYGON_AMOY_RPC} #${SEPOLIA_ALCHEMY_RPC_URL}
 test-fork :; source .env && forge test --match-contract EndToEndTest --rpc-url ${FORK_URL} -vvv
 trace-fork :; source .env && forge test --match-contract EndToEndTest --rpc-url ${FORK_URL} -vvvv
 
@@ -45,8 +45,8 @@ deploy-factory-local :; forge script script/deploy/03_DeployEscrowFactory.s.sol:
 execute-escrow-local :; forge script script/execute/ExecuteEscrow.s.sol:ExecuteEscrowScript --rpc-url http://localhost:8545 --private-key $(DEPLOYER_PRIVATE_KEY) -vvvv
 
 # Deploy to Ethereum Sepolia - Requires environment variables: SEPOLIA_ALCHEMY_RPC_URL, DEPLOYER_PRIVATE_KEY, ETHERSCAN_API_KEY
-DEPLOY_URL := ${SEPOLIA_ALCHEMY_RPC_URL} #${POLYGON_AMOY_RPC}
-SCAN_API_KEY := ${ETHERSCAN_API_KEY}
+DEPLOY_URL := ${POLYGON_AMOY_RPC} #${SEPOLIA_ALCHEMY_RPC_URL}
+SCAN_API_KEY := ${POLYGONSCAN_API_KEY} #${ETHERSCAN_API_KEY}
 deploy-registry :; source .env && forge script script/deploy/01_DeployRegistry.s.sol:DeployRegistryScript --rpc-url ${DEPLOY_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${SCAN_API_KEY} -vvvv
 deploy-escrow :; source .env && forge script script/deploy/02_DeployEscrowFixedPrice.s.sol:DeployEscrowFixedPriceScript --rpc-url ${DEPLOY_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${SCAN_API_KEY} --gas-price ${GAS_PRICE} --gas-limit ${GAS_LIMIT} -vvvv
 deploy-milestone :; source .env && forge script script/deploy/03_DeployEscrowMilestone.s.sol:DeployEscrowMilestoneScript --rpc-url ${DEPLOY_URL} --private-key ${DEPLOYER_PRIVATE_KEY} --broadcast --verify --etherscan-api-key ${SCAN_API_KEY} --gas-price ${GAS_PRICE} --gas-limit ${GAS_LIMIT} -vvvv

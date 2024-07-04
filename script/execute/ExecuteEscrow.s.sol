@@ -8,6 +8,7 @@ import {EscrowFactory, IEscrowFactory} from "src/EscrowFactory.sol";
 import {EscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
+import {PolAmoyConfig} from "config/PolAmoyConfig.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {MockDAI} from "test/mocks/MockDAI.sol";
 import {MockUSDT} from "test/mocks/MockUSDT.sol";
@@ -24,6 +25,7 @@ contract ExecuteEscrowScript is Script {
     IEscrowFixedPrice.Deposit deposit;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
+    Enums.EscrowType escrowType;
     bytes32 contractorData;
     bytes32 salt;
     bytes contractData;
@@ -47,28 +49,27 @@ contract ExecuteEscrowScript is Script {
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         owner = vm.envAddress("OWNER_PUBLIC_KEY");
 
-        escrow = EthSepoliaConfig.ESCROW;
-        registry = EthSepoliaConfig.REGISTRY;
-        factory = EthSepoliaConfig.FACTORY;
-        feeManager = EthSepoliaConfig.FEE_MANAGER;
-        newOwner = EthSepoliaConfig.OWNER;
-        usdtToken = EthSepoliaConfig.MOCK_USDT;
+        escrow = PolAmoyConfig.ESCROW_FIXED_PRICE;
+        registry = PolAmoyConfig.REGISTRY;
+        factory = PolAmoyConfig.FACTORY;
+        feeManager = PolAmoyConfig.FEE_MANAGER;
+        newOwner = PolAmoyConfig.OWNER;
+        usdtToken = PolAmoyConfig.MOCK_USDT;
 
-        // contractData = bytes("contract_data");
-        // salt = keccak256(abi.encodePacked(uint256(42)));
-        // contractorData = keccak256(abi.encodePacked(contractData, salt));
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        contractorData = keccak256(abi.encodePacked(contractData, salt));
 
-        // deposit = IEscrow.Deposit({
-        //     contractor: address(0),
-        //     paymentToken: address(usdtToken),
-        //     amount: 1000e6,
-        //     amountToClaim: 0,
-        //     amountToWithdraw: 0,
-        //     timeLock: 0,
-        //     contractorData: contractorData,
-        //     feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-        //     status: Enums.Status.ACTIVE
-        // });
+        deposit = IEscrowFixedPrice.Deposit({
+            contractor: address(0),
+            paymentToken: address(usdtToken),
+            amount: 1000e6,
+            amountToClaim: 0,
+            amountToWithdraw: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            status: Enums.Status.ACTIVE
+        });
     }
 
     function run() public {
@@ -89,35 +90,35 @@ contract ExecuteEscrowScript is Script {
         require(sent, "Failed to send Ether");
 
         // // set treasury
-        // EscrowRegistry(registry).setTreasury(owner);
+        EscrowRegistry(registry).setTreasury(owner);
 
         // // deploy new escrow
-        // address deployedEscrowProxy = EscrowFactory(factory).deployEscrow(
-        //     address(deployerPublicKey), address(deployerPublicKey), address(registry)
-        // );
-        // Escrow escrowProxy = Escrow(address(deployedEscrowProxy));
+        address deployedEscrowProxy = EscrowFactory(factory).deployEscrow(
+            escrowType, address(deployerPublicKey), address(deployerPublicKey), address(registry)
+        );
+        EscrowFixedPrice escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
 
         // // mint, approve payment token
-        // MockUSDT(usdtToken).mint(address(deployerPublicKey), 1800e6);
-        // MockUSDT(usdtToken).approve(address(escrowProxy), 1800e6);
+        MockUSDT(usdtToken).mint(address(deployerPublicKey), 1800e6);
+        MockUSDT(usdtToken).approve(address(escrowProxy), 1800e6);
 
         // // deposit
-        // Escrow(escrowProxy).deposit(deposit);
+        EscrowFixedPrice(escrowProxy).deposit(deposit);
 
         // // submit
-        // contractData = bytes("contract_data");
-        // salt = keccak256(abi.encodePacked(uint256(42)));
-        // // bytes32 contractorDataHash = Escrow(escrowProxy).getContractorDataHash(contractData, salt);
-        // uint256 currentContractId = Escrow(escrowProxy).getCurrentContractId();
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        // bytes32 contractorDataHash = Escrow(escrowProxy).getContractorDataHash(contractData, salt);
+        uint256 currentContractId = EscrowFixedPrice(escrowProxy).getCurrentContractId();
 
         // // submit
-        // Escrow(escrowProxy).submit(currentContractId, contractData, salt);
+        EscrowFixedPrice(escrowProxy).submit(currentContractId, contractData, salt);
 
         // // approve
-        // Escrow(escrowProxy).approve(currentContractId, 1000e6, address(deployerPublicKey));
+        EscrowFixedPrice(escrowProxy).approve(currentContractId, 1000e6, address(deployerPublicKey));
 
         // // claim
-        // Escrow(escrowProxy).claim(currentContractId);
+        EscrowFixedPrice(escrowProxy).claim(currentContractId);
 
         vm.stopBroadcast();
     }
