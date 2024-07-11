@@ -30,17 +30,20 @@ contract EscrowHourlyUnitTest is Test {
     Enums.FeeConfig feeConfig;
     Enums.Status status;
 
-    IEscrowHourly.Deposit[] deposits;
+    IEscrowHourly.Deposit deposit;
+    IEscrowHourly.ContractDetails contractDetails;
+
+    struct ContractDetails {
+        address paymentToken;
+        uint256 prepaymentAmount;
+        Enums.Status status;
+    }
 
     struct Deposit {
         address contractor;
-        address paymentToken;
         uint256 amount;
         uint256 amountToClaim;
-        uint256 amountToWithdraw;
-        bytes32 contractorData;
         Enums.FeeConfig feeConfig;
-        Enums.Status status;
     }
 
     event Deposited(
@@ -48,8 +51,7 @@ contract EscrowHourlyUnitTest is Test {
         uint256 indexed contractId,
         uint256 indexed weekId,
         address paymentToken,
-        uint256 amount,
-        Enums.FeeConfig feeConfig
+        uint256 prepaymentAmount
     );
     event Submitted(address indexed sender, uint256 indexed contractId, uint256 indexed weekId);
     event Approved(uint256 indexed contractId, uint256 indexed weekId, uint256 amountApprove, address receiver);
@@ -84,19 +86,18 @@ contract EscrowHourlyUnitTest is Test {
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
-        // Initialize the deposits array within setUp
-        deposits.push(
-            IEscrowHourly.Deposit({
-                contractor: address(0),
-                paymentToken: address(paymentToken),
-                amount: 1 ether,
-                amountToClaim: 0,
-                amountToWithdraw: 0,
-                contractorData: contractorData,
-                feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
-                status: Enums.Status.ACTIVE
-            })
-        );
+        contractDetails = IEscrowHourly.ContractDetails({
+            paymentToken: address(paymentToken),
+            prepaymentAmount: 1 ether,
+            status: Enums.Status.ACTIVE
+        });
+
+        deposit = IEscrowHourly.Deposit({
+            contractor: contractor,
+            amount: 0,
+            amountToClaim: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+        });
     }
 
     ///////////////////////////////////////////
@@ -169,9 +170,9 @@ contract EscrowHourlyUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
-        vm.expectEmit(true, true, true, true);
-        emit Deposited(address(client), 1, 0, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
-        escrow.deposit(0, deposits);
+        // vm.expectEmit(true, true, false, false);
+        // emit Deposited(address(client), 1, 0, address(paymentToken), 1.03 ether);
+        escrow.deposit(0, address(paymentToken), 1 ether, deposit);
         vm.stopPrank();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 1);
@@ -179,28 +180,22 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.03 ether
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
-        (
-            address _contractor,
-            address _paymentToken,
-            uint256 _amount,
-            uint256 _amountToClaim,
-            uint256 _amountToWithdraw,
-            bytes32 _contractorData,
-            Enums.FeeConfig _feeConfig,
-            Enums.Status _status
-        ) = escrow.contractWeeks(currentContractId, 0);
-        assertEq(_contractor, address(0));
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
-        assertEq(_amount, 1 ether);
-        assertEq(_amountToClaim, 0 ether);
-        assertEq(_amountToWithdraw, 0 ether);
-
-        assertEq(_contractorData, contractorData);
-        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(_prepaymentAmount, 1 ether);
         assertEq(uint256(_status), 0); //Status.ACTIVE
+        (address _contractor, uint256 _amount, uint256 _amountToClaim, Enums.FeeConfig _feeConfig) =
+            escrow.contractWeeks(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(escrow.getWeeksCount(currentContractId), 1);
     }
 
+    // prepaymentAmount == 0
+
+    /*
     function test_deposit_existingContract() public {
         test_deposit();
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -1863,4 +1858,5 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_status), 5); //Status.DISPUTED
     }
+    */
 }

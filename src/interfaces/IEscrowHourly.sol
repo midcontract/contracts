@@ -12,24 +12,26 @@ interface IEscrowHourly is IEscrow {
     /// @notice Error for when an invalid contract ID is provided to a function expecting a valid existing contract ID.
     error Escrow__InvalidContractId();
 
+    /// @param paymentToken The address of the payment token.
+    /// @param prepaymentAmount The prepayment amount for the week.
+    /// @param status The status of the deposit.
+    struct ContractDetails {
+        address paymentToken;
+        uint256 prepaymentAmount;
+        Enums.Status status;
+    }
+
     /// @notice Represents a deposit in the escrow.
     /// @param contractor The address of the contractor.
-    /// @param paymentToken The address of the payment token.
-    /// @param amount The prepayment amount for the week.
+    /// @param amount The amount to be TBC.
     /// @param amountToClaim The amount to be claimed.
     /// @param amountToWithdraw The amount to be withdrawn.
-    /// @param contractorData The contractor's data hash.
     /// @param feeConfig The fee configuration.
-    /// @param status The status of the deposit.
     struct Deposit {
         address contractor;
-        address paymentToken;
         uint256 amount;
         uint256 amountToClaim;
-        uint256 amountToWithdraw;
-        bytes32 contractorData;
         Enums.FeeConfig feeConfig;
-        Enums.Status status;
     }
 
     /// @notice Emitted when a deposit is made.
@@ -37,22 +39,21 @@ interface IEscrowHourly is IEscrow {
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
     /// @param paymentToken The address of the payment token.
-    /// @param amount The amount deposited.
-    /// @param feeConfig The fee configuration.
+    /// @param prepaymentAmount The amount deposited.
+    // /// @param feeConfig The fee configuration.
     event Deposited(
         address indexed sender,
         uint256 indexed contractId,
-        uint256 indexed weekId,
+        uint256 weekId,
         address paymentToken,
-        uint256 amount,
-        Enums.FeeConfig feeConfig
+        uint256 prepaymentAmount
     );
 
-    /// @notice Emitted when a submission is made.
-    /// @param sender The address of the sender.
-    /// @param contractId The ID of the contract.
-    /// @param weekId The ID of the week.
-    event Submitted(address indexed sender, uint256 indexed weekId, uint256 indexed contractId);
+    // /// @notice Emitted when a submission is made.
+    // /// @param sender The address of the sender.
+    // /// @param contractId The ID of the contract.
+    // /// @param weekId The ID of the week.
+    // event Submitted(address indexed sender, uint256 indexed weekId, uint256 indexed contractId);
 
     /// @notice Emitted when an approval is made.
     /// @param contractId The ID of the contract.
@@ -79,6 +80,8 @@ interface IEscrowHourly is IEscrow {
     /// @param amount The amount withdrawn.
     event Withdrawn(uint256 indexed contractId, uint256 indexed weekId, uint256 amount);
 
+    // TODO Return Request for the PrepaymenAmount not weekId
+
     /// @notice Emitted when a return is requested.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
@@ -95,19 +98,19 @@ interface IEscrowHourly is IEscrow {
     /// @param weekId The ID of the week.
     event ReturnCanceled(uint256 contractId, uint256 weekId);
 
-    /// @notice Emitted when a dispute is created.
-    /// @param contractId The ID of the contract.
-    /// @param weekId The ID of the week.
-    /// @param sender The address of the sender.
-    event DisputeCreated(uint256 contractId, uint256 weekId, address sender);
+    // /// @notice Emitted when a dispute is created.
+    // /// @param contractId The ID of the contract.
+    // /// @param weekId The ID of the week.
+    // /// @param sender The address of the sender.
+    // event DisputeCreated(uint256 contractId, uint256 weekId, address sender);
 
-    /// @notice Emitted when a dispute is resolved.
-    /// @param contractId The ID of the contract.
-    /// @param weekId The ID of the week.
-    /// @param winner The winner of the dispute.
-    /// @param clientAmount The amount awarded to the client.
-    /// @param contractorAmount The amount awarded to the contractor.
-    event DisputeResolved(
-        uint256 contractId, uint256 weekId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount
-    );
+    // /// @notice Emitted when a dispute is resolved.
+    // /// @param contractId The ID of the contract.
+    // /// @param weekId The ID of the week.
+    // /// @param winner The winner of the dispute.
+    // /// @param clientAmount The amount awarded to the client.
+    // /// @param contractorAmount The amount awarded to the contractor.
+    // event DisputeResolved(
+    //     uint256 contractId, uint256 weekId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount
+    // );
 }
