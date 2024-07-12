@@ -39,14 +39,14 @@ interface IEscrowHourly is IEscrow {
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
     /// @param paymentToken The address of the payment token.
-    /// @param prepaymentAmount The amount deposited.
+    /// @param totalDepositAmount The total amount deposited: principal + platform fee.
     // /// @param feeConfig The fee configuration.
     event Deposited(
         address indexed sender,
         uint256 indexed contractId,
         uint256 weekId,
         address paymentToken,
-        uint256 prepaymentAmount
+        uint256 totalDepositAmount
     );
 
     // /// @notice Emitted when a submission is made.

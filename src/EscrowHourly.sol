@@ -87,6 +87,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
             revert Escrow__InvalidAmount();
         }
 
+        if (_deposit.contractor == address(0)) revert Escrow__ZeroAddressProvided();
+
         // Determine contract ID
         uint256 contractId = _contractId == 0 ? ++currentContractId : _contractId;
         if (_contractId > 0 && (contractWeeks[_contractId].length == 0 && _contractId > currentContractId)) {
@@ -123,9 +125,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         );
 
         // Emit an event for the deposit of each week
-        emit Deposited(msg.sender, contractId, contractWeeks[_contractId].length, _paymentToken, totalDepositAmount);
+        emit Deposited(msg.sender, contractId, contractWeeks[contractId].length - 1, _paymentToken, totalDepositAmount);
     }
-
 
     // /// @notice Submits a deposit by the contractor.
     // /// @dev This function allows the contractor to submit a deposit with their data and salt.
@@ -151,8 +152,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
 
     //     emit Submitted(msg.sender, _contractId, _weekId);
     // }
-
-    
 
     // - If the client initially sets up the contract with only a prepayment, they must subsequently call the `approve` function and transfer the amount approved for the specific service or task.
     // - If the client does not make a prepayment, they should directly use the `deposit` function, providing all necessary details in the payload and transferring the amount approved for the work, but without including a prepayment.
@@ -291,7 +290,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     function approveReturn(uint256 _contractId, uint256 _weekId) external {
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-        
+
         Deposit storage D = contractWeeks[_contractId][_weekId];
         if (msg.sender != D.contractor && msg.sender != owner()) revert Escrow__UnauthorizedToApproveReturn();
 
