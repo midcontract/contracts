@@ -136,7 +136,11 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @param _weekId ID of the week within the contract to be approved.
     /// @param _amountApprove Amount to approve for the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
-    function approve(uint256 _contractId, uint256 _weekId, uint256 _amountApprove, address _receiver) external onlyClient {
+    function approve(uint256 _contractId, uint256 _weekId, uint256 _amountApprove, address _receiver)
+        external
+        onlyClient
+    {
+        if (_weekId >= contractWeeks[_contractId].length) revert Escrow__InvalidWeekId(); // TODO test
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
         ContractDetails storage C = contractDetails[_contractId];
@@ -146,7 +150,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         Deposit storage D = contractWeeks[_contractId][_weekId];
 
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
-
+        // TODO TBC apply platform fee for _amountAppove
         SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), _amountApprove);
 
         D.amountToClaim += _amountApprove;
@@ -155,28 +159,41 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         emit Approved(_contractId, _weekId, _amountApprove, _receiver);
     }
 
-    // if client call refill directly -> refill prepayment amount
-    // refill prepayment or weekpaymentAmount
-    /// @notice Refills the deposit with an additional amount.
-    /// @dev This function allows adding additional funds to the deposit, updating the deposit amount accordingly.
-    /// @param _contractId ID of the deposit to be refilled.
-    /// @param _weekId ID of the week within the contract to be refilled.
-    /// @param _amountAdditional Additional amount to be added to the deposit.
-    function refill(uint256 _contractId, uint256 _weekId, uint256 _amountAdditional) external onlyClient {
-        if (_amountAdditional == 0) revert Escrow__InvalidAmount();
-
-        Deposit storage D = contractWeeks[_contractId][_weekId];
-
-        (uint256 totalAmountAdditional, uint256 feeApplied) =
-            _computeDepositAmountAndFee(msg.sender, _amountAdditional, D.feeConfig);
-        (feeApplied);
+    /// @notice Refills the prepayment or a specific week's deposit with an additional amount.
+    /// @dev Allows adding additional funds either to the contract's prepayment or to a specific week's payment amount.
+    /// @param _contractId ID of the contract for which the refill is done.
+    /// @param _weekId ID of the week within the contract to be refilled, only used if _type is WeekPayment.
+    /// @param _amount The additional amount to be added.
+    /// @param _type The type of refill, either prepayment or week payment.
+    function refill(uint256 _contractId, uint256 _weekId, uint256 _amount, Enums.RefillType _type)
+        external
+        onlyClient
+    {
+        if (_amount == 0) revert Escrow__InvalidAmount();
 
         ContractDetails storage C = contractDetails[_contractId];
 
-        SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
-        D.amount += _amountAdditional;
-        //  D.status = Enums.Status.APPROVED; // TODO add status setting for claiming
-        emit Refilled(_contractId, _weekId, _amountAdditional);
+        if (!registry.paymentTokens(C.paymentToken)) revert Escrow__NotSupportedPaymentToken();
+
+        Deposit storage D = contractWeeks[_contractId][_weekId];
+
+        if (_type == Enums.RefillType.PREPAYMENT) {
+            // Add funds to prepayment
+            (uint256 totalAmountAdditional, uint256 feeApplied) =
+                _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
+            SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
+            C.prepaymentAmount += _amount;
+            emit RefilledPrepayment(_contractId, _amount);
+        } else if (_type == Enums.RefillType.WEEK_PAYMENT) {
+            // Ensure weekId is within range
+            if (_weekId >= contractWeeks[_contractId].length) revert Escrow__InvalidWeekId();
+
+            (uint256 totalAmountAdditional, uint256 feeApplied) =
+                _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
+            SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
+            D.amountToClaim += _amount;
+            emit RefilledWeekPayment(_contractId, _weekId, _amount);
+        }
     }
 
     /// @notice Claims the approved amount by the contractor.

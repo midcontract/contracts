@@ -39,4 +39,11 @@ library Enums {
         MILESTONE, // Represents a contract where payment is divided into milestones, each payable upon completion.
         HOURLY // Represents a contract where payment is made based on hourly rates and actual time worked.
     }
+
+    /// @notice Specifies the types of refills possible within an escrow contract.
+    /// @dev Used to determine whether a refill operation is targeting the overall contract prepayment or a specific week's payment within the contract.
+    enum RefillType {
+        PREPAYMENT, // Indicates a refill to the contract's general prepayment pool, which can be used to cover future claims.
+        WEEK_PAYMENT // Indicates a refill targeted at a specific week's deposit amount within the contract, typically to fulfill or increase the amount claimable for that week.
+    }
 }

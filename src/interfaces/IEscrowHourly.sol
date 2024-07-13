@@ -12,6 +12,9 @@ interface IEscrowHourly is IEscrow {
     /// @notice Error for when an invalid contract ID is provided to a function expecting a valid existing contract ID.
     error Escrow__InvalidContractId();
 
+    /// @notice Error for when an invalid week ID is provided to a function expecting a valid week ID within range.
+    error Escrow__InvalidWeekId();
+
     /// @param paymentToken The address of the payment token.
     /// @param prepaymentAmount The prepayment amount for the week.
     /// @param status The status of the deposit.
@@ -56,11 +59,16 @@ interface IEscrowHourly is IEscrow {
     /// @param receiver The address of the receiver.
     event Approved(uint256 indexed contractId, uint256 indexed weekId, uint256 amountApprove, address receiver);
 
+    /// @notice Emitted when the prepayment for a contract is refilled.
+    /// @param contractId The ID of the contract.
+    /// @param amount The additional amount added.
+    event RefilledPrepayment(uint256 indexed contractId, uint256 amount);
+
     /// @notice Emitted when a contract is refilled.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
-    /// @param amountAdditional The additional amount added.
-    event Refilled(uint256 indexed contractId, uint256 indexed weekId, uint256 indexed amountAdditional);
+    /// @param amount The additional amount added.
+     event RefilledWeekPayment(uint256 indexed contractId, uint256 indexed weekId, uint256 amount);
 
     /// @notice Emitted when a claim is made.
     /// @param contractId The ID of the contract.
