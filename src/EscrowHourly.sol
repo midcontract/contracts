@@ -140,7 +140,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         external
         onlyClient
     {
-        if (_weekId >= contractWeeks[_contractId].length) revert Escrow__InvalidWeekId(); // TODO test
+        if (_weekId >= contractWeeks[_contractId].length) revert Escrow__InvalidWeekId();
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
         ContractDetails storage C = contractDetails[_contractId];
@@ -150,8 +150,10 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         Deposit storage D = contractWeeks[_contractId][_weekId];
 
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
-        // TODO TBC apply platform fee for _amountAppove
-        SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), _amountApprove);
+
+        (uint256 totalAmountApprove, uint256 feeApplied) =
+            _computeDepositAmountAndFee(msg.sender, _amountApprove, D.feeConfig);
+        SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountApprove);
 
         D.amountToClaim += _amountApprove;
         C.status = Enums.Status.APPROVED;
