@@ -128,31 +128,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         emit Deposited(msg.sender, contractId, contractWeeks[contractId].length - 1, _paymentToken, totalDepositAmount);
     }
 
-    // /// @notice Submits a deposit by the contractor.
-    // /// @dev This function allows the contractor to submit a deposit with their data and salt.
-    // /// @param _contractId ID of the deposit to be submitted.
-    // /// @param _weekId ID of the week within the contract to be submitted.
-    // /// @param _data Contractor data for the deposit.
-    // /// @param _salt Salt value for generating the contractor data hash.
-    // function submit(uint256 _contractId, uint256 _weekId, bytes calldata _data, bytes32 _salt) external {
-    //     Deposit storage D = contractWeeks[_contractId][_weekId];
-
-    //     if (D.contractor != address(0)) {
-    //         if (msg.sender != D.contractor) revert Escrow__UnauthorizedAccount(msg.sender);
-    //     }
-
-    //     if (uint256(D.status) != uint256(Enums.Status.ACTIVE)) revert Escrow__InvalidStatusForSubmit();
-
-    //     bytes32 contractorDataHash = _getContractorDataHash(_data, _salt);
-
-    //     if (D.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
-
-    //     D.contractor = msg.sender;
-    //     D.status = Enums.Status.SUBMITTED;
-
-    //     emit Submitted(msg.sender, _contractId, _weekId);
-    // }
-
     // - If the client initially sets up the contract with only a prepayment, they must subsequently call the `approve` function and transfer the amount approved for the specific service or task.
     // - If the client does not make a prepayment, they should directly use the `deposit` function, providing all necessary details in the payload and transferring the amount approved for the work, but without including a prepayment.
     /// @notice Approves a deposit by the client.
@@ -161,19 +136,18 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @param _weekId ID of the week within the contract to be approved.
     /// @param _amountApprove Amount to approve for the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
-    function approve(uint256 _contractId, uint256 _weekId, uint256 _amountApprove, address _receiver) external {
-        if (msg.sender != client && msg.sender != owner()) revert Escrow__UnauthorizedAccount(msg.sender);
-
+    function approve(uint256 _contractId, uint256 _weekId, uint256 _amountApprove, address _receiver) external onlyClient {
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
-        Deposit storage D = contractWeeks[_contractId][_weekId];
         ContractDetails storage C = contractDetails[_contractId];
 
         if (uint256(C.status) != uint256(Enums.Status.ACTIVE)) revert Escrow__InvalidStatusForApprove();
 
+        Deposit storage D = contractWeeks[_contractId][_weekId];
+
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
-        // if (D.amountToClaim + _amountApprove > D.amount) revert Escrow__NotEnoughDeposit();
+        SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), _amountApprove);
 
         D.amountToClaim += _amountApprove;
         C.status = Enums.Status.APPROVED;

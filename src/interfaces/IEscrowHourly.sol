@@ -49,12 +49,6 @@ interface IEscrowHourly is IEscrow {
         uint256 totalDepositAmount
     );
 
-    // /// @notice Emitted when a submission is made.
-    // /// @param sender The address of the sender.
-    // /// @param contractId The ID of the contract.
-    // /// @param weekId The ID of the week.
-    // event Submitted(address indexed sender, uint256 indexed weekId, uint256 indexed contractId);
-
     /// @notice Emitted when an approval is made.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
