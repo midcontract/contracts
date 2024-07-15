@@ -203,25 +203,23 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @param _contractId ID of the deposit from which to claim funds.
     /// @param _weekId ID of the week within the contract to be claimed.
     function claim(uint256 _contractId, uint256 _weekId) external {
-        Deposit storage D = contractWeeks[_contractId][_weekId];
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.RESOLVED && C.status != Enums.Status.CANCELED)
-        {
+        if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.CANCELED) {
             revert Escrow__InvalidStatusToClaim();
         }
-        if (D.amountToClaim == 0) revert Escrow__NotApproved();
 
+        Deposit storage D = contractWeeks[_contractId][_weekId];
         if (D.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (D.amountToClaim == 0) revert Escrow__NotApproved();
 
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
             _computeClaimableAmountAndFee(msg.sender, D.amountToClaim, D.feeConfig);
 
-        D.amount -= D.amountToClaim;
         D.amountToClaim = 0;
 
         SafeTransferLib.safeTransfer(C.paymentToken, msg.sender, claimAmount);
 
-        if ((C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED) && feeAmount > 0) {
+        if (C.status == Enums.Status.CANCELED && feeAmount > 0) {
             _sendPlatformFee(C.paymentToken, feeAmount);
         } else if (feeAmount > 0 || clientFee > 0) {
             _sendPlatformFee(C.paymentToken, feeAmount + clientFee);
@@ -439,24 +437,24 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         }
     }
 
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This internal function computes the hash value for the contractor data using the provided data and salt.
-    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_data, _salt));
-    }
+    // /// @notice Generates a hash for the contractor data.
+    // /// @dev This internal function computes the hash value for the contractor data using the provided data and salt.
+    // function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
+    //     return keccak256(abi.encodePacked(_data, _salt));
+    // }
 
     /*//////////////////////////////////////////////////////////////
                     EXTERNAL VIEW & MANAGER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
-    /// @param _data Contractor data.
-    /// @param _salt Salt value for generating the hash.
-    /// @return Hash value of the contractor data.
-    function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
-        return _getContractorDataHash(_data, _salt);
-    }
+    // /// @notice Generates a hash for the contractor data.
+    // /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
+    // /// @param _data Contractor data.
+    // /// @param _salt Salt value for generating the hash.
+    // /// @return Hash value of the contractor data.
+    // function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
+    //     return _getContractorDataHash(_data, _salt);
+    // }
 
     /// @notice Retrieves the current contract ID.
     /// @return The current contract ID.
