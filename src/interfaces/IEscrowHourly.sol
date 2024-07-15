@@ -6,14 +6,17 @@ import {IEscrow, Enums} from "./IEscrow.sol";
 /// @title EscrowHourly Interface
 /// @notice Interface for the Escrow Hourly contract that handles deposits, withdrawals, and disputes.
 interface IEscrowHourly is IEscrow {
-    /// @notice Error for when no deposits are provided in a function call that expects at least one.
+    /// @notice Thrown when no deposits are provided in a function call that expects at least one.
     error Escrow__NoDepositsProvided();
 
-    /// @notice Error for when an invalid contract ID is provided to a function expecting a valid existing contract ID.
+    /// @notice Thrown when an invalid contract ID is provided to a function expecting a valid existing contract ID.
     error Escrow__InvalidContractId();
 
-    /// @notice Error for when an invalid week ID is provided to a function expecting a valid week ID within range.
+    /// @notice Thrown when an invalid week ID is provided to a function expecting a valid week ID within range.
     error Escrow__InvalidWeekId();
+
+    /// @notice Thrown when the available prepayment amount is insufficient to cover the requested operation.
+    error Escrow__InsufficientPrepayment();
 
     /// @param paymentToken The address of the payment token.
     /// @param prepaymentAmount The prepayment amount for the week.
@@ -68,7 +71,7 @@ interface IEscrowHourly is IEscrow {
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
     /// @param amount The additional amount added.
-     event RefilledWeekPayment(uint256 indexed contractId, uint256 indexed weekId, uint256 amount);
+    event RefilledWeekPayment(uint256 indexed contractId, uint256 indexed weekId, uint256 amount);
 
     /// @notice Emitted when a claim is made.
     /// @param contractId The ID of the contract.

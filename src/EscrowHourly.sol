@@ -131,15 +131,13 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     // - If the client initially sets up the contract with only a prepayment, they must subsequently call the `approve` function and transfer the amount approved for the specific service or task.
     // - If the client does not make a prepayment, they should directly use the `deposit` function, providing all necessary details in the payload and transferring the amount approved for the work, but without including a prepayment.
     /// @notice Approves a deposit by the client.
-    /// @dev This function allows the client to approve a submitted deposit, specifying the amount to approve and any additional amount.
+    /// @dev This function allows the client or owner to approve a submitted deposit, specifying the amount to approve and any additional amount.
     /// @param _contractId ID of the deposit to be approved.
     /// @param _weekId ID of the week within the contract to be approved.
     /// @param _amountApprove Amount to approve for the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
-    function approve(uint256 _contractId, uint256 _weekId, uint256 _amountApprove, address _receiver)
-        external
-        onlyClient
-    {
+    function approve(uint256 _contractId, uint256 _weekId, uint256 _amountApprove, address _receiver) external {
+        if (msg.sender != client && msg.sender != owner()) revert Escrow__UnauthorizedAccount(msg.sender);
         if (_weekId >= contractWeeks[_contractId].length) revert Escrow__InvalidWeekId();
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
@@ -151,11 +149,17 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
 
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
-        (uint256 totalAmountApprove, uint256 feeApplied) =
-            _computeDepositAmountAndFee(msg.sender, _amountApprove, D.feeConfig);
-        SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountApprove);
+        if (msg.sender == owner()) {
+            if (C.prepaymentAmount < _amountApprove) revert Escrow__InsufficientPrepayment();
+            C.prepaymentAmount -= _amountApprove;
+            D.amountToClaim += _amountApprove;
+        } else {
+            (uint256 totalAmountApprove, uint256 feeApplied) =
+                _computeDepositAmountAndFee(msg.sender, _amountApprove, D.feeConfig);
+            SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountApprove);
+            D.amountToClaim += _amountApprove;
+        }
 
-        D.amountToClaim += _amountApprove;
         C.status = Enums.Status.APPROVED;
 
         emit Approved(_contractId, _weekId, _amountApprove, _receiver);
@@ -236,14 +240,14 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     function withdraw(uint256 _contractId, uint256 _weekId) external onlyClient {
         Deposit storage D = contractWeeks[_contractId][_weekId];
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.REFUND_APPROVED && C.status != Enums.Status.RESOLVED) {
+        if (C.status != Enums.Status.REFUND_APPROVED) {
             revert Escrow__InvalidStatusToWithdraw();
         }
         // if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
 
         (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, C.prepaymentAmount, D.feeConfig);
 
-        (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
+        // (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
 
         // D.amount -= D.amountToWithdraw;
         uint256 withdrawAmount = C.prepaymentAmount + feeAmount;
@@ -252,10 +256,10 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
 
         SafeTransferLib.safeTransfer(C.paymentToken, msg.sender, withdrawAmount);
 
-        uint256 platformFee = initialFeeAmount - feeAmount;
-        if (platformFee > 0) {
-            _sendPlatformFee(C.paymentToken, platformFee);
-        }
+        // uint256 platformFee = initialFeeAmount - feeAmount;
+        // if (platformFee > 0) {
+        //     _sendPlatformFee(C.paymentToken, platformFee);
+        // }
 
         emit Withdrawn(_contractId, _weekId, withdrawAmount);
     }
