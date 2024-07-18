@@ -238,28 +238,28 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
     /// @param _weekId ID of the week within the contract to be withdrawn.
     function withdraw(uint256 _contractId, uint256 _weekId) external onlyClient {
-        Deposit storage D = contractWeeks[_contractId][_weekId];
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.REFUND_APPROVED && C.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw();
         }
-        // if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
+        
+        Deposit storage D = contractWeeks[_contractId][_weekId];
+        if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
 
-        (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, C.prepaymentAmount, D.feeConfig);
+        (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amountToWithdraw, D.feeConfig);
+        (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, C.prepaymentAmount, D.feeConfig);
 
-        // (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
-
-        // D.amount -= D.amountToWithdraw;
-        uint256 withdrawAmount = C.prepaymentAmount + feeAmount;
-        // D.amountToWithdraw = 0; // Prevent re-withdrawal
+        C.prepaymentAmount -= D.amountToWithdraw;
+        uint256 withdrawAmount = D.amountToWithdraw + feeAmount;
+        D.amountToWithdraw = 0; // Prevent re-withdrawal
         C.status = Enums.Status.CANCELED; // Mark the deposit as canceled after funds are withdrawn
 
         SafeTransferLib.safeTransfer(C.paymentToken, msg.sender, withdrawAmount);
 
-        // uint256 platformFee = initialFeeAmount - feeAmount;
-        // if (platformFee > 0) {
-        //     _sendPlatformFee(C.paymentToken, platformFee);
-        // }
+        uint256 platformFee = initialFeeAmount - feeAmount;
+        if (platformFee > 0) {
+            _sendPlatformFee(C.paymentToken, platformFee);
+        }
 
         emit Withdrawn(_contractId, _weekId, withdrawAmount);
     }
