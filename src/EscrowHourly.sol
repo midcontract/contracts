@@ -118,8 +118,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         contractWeeks[contractId].push(
             Deposit({
                 contractor: _deposit.contractor, // Initialize with contractor assigned, could be zero address on initial stage
-                amount: _deposit.amount, // TODO TBC Amount for the week can be zero, for calculation
                 amountToClaim: _deposit.amountToClaim, // amountToClaim > 0 if prepaymentAmount == 0 && Status.APPROVED; || D.amountToClaim == 0 if prepaymentAmount > 0 && Status.ACTIVE;
+                amountToWithdraw: _deposit.amountToWithdraw, // TODO TBC Amount for the week can be zero, for calculation
                 feeConfig: _deposit.feeConfig
             })
         );
@@ -229,7 +229,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
             _sendPlatformFee(C.paymentToken, feeAmount + clientFee);
         }
 
-        if (D.amount == 0) C.status = Enums.Status.COMPLETED;
+        if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED; // TODO TBC conditions to change the Status
 
         emit Claimed(_contractId, _weekId, claimAmount);
     }
@@ -240,7 +240,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     function withdraw(uint256 _contractId, uint256 _weekId) external onlyClient {
         Deposit storage D = contractWeeks[_contractId][_weekId];
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.REFUND_APPROVED) {
+        if (C.status != Enums.Status.REFUND_APPROVED && C.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw();
         }
         // if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
@@ -273,7 +273,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @param _weekId ID of the week for which the return is requested.
     function requestReturn(uint256 _contractId, uint256 _weekId) external onlyClient {
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.ACTIVE && C.status != Enums.Status.SUBMITTED) revert Escrow__ReturnNotAllowed();
+        if (C.status != Enums.Status.ACTIVE) revert Escrow__ReturnNotAllowed();
 
         C.status = Enums.Status.RETURN_REQUESTED;
         emit ReturnRequested(_contractId, _weekId);
@@ -289,9 +289,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         Deposit storage D = contractWeeks[_contractId][_weekId];
         if (msg.sender != D.contractor && msg.sender != owner()) revert Escrow__UnauthorizedToApproveReturn();
 
-        // ContractDetails storage C = contractDetails[_contractId];
-        // D.amountToWithdraw = D.amount;
-
+        D.amountToWithdraw = C.prepaymentAmount;
         C.status = Enums.Status.REFUND_APPROVED;
         emit ReturnApproved(_contractId, _weekId, msg.sender);
     }
@@ -312,18 +310,19 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         C.status = _status;
         emit ReturnCanceled(_contractId, _weekId);
     }
-    /*
+    
     /// @notice Creates a dispute over a specific deposit.
     /// @param _contractId ID of the deposit where the dispute occurred.
     /// @param _weekId ID of the deposit where the dispute occurred.
     function createDispute(uint256 _contractId, uint256 _weekId) external {
         Deposit storage D = contractWeeks[_contractId][_weekId];
-        if (D.status != Enums.Status.RETURN_REQUESTED && D.status != Enums.Status.SUBMITTED) {
+        ContractDetails storage C = contractDetails[_contractId];
+        if (C.status != Enums.Status.RETURN_REQUESTED && C.status != Enums.Status.SUBMITTED) {
             revert Escrow__CreateDisputeNotAllowed();
         }
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
-        D.status = Enums.Status.DISPUTED;
+        C.status = Enums.Status.DISPUTED;
         emit DisputeCreated(_contractId, _weekId, msg.sender);
     }
 
@@ -340,31 +339,32 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         uint256 _clientAmount,
         uint256 _contractorAmount
     ) external onlyOwner {
-        Deposit storage D = contractWeeks[_contractId][_weekId];
-        if (D.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
+        ContractDetails storage C = contractDetails[_contractId];
+        if (C.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
 
         // Validate the total resolution does not exceed the available deposit amount.
         uint256 totalResolutionAmount = _clientAmount + _contractorAmount;
-        if (totalResolutionAmount > D.amount) revert Escrow__ResolutionExceedsDepositedAmount();
+        if (totalResolutionAmount > C.prepaymentAmount) revert Escrow__ResolutionExceedsDepositedAmount();
 
+        Deposit storage D = contractWeeks[_contractId][_weekId];
         // Apply resolution based on the winner
         if (_winner == Enums.Winner.CLIENT) {
-            D.status = Enums.Status.RESOLVED; // Client can now withdraw the full amount
+            C.status = Enums.Status.RESOLVED; // Client can now withdraw the full amount
             D.amountToWithdraw = _clientAmount; // Full amount for the client to withdraw
             D.amountToClaim = 0; // No claimable amount for the contractor
         } else if (_winner == Enums.Winner.CONTRACTOR) {
-            D.status = Enums.Status.APPROVED; // Status that allows the contractor to claim
+            C.status = Enums.Status.APPROVED; // Status that allows the contractor to claim
             D.amountToClaim = _contractorAmount; // Amount the contractor can claim
             D.amountToWithdraw = 0; // No amount for the client to withdraw
         } else if (_winner == Enums.Winner.SPLIT) {
-            D.status = Enums.Status.RESOLVED; // Indicates a resolved dispute with split amounts
+            C.status = Enums.Status.RESOLVED; // Indicates a resolved dispute with split amounts
             D.amountToClaim = _contractorAmount; // Set the claimable amount for the contractor
             D.amountToWithdraw = _clientAmount; // Set the withdrawable amount for the client
         }
 
         emit DisputeResolved(_contractId, _weekId, _winner, _clientAmount, _contractorAmount);
     }
-    */
+    
     /*//////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/

@@ -68,8 +68,8 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
         // Initialize the deposits array within setUp
         deposit = IEscrowHourly.Deposit({
             contractor: contractor,
-            amount: 0,
             amountToClaim: 0,
+            amountToWithdraw: 0,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
         });
 
@@ -116,9 +116,8 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
         (
             address _contractor,
             // address _paymentToken,
-            uint256 _amount,
             uint256 _amountToClaim,
-            // uint256 _amountToWithdraw,
+            uint256 _amountToWithdraw,
             // bytes32 _contractorData,
             Enums.FeeConfig _feeConfig
         ) = EscrowHourly(escrowProxy).contractWeeks(currentContractId, weekId);
@@ -127,11 +126,11 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
         assertEq(MockUSDT(usdtToken).balanceOf(address(escrowProxy)), 0); // Confirms that the escrow proxy has received appropriate amount of tokens.
         assertEq(_contractor, address(0)); // // Verifies that the contractor address is initially set to zero, indicating no contractor is assigned yet.
         // assertEq(address(_paymentToken), address(usdtToken)); // Confirms that the correct payment token is associated with the deposit.
-        assertEq(_amount, 0); // Ensures that the deposited amount is correctly recorded as 1 ether.
+        // assertEq(_amount, 0); // Ensures that the deposited amount is correctly recorded as 1 ether.
         assertEq(_amountToClaim, 0 ether); // Checks that no amount is set to be claimable initially.
-        // assertEq(_amountToWithdraw, 0 ether); // Checks that no amount is set to be withdrawable initially.
+        assertEq(_amountToWithdraw, 0 ether); // Checks that no amount is set to be withdrawable initially.
         // assertEq(_contractorData, contractorData); // Checks that the contractor data matches the expected initial value.
         assertEq(uint256(_feeConfig), 1); // Ensures the fee configuration is set to CLIENT_COVERS_ONLY (assuming 1 is CLIENT_COVERS_ONLY in the enum).
-            // assertEq(uint256(_status), 0); // Confirms that the initial status of the deposit is ACTIVE (assuming 0 is ACTIVE in the enum).
+        // assertEq(uint256(_status), 0); // Confirms that the initial status of the deposit is ACTIVE (assuming 0 is ACTIVE in the enum).
     }
 }

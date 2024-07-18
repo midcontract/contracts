@@ -29,14 +29,13 @@ interface IEscrowHourly is IEscrow {
 
     /// @notice Represents a deposit in the escrow.
     /// @param contractor The address of the contractor.
-    /// @param amount The amount to be TBC.
     /// @param amountToClaim The amount to be claimed.
     /// @param amountToWithdraw The amount to be withdrawn.
     /// @param feeConfig The fee configuration.
     struct Deposit {
         address contractor;
-        uint256 amount;
         uint256 amountToClaim;
+        uint256 amountToWithdraw;
         Enums.FeeConfig feeConfig;
     }
 
@@ -103,19 +102,19 @@ interface IEscrowHourly is IEscrow {
     /// @param weekId The ID of the week.
     event ReturnCanceled(uint256 contractId, uint256 weekId);
 
-    // /// @notice Emitted when a dispute is created.
-    // /// @param contractId The ID of the contract.
-    // /// @param weekId The ID of the week.
-    // /// @param sender The address of the sender.
-    // event DisputeCreated(uint256 contractId, uint256 weekId, address sender);
+    /// @notice Emitted when a dispute is created.
+    /// @param contractId The ID of the contract.
+    /// @param weekId The ID of the week.
+    /// @param sender The address of the sender.
+    event DisputeCreated(uint256 contractId, uint256 weekId, address sender);
 
-    // /// @notice Emitted when a dispute is resolved.
-    // /// @param contractId The ID of the contract.
-    // /// @param weekId The ID of the week.
-    // /// @param winner The winner of the dispute.
-    // /// @param clientAmount The amount awarded to the client.
-    // /// @param contractorAmount The amount awarded to the contractor.
-    // event DisputeResolved(
-    //     uint256 contractId, uint256 weekId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount
-    // );
+    /// @notice Emitted when a dispute is resolved.
+    /// @param contractId The ID of the contract.
+    /// @param weekId The ID of the week.
+    /// @param winner The winner of the dispute.
+    /// @param clientAmount The amount awarded to the client.
+    /// @param contractorAmount The amount awarded to the contractor.
+    event DisputeResolved(
+        uint256 contractId, uint256 weekId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount
+    );
 }
