@@ -118,8 +118,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         contractWeeks[contractId].push(
             Deposit({
                 contractor: _deposit.contractor, // Initialize with contractor assigned, could be zero address on initial stage
-                amountToClaim: _deposit.amountToClaim, // amountToClaim > 0 if prepaymentAmount == 0 && Status.APPROVED; || D.amountToClaim == 0 if prepaymentAmount > 0 && Status.ACTIVE;
-                amountToWithdraw: _deposit.amountToWithdraw, // TODO TBC Amount for the week can be zero, for calculation
+                amountToClaim: _deposit.amountToClaim,
+                amountToWithdraw: _deposit.amountToWithdraw,
                 feeConfig: _deposit.feeConfig
             })
         );
@@ -315,11 +315,11 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @param _contractId ID of the deposit where the dispute occurred.
     /// @param _weekId ID of the deposit where the dispute occurred.
     function createDispute(uint256 _contractId, uint256 _weekId) external {
-        Deposit storage D = contractWeeks[_contractId][_weekId];
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.RETURN_REQUESTED && C.status != Enums.Status.SUBMITTED) {
-            revert Escrow__CreateDisputeNotAllowed();
+        if (C.status != Enums.Status.RETURN_REQUESTED && C.status != Enums.Status.APPROVED) {
+            revert Escrow__CreateDisputeNotAllowed(); // TODO TBC APPROVED
         }
+        Deposit storage D = contractWeeks[_contractId][_weekId];
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         C.status = Enums.Status.DISPUTED;
