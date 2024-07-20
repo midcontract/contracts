@@ -7,7 +7,7 @@ library PolAmoyConfig {
 
     address public constant ESCROW_FIXED_PRICE = 0xA925686d8DA646854BF47b493C0f053ce62308C5;
     address public constant ESCROW_MILESTONE = 0xBa22c061905EfC35328ac6795e701d49F1e4fdB7;
-    // address public constant ESCROW_HOURLY = ;
+    address public constant ESCROW_HOURLY = 0x17eB8F6B9e26C0Ab65bCED2dd044217d2425f6B3;
     address public constant FACTORY = 0x109F725FFda5020D6E4C9DEc83F07191e4a9632d;
     address public constant REGISTRY = 0x54d1bcB39ec52c21233Ac2ff745043487c832b76;
     address public constant FEE_MANAGER = 0x4FCe69069179559D28f607867ed6c708a799c7a5;
