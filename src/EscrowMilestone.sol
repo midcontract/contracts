@@ -35,8 +35,13 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @dev Indicates that the contract has been initialized.
     bool public initialized;
 
-    /// @dev Maps a contract ID to an array of `Deposit` structures representing milestones.
-    mapping(uint256 contractId => Deposit[] milestoneDepositInfo) public contractMilestones;
+    /// @notice Maps each contract ID to its respective array of milestone deposits.
+    /// @dev This mapping stores an array of `Deposit` structs for each contract, where each struct represents a milestone within the contract.
+    mapping(uint256 contractId => Deposit[]) public contractMilestones;
+
+    /// @notice Mapping of Contract and Milestone IDs to their Details.
+    /// @dev Accessible via contractId and milestoneId to retrieve `MilestoneDetails`.
+    mapping(uint256 contractId => mapping(uint256 milestoneId => MilestoneDetails)) public milestoneData;
 
     /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
@@ -118,6 +123,11 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
                     status: Enums.Status.ACTIVE // Set the initial status of the milestone
                 })
             );
+
+            MilestoneDetails storage M = milestoneData[contractId][milestoneId];
+            M.paymentToken = D.paymentToken;
+            M.depositAmount = D.amount;
+            M.winner = Enums.Winner.CLIENT; // Initially set to NONE
 
             // Emit an event for the deposit of each milestone
             emit Deposited(msg.sender, contractId, milestoneId, D.paymentToken, D.amount, D.feeConfig);
@@ -292,37 +302,32 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             revert Escrow__InvalidStatusToWithdraw(); // TODO check && add D.status = Enums.Status.COMPLETED
         }
         if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
-        console2.log("D.status ", uint256(D.status));
 
         (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amountToWithdraw, D.feeConfig);
 
         (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
 
+        MilestoneDetails storage M = milestoneData[_contractId][_milestoneId];
 
         uint256 platformFee;
         if (D.status == Enums.Status.REFUND_APPROVED) {
             platformFee = initialFeeAmount - feeAmount;
-        } else if (D.amount == D.amountToWithdraw) { // case when resolveDispute Winner.CLIENT
-            platformFee = 0;
-
         } else {
-            if (initialFeeAmount == feeAmount) {
-                // When claimed before withdraw
-                platformFee = feeAmount;
+            if (M.winner == Enums.Winner.SPLIT) {
+                (, initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, M.depositAmount, D.feeConfig);
+
+                platformFee = initialFeeAmount - feeAmount;
             } else {
                 // When withdrawn before claim
                 platformFee = initialFeeAmount - feeAmount;
             }
         }
 
-
         D.amount -= D.amountToWithdraw;
         uint256 withdrawAmount = D.amountToWithdraw + feeAmount;
         D.amountToWithdraw = 0; // Prevent re-withdrawal
 
         SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
-
-       
 
         if (platformFee > 0) {
             _sendPlatformFee(D.paymentToken, platformFee);
@@ -427,6 +432,9 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             D.amountToClaim = _contractorAmount; // Set the claimable amount for the contractor
             D.amountToWithdraw = _clientAmount; // Set the withdrawable amount for the client
         }
+
+        MilestoneDetails storage M = milestoneData[_contractId][_milestoneId];
+        M.winner = _winner;
 
         emit DisputeResolved(_contractId, _milestoneId, _winner, _clientAmount, _contractorAmount);
     }

@@ -12,6 +12,16 @@ interface IEscrowMilestone is IEscrow {
     /// @notice Error for when an invalid contract ID is provided to a function expecting a valid existing contract ID.
     error Escrow__InvalidContractId();
 
+    /// @notice This struct stores details about individual milestones within an escrow contract.
+    /// @param paymentToken The address of the token to be used for payments.
+    /// @param depositAmount The initial deposit amount set aside for this milestone.
+    /// @param winner The winner of any dispute related to this milestone, if applicable.
+    struct MilestoneDetails {
+        address paymentToken;
+        uint256 depositAmount;
+        Enums.Winner winner;
+    }
+
     /// @notice Represents a deposit in the escrow.
     /// @param contractor The address of the contractor.
     /// @param paymentToken The address of the payment token.
