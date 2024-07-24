@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 
 import {EscrowHourly} from "src/EscrowHourly.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
+import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 import {PolAmoyConfig} from "config/PolAmoyConfig.sol";
 
 contract DeployEscrowHourlyScript is Script {
