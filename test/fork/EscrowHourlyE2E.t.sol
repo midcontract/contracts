@@ -22,7 +22,6 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
     address contractor;
     address owner;
 
-    // IEscrowHourly.Deposit deposit;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
@@ -35,7 +34,6 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
         uint256 prepaymentAmount;
         Enums.Status status;
     }
-
     IEscrowHourly.ContractDetails contractDetails;
 
     struct Deposit {
@@ -44,7 +42,6 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
         uint256 amountToClaim;
         Enums.FeeConfig feeConfig;
     }
-
     IEscrowHourly.Deposit deposit;
 
     function setUp() public {
@@ -61,7 +58,7 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
 
         contractDetails = IEscrowHourly.ContractDetails({
             paymentToken: address(usdtToken),
-            prepaymentAmount: 1 ether,
+            prepaymentAmount: 1e6,
             status: Enums.Status.ACTIVE
         });
 
@@ -75,9 +72,9 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
 
         escrowType = Enums.EscrowType.HOURLY;
 
-        // vm.startPrank(client);
-        // MockUSDT(usdtToken).mint(client, 1030e6);
-        // vm.stopPrank();
+        vm.startPrank(client);
+        MockUSDT(usdtToken).mint(client, 1.03e6);
+        vm.stopPrank();
     }
 
     /// @dev This test verifies the complete flow of creating a deposit in an escrow system using a mocked ERC20 token.
@@ -94,13 +91,13 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
 
         // Step 2: Client approves the payment token with the respective deposit token amount.
         // This approval enables the escrow contract to withdraw tokens from the client's account.
-        // MockUSDT(usdtToken).approve(address(escrowProxy), 1030e6);
+        MockUSDT(usdtToken).approve(address(escrowProxy), 1.03e6);
 
         uint256 contractId = 0; // for newly created contract
 
         // Step 3: Client creates the first deposit on the deployed instance with contractId == 1.
         // The deposit function call involves transferring funds from the client to the escrow based on the approved amount.
-        EscrowHourly(escrowProxy).deposit(contractId, address(usdtToken), 1 ether, deposit);
+        EscrowHourly(escrowProxy).deposit(contractId, address(usdtToken), 1e6, deposit);
 
         // Stop impersonating the client after completing the test actions.
         vm.stopPrank();
@@ -113,24 +110,18 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
 
         // Retrieve the details of the created deposit using the currentContractId.
-        (
-            address _contractor,
-            // address _paymentToken,
-            uint256 _amountToClaim,
-            uint256 _amountToWithdraw,
-            // bytes32 _contractorData,
-            Enums.FeeConfig _feeConfig
-        ) = EscrowHourly(escrowProxy).contractWeeks(currentContractId, weekId);
-
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
+            EscrowHourly(escrowProxy).contractWeeks(currentContractId, weekId);
         // Assertions to verify that the deposit parameters are correctly set according to the inputs provided during creation.
-        assertEq(MockUSDT(usdtToken).balanceOf(address(escrowProxy)), 0); // Confirms that the escrow proxy has received appropriate amount of tokens.
-        assertEq(_contractor, address(0)); // // Verifies that the contractor address is initially set to zero, indicating no contractor is assigned yet.
-        // assertEq(address(_paymentToken), address(usdtToken)); // Confirms that the correct payment token is associated with the deposit.
-        // assertEq(_amount, 0); // Ensures that the deposited amount is correctly recorded as 1 ether.
+        assertEq(MockUSDT(usdtToken).balanceOf(address(escrowProxy)), 1.03e6); // Confirms that the escrow proxy has received appropriate amount of tokens.
+        assertEq(_contractor, address(contractor)); // // Verifies that the contractor address is initially set to zero, indicating no contractor is assigned yet.
         assertEq(_amountToClaim, 0 ether); // Checks that no amount is set to be claimable initially.
         assertEq(_amountToWithdraw, 0 ether); // Checks that no amount is set to be withdrawable initially.
-        // assertEq(_contractorData, contractorData); // Checks that the contractor data matches the expected initial value.
         assertEq(uint256(_feeConfig), 1); // Ensures the fee configuration is set to CLIENT_COVERS_ONLY (assuming 1 is CLIENT_COVERS_ONLY in the enum).
-        // assertEq(uint256(_status), 0); // Confirms that the initial status of the deposit is ACTIVE (assuming 0 is ACTIVE in the enum).
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            EscrowHourly(escrowProxy).contractDetails(currentContractId);
+        assertEq(address(_paymentToken), address(usdtToken)); // Confirms that the correct payment token is associated with the deposit.
+        assertEq(_prepaymentAmount, 1e6); // Ensures that the deposited prepayment amount is correctly recorded as 1 ether/1e6.
+        assertEq(uint256(_status), 0); // Confirms that the initial status of the deposit is ACTIVE (assuming 0 is ACTIVE in the enum).
     }
 }
