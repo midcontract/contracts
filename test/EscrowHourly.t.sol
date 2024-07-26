@@ -1491,7 +1491,7 @@ contract EscrowHourlyUnitTest is Test {
         vm.prank(owner);
         // vm.expectRevert(IEscrow.Escrow__InvalidWinnerSpecified.selector);
         vm.expectRevert(); // panic: failed to convert value into enum type (0x21)
-        escrow.resolveDispute(currentContractId, --weekId, Enums.Winner(uint256(3)), 1 ether, 0); // Invalid enum value for Winner
+        escrow.resolveDispute(currentContractId, --weekId, Enums.Winner(uint256(4)), 1 ether, 0); // Invalid enum value for Winner
         (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
             escrow.contractWeeks(currentContractId, weekId);
         assertEq(_contractor, contractor);

@@ -27,6 +27,7 @@ library Enums {
     /// @notice Enumerates the potential outcomes of a dispute resolution.
     /// @dev Describes who the winner of a dispute can be in various contexts, including partial resolutions.
     enum Winner {
+        NONE, // Indicates that no resolution has been made yet or the dispute is unresolved
         CLIENT, // Indicates the dispute was resolved in favor of the client
         CONTRACTOR, // Indicates the dispute was resolved in favor of the contractor
         SPLIT // Indicates the dispute resolution benefits both parties

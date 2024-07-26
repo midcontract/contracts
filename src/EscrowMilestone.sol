@@ -127,7 +127,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             MilestoneDetails storage M = milestoneData[contractId][milestoneId];
             M.paymentToken = _paymentToken;
             M.depositAmount = D.amount;
-            M.winner = Enums.Winner.CLIENT; // Initially set to NONE
+            M.winner = Enums.Winner.NONE; // Initially set to NONE
 
             // Emit an event for the deposit of each milestone
             emit Deposited(msg.sender, contractId, milestoneId, _paymentToken, D.amount, D.feeConfig);
