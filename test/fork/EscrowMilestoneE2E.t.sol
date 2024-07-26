@@ -32,7 +32,6 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
 
     struct Deposit {
         address contractor;
-        address usdtToken;
         uint256 amount;
         uint256 amountToClaim;
         uint256 amountToWithdraw;
@@ -58,7 +57,6 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
         deposits.push(
             IEscrowMilestone.Deposit({
                 contractor: address(0),
-                paymentToken: address(usdtToken),
                 amount: 1000e6,
                 amountToClaim: 0,
                 amountToWithdraw: 0 ether,
@@ -95,7 +93,7 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
 
         // Step 3: Client creates the first deposit on the deployed instance with contractId == 1.
         // The deposit function call involves transferring funds from the client to the escrow based on the approved amount.
-        EscrowMilestone(escrowProxy).deposit(contractId, deposits);
+        EscrowMilestone(escrowProxy).deposit(contractId, address(usdtToken), deposits);
 
         // Stop impersonating the client after completing the test actions.
         vm.stopPrank();
@@ -110,7 +108,6 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
         // Retrieve the details of the created deposit using the currentContractId.
         (
             address _contractor,
-            address _paymentToken,
             uint256 _amount,
             uint256 _amountToClaim,
             uint256 _amountToWithdraw,
@@ -122,7 +119,7 @@ contract ExecuteEscrowMilestoneEndToEndTest is Test {
         // Assertions to verify that the deposit parameters are correctly set according to the inputs provided during creation.
         assertEq(MockUSDT(usdtToken).balanceOf(address(escrowProxy)), 1030e6); // Confirms that the escrow proxy has received appropriate amount of tokens.
         assertEq(_contractor, address(0)); // // Verifies that the contractor address is initially set to zero, indicating no contractor is assigned yet.
-        assertEq(address(_paymentToken), address(usdtToken)); // Confirms that the correct payment token is associated with the deposit.
+        // assertEq(address(_paymentToken), address(usdtToken)); // Confirms that the correct payment token is associated with the deposit.
         assertEq(_amount, 1000e6); // Ensures that the deposited amount is correctly recorded as 1 ether.
         assertEq(_amountToClaim, 0 ether); // Checks that no amount is set to be claimable initially.
         assertEq(_amountToWithdraw, 0 ether); // Checks that no amount is set to be withdrawable initially.

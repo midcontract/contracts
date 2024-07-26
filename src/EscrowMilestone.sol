@@ -79,8 +79,9 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @dev This function allows the initialization of multiple milestones in a single transaction,
     ///     either by creating a new contract or adding to an existing one.
     /// @param _contractId ID of the contract for which the deposits are made; if zero, a new contract is initialized.
+    /// @param _paymentToken  The address of the payment token for the contractId.
     /// @param _deposits Array of details for each new milestone.
-    function deposit(uint256 _contractId, Deposit[] calldata _deposits) external onlyClient {
+    function deposit(uint256 _contractId, address _paymentToken, Deposit[] calldata _deposits) external onlyClient {
         if (_deposits.length == 0) revert Escrow__NoDepositsProvided();
 
         uint256 contractId;
@@ -103,18 +104,17 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         for (uint256 i; i < depositsLength;) {
             Deposit calldata D = _deposits[i];
 
-            if (!registry.paymentTokens(D.paymentToken)) revert Escrow__NotSupportedPaymentToken();
+            if (!registry.paymentTokens(_paymentToken)) revert Escrow__NotSupportedPaymentToken();
             if (D.amount == 0) revert Escrow__ZeroDepositAmount();
 
             // Calculate the total deposit amount including any fees
             (uint256 totalDepositAmount,) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
-            SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalDepositAmount);
+            SafeTransferLib.safeTransferFrom(_paymentToken, msg.sender, address(this), totalDepositAmount);
 
             // Add the new deposit as a new milestone
             contractMilestones[contractId].push(
                 Deposit({
                     contractor: D.contractor, // Initialize with contractor assigned, could be zero address on initial stage
-                    paymentToken: D.paymentToken,
                     amount: D.amount,
                     amountToClaim: 0, // Initialize claimable amount to zero
                     amountToWithdraw: 0, // Initialize withdrawable amount to zero
@@ -125,12 +125,12 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             );
 
             MilestoneDetails storage M = milestoneData[contractId][milestoneId];
-            M.paymentToken = D.paymentToken;
+            M.paymentToken = _paymentToken;
             M.depositAmount = D.amount;
             M.winner = Enums.Winner.CLIENT; // Initially set to NONE
 
             // Emit an event for the deposit of each milestone
-            emit Deposited(msg.sender, contractId, milestoneId, D.paymentToken, D.amount, D.feeConfig);
+            emit Deposited(msg.sender, contractId, milestoneId, _paymentToken, D.amount, D.feeConfig);
 
             unchecked {
                 i++;
@@ -203,7 +203,9 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             _computeDepositAmountAndFee(msg.sender, _amountAdditional, D.feeConfig);
         (feeApplied);
 
-        SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalAmountAdditional);
+        MilestoneDetails storage M = milestoneData[_contractId][_milestoneId];
+
+        SafeTransferLib.safeTransferFrom(M.paymentToken, msg.sender, address(this), totalAmountAdditional);
         D.amount += _amountAdditional;
         emit Refilled(_contractId, _milestoneId, _amountAdditional);
     }
@@ -228,12 +230,14 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         D.amount -= D.amountToClaim;
         D.amountToClaim = 0;
 
-        SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, claimAmount);
+        MilestoneDetails storage M = milestoneData[_contractId][_milestoneId];
+
+        SafeTransferLib.safeTransfer(M.paymentToken, msg.sender, claimAmount);
 
         if ((D.status == Enums.Status.RESOLVED || D.status == Enums.Status.CANCELED) && feeAmount > 0) {
-            _sendPlatformFee(D.paymentToken, feeAmount);
+            _sendPlatformFee(M.paymentToken, feeAmount);
         } else if (feeAmount > 0 || clientFee > 0) {
-            _sendPlatformFee(D.paymentToken, feeAmount + clientFee);
+            _sendPlatformFee(M.paymentToken, feeAmount + clientFee);
         }
 
         if (D.amount == 0) D.status = Enums.Status.COMPLETED;
@@ -250,9 +254,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         uint256 totalClientFee = 0;
 
         Deposit[] storage milestones = contractMilestones[_contractId];
-        uint256 length = milestones.length;
-
-        address paymentToken = milestones[0].paymentToken; // All milestones use the same payment token.
+        uint256 length = milestones.length;        
 
         for (uint256 i; i < length; ++i) {
             Deposit storage D = milestones[i];
@@ -282,14 +284,16 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
             }
         }
 
+        MilestoneDetails storage M = milestoneData[_contractId][0];
+
         // Perform the token transfer at the end to reduce gas cost by consolidating all transfers into a single operation.
         if (totalClaimedAmount > 0) {
-            SafeTransferLib.safeTransfer(paymentToken, msg.sender, totalClaimedAmount);
+            SafeTransferLib.safeTransfer(M.paymentToken, msg.sender, totalClaimedAmount);
         }
 
         // Consolidate and send platform fees in one transaction if applicable.
         if (totalFeeAmount > 0 || totalClientFee > 0) {
-            _sendPlatformFee(paymentToken, totalFeeAmount + totalClientFee);
+            _sendPlatformFee(M.paymentToken, totalFeeAmount + totalClientFee);
         }
     }
 
@@ -327,10 +331,10 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         uint256 withdrawAmount = D.amountToWithdraw + feeAmount;
         D.amountToWithdraw = 0; // Prevent re-withdrawal
 
-        SafeTransferLib.safeTransfer(D.paymentToken, msg.sender, withdrawAmount);
+        SafeTransferLib.safeTransfer(M.paymentToken, msg.sender, withdrawAmount);
 
         if (platformFee > 0) {
-            _sendPlatformFee(D.paymentToken, platformFee);
+            _sendPlatformFee(M.paymentToken, platformFee);
         }
 
         D.status = Enums.Status.CANCELED; // Mark the deposit as canceled after funds are withdrawn
