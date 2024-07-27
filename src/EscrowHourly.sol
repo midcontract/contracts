@@ -142,18 +142,23 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
         ContractDetails storage C = contractDetails[_contractId];
-
-        if (uint256(C.status) != uint256(Enums.Status.ACTIVE)) revert Escrow__InvalidStatusForApprove();
-
         Deposit storage D = contractWeeks[_contractId][_weekId];
 
+        if (uint256(C.status) != uint256(Enums.Status.ACTIVE)) revert Escrow__InvalidStatusForApprove();
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
         if (msg.sender == owner()) {
-            if (C.prepaymentAmount < _amountApprove) revert Escrow__InsufficientPrepayment();
-            C.prepaymentAmount -= _amountApprove;
-            D.amountToClaim += _amountApprove;
+            if (C.prepaymentAmount < _amountApprove) {
+                // If the prepayment is less than the amount to approve, use the entire prepayment for the amount to claim.
+                D.amountToClaim += C.prepaymentAmount;
+                C.prepaymentAmount = 0; // All prepayment is used up.
+            } else {
+                // If sufficient prepayment exists, use only the needed amount and reduce the prepayment balance.
+                C.prepaymentAmount -= _amountApprove;
+                D.amountToClaim += _amountApprove;
+            }
         } else {
+            // For non-admin approvals, transfer the specified amount after calculating fees.
             (uint256 totalAmountApprove, uint256 feeApplied) =
                 _computeDepositAmountAndFee(msg.sender, _amountApprove, D.feeConfig);
             SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountApprove);
@@ -161,7 +166,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         }
 
         C.status = Enums.Status.APPROVED;
-
         emit Approved(_contractId, _weekId, _amountApprove, _receiver);
     }
 
@@ -441,24 +445,9 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         }
     }
 
-    // /// @notice Generates a hash for the contractor data.
-    // /// @dev This internal function computes the hash value for the contractor data using the provided data and salt.
-    // function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
-    //     return keccak256(abi.encodePacked(_data, _salt));
-    // }
-
     /*//////////////////////////////////////////////////////////////
                     EXTERNAL VIEW & MANAGER FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-
-    // /// @notice Generates a hash for the contractor data.
-    // /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
-    // /// @param _data Contractor data.
-    // /// @param _salt Salt value for generating the hash.
-    // /// @return Hash value of the contractor data.
-    // function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
-    //     return _getContractorDataHash(_data, _salt);
-    // }
 
     /// @notice Retrieves the current contract ID.
     /// @return The current contract ID.
