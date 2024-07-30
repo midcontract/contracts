@@ -293,7 +293,6 @@ contract EscrowFactoryUnitTest is Test {
         IEscrowMilestone.Deposit[] memory deposits = new IEscrowMilestone.Deposit[](1);
         deposits[0] = IEscrowMilestone.Deposit({
             contractor: contractor,
-            paymentToken: address(paymentToken),
             amount: 1 ether,
             amountToClaim: 0 ether,
             amountToWithdraw: 0 ether,
@@ -304,7 +303,7 @@ contract EscrowFactoryUnitTest is Test {
 
         uint256 currentContractId = escrowProxy.getCurrentContractId();
         assertEq(currentContractId, 0);
-        escrowProxy.deposit(currentContractId, deposits);
+        escrowProxy.deposit(currentContractId, address(paymentToken), deposits);
         assertEq(paymentToken.balanceOf(address(escrowProxy)), totalDepositMilestoneAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
@@ -315,7 +314,6 @@ contract EscrowFactoryUnitTest is Test {
 
         (
             address _contractor,
-            address _paymentToken,
             uint256 _amount,
             uint256 _amountToClaim,
             uint256 _amountToWithdraw,
@@ -324,7 +322,6 @@ contract EscrowFactoryUnitTest is Test {
             Enums.Status _status
         ) = escrowProxy.contractMilestones(currentContractId, --milestoneId);
         assertEq(_contractor, contractor);
-        assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_contractorData, contractorData);

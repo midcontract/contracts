@@ -27,6 +27,7 @@ library Enums {
     /// @notice Enumerates the potential outcomes of a dispute resolution.
     /// @dev Describes who the winner of a dispute can be in various contexts, including partial resolutions.
     enum Winner {
+        NONE, // Indicates that no resolution has been made yet or the dispute is unresolved
         CLIENT, // Indicates the dispute was resolved in favor of the client
         CONTRACTOR, // Indicates the dispute was resolved in favor of the contractor
         SPLIT // Indicates the dispute resolution benefits both parties
@@ -38,5 +39,12 @@ library Enums {
         FIXED_PRICE, // Represents a fixed price contract where the payment is made as a lump sum.
         MILESTONE, // Represents a contract where payment is divided into milestones, each payable upon completion.
         HOURLY // Represents a contract where payment is made based on hourly rates and actual time worked.
+    }
+
+    /// @notice Specifies the types of refills possible within an escrow contract.
+    /// @dev Used to determine whether a refill operation is targeting the overall contract prepayment or a specific week's payment within the contract.
+    enum RefillType {
+        PREPAYMENT, // Indicates a refill to the contract's general prepayment pool, which can be used to cover future claims.
+        WEEK_PAYMENT // Indicates a refill targeted at a specific week's deposit amount within the contract, typically to fulfill or increase the amount claimable for that week.
     }
 }

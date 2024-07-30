@@ -37,6 +37,7 @@ anvil :; anvil -m 'test test test test test test test test test test test junk' 
 FORK_URL := ${POLYGON_AMOY_RPC} #${SEPOLIA_ALCHEMY_RPC_URL}
 test-fork :; source .env && forge test --match-contract EndToEndTest --rpc-url ${FORK_URL} -vvv
 trace-fork :; source .env && forge test --match-contract EndToEndTest --rpc-url ${FORK_URL} -vvvv
+test-contract-fork :; source .env && forge test --match-contract ExecuteEscrowHourlyEndToEndTest --rpc-url ${FORK_URL} -vvvv
 
 # Deploy to local environment
 deploy-registry-local :; forge script script/deploy/01_DeployRegistry.s.sol:DeployRegistryScript --rpc-url http://localhost:8545 --private-key $(DEPLOYER_PRIVATE_KEY) -vvvv

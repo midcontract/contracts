@@ -6,30 +6,37 @@ import {IEscrow, Enums} from "./IEscrow.sol";
 /// @title EscrowHourly Interface
 /// @notice Interface for the Escrow Hourly contract that handles deposits, withdrawals, and disputes.
 interface IEscrowHourly is IEscrow {
-    /// @notice Error for when no deposits are provided in a function call that expects at least one.
+    /// @notice Thrown when no deposits are provided in a function call that expects at least one.
     error Escrow__NoDepositsProvided();
 
-    /// @notice Error for when an invalid contract ID is provided to a function expecting a valid existing contract ID.
+    /// @notice Thrown when an invalid contract ID is provided to a function expecting a valid existing contract ID.
     error Escrow__InvalidContractId();
+
+    /// @notice Thrown when an invalid week ID is provided to a function expecting a valid week ID within range.
+    error Escrow__InvalidWeekId();
+
+    /// @notice Thrown when the available prepayment amount is insufficient to cover the requested operation.
+    error Escrow__InsufficientPrepayment();
+
+    /// @param paymentToken The address of the payment token.
+    /// @param prepaymentAmount The prepayment amount for the week.
+    /// @param status The status of the deposit.
+    struct ContractDetails {
+        address paymentToken;
+        uint256 prepaymentAmount;
+        Enums.Status status;
+    }
 
     /// @notice Represents a deposit in the escrow.
     /// @param contractor The address of the contractor.
-    /// @param paymentToken The address of the payment token.
-    /// @param amount The prepayment amount for the week.
     /// @param amountToClaim The amount to be claimed.
     /// @param amountToWithdraw The amount to be withdrawn.
-    /// @param contractorData The contractor's data hash.
     /// @param feeConfig The fee configuration.
-    /// @param status The status of the deposit.
     struct Deposit {
         address contractor;
-        address paymentToken;
-        uint256 amount;
         uint256 amountToClaim;
         uint256 amountToWithdraw;
-        bytes32 contractorData;
         Enums.FeeConfig feeConfig;
-        Enums.Status status;
     }
 
     /// @notice Emitted when a deposit is made.
@@ -37,22 +44,15 @@ interface IEscrowHourly is IEscrow {
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
     /// @param paymentToken The address of the payment token.
-    /// @param amount The amount deposited.
-    /// @param feeConfig The fee configuration.
+    /// @param totalDepositAmount The total amount deposited: principal + platform fee.
+    // /// @param feeConfig The fee configuration.
     event Deposited(
         address indexed sender,
         uint256 indexed contractId,
-        uint256 indexed weekId,
+        uint256 weekId,
         address paymentToken,
-        uint256 amount,
-        Enums.FeeConfig feeConfig
+        uint256 totalDepositAmount
     );
-
-    /// @notice Emitted when a submission is made.
-    /// @param sender The address of the sender.
-    /// @param contractId The ID of the contract.
-    /// @param weekId The ID of the week.
-    event Submitted(address indexed sender, uint256 indexed weekId, uint256 indexed contractId);
 
     /// @notice Emitted when an approval is made.
     /// @param contractId The ID of the contract.
@@ -61,11 +61,16 @@ interface IEscrowHourly is IEscrow {
     /// @param receiver The address of the receiver.
     event Approved(uint256 indexed contractId, uint256 indexed weekId, uint256 amountApprove, address receiver);
 
+    /// @notice Emitted when the prepayment for a contract is refilled.
+    /// @param contractId The ID of the contract.
+    /// @param amount The additional amount added.
+    event RefilledPrepayment(uint256 indexed contractId, uint256 amount);
+
     /// @notice Emitted when a contract is refilled.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
-    /// @param amountAdditional The additional amount added.
-    event Refilled(uint256 indexed contractId, uint256 indexed weekId, uint256 indexed amountAdditional);
+    /// @param amount The additional amount added.
+    event RefilledWeekPayment(uint256 indexed contractId, uint256 indexed weekId, uint256 amount);
 
     /// @notice Emitted when a claim is made.
     /// @param contractId The ID of the contract.
@@ -78,6 +83,8 @@ interface IEscrowHourly is IEscrow {
     /// @param weekId The ID of the week.
     /// @param amount The amount withdrawn.
     event Withdrawn(uint256 indexed contractId, uint256 indexed weekId, uint256 amount);
+
+    // TODO Return Request for the PrepaymenAmount not weekId
 
     /// @notice Emitted when a return is requested.
     /// @param contractId The ID of the contract.
