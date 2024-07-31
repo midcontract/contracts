@@ -7,6 +7,7 @@ import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
 import {EscrowFactory, IEscrowFactory} from "src/EscrowFactory.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {Enums} from "src/libs/Enums.sol";
+import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 import {PolAmoyConfig} from "config/PolAmoyConfig.sol";
 import {MockDAI} from "test/mocks/MockDAI.sol";
 import {MockUSDT} from "test/mocks/MockUSDT.sol";
