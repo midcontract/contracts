@@ -1,37 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IEscrow} from "src/interfaces/IEscrow.sol";
 import {Enums} from "src/libs/Enums.sol";
+import {Ownable} from "../libs/Ownable.sol";
 
 /// @title Escrow Account Recovery
 /// @notice Provides mechanisms for recovering access to the client or contractor accounts
 /// in an escrow contract in case of lost credentials, using a guardian-based recovery process.
-contract EscrowAccountRecovery {
+contract EscrowAccountRecovery is Ownable {
     /// @dev Recovery period after which recovery can be executed.
-    uint64 public constant MIN_RECOVERY_PERIOD = 3 days;
-
-    /// @dev Time after which the next recovery can be executed.
-    uint64 public executeAfter;
-
-    // /// @dev Nonce to ensure unique recovery requests.
-    // uint256 public recoveryNonce;
+    uint256 public constant MIN_RECOVERY_PERIOD = 3 days;
 
     /// @notice Indicates the guardian's address who can initiate recoveries.
     address public guardian;
-
-    /// @notice Enum to specify the account type for recovery.
-    enum AccountTypeRecovery {
-        CLIENT,
-        CONTRACTOR
-    }
 
     /// TODO blacklisting globaly in Registry
 
     struct RecoveryData {
         address escrow; // address of escrow contract where account should be recovered
+        address account; // oldAccount to be recovered
         uint256 contractId;
         uint256 milestoneId; //milestoneId or weekId
-        address account; // oldAccount to be recovered
         uint64 executeAfter;
         bool executed;
         bool confirmed;
@@ -64,6 +54,13 @@ contract EscrowAccountRecovery {
         _;
     }
 
+    /// @dev Initializes the contract setting the owner to the message sender.
+    /// @param _owner Address of the initial owner of the account recovery contract.
+    constructor(address _owner, address _guardian) {
+        _initializeOwner(_owner);
+        _updateGuardian(_guardian);
+    }
+
     /// @notice Initiates a recovery process for an account.
     // /// @param _recoveryHash The hash representing the recovery details.
     function initiateRecovery(
@@ -74,7 +71,6 @@ contract EscrowAccountRecovery {
         address _newAccount,
         Enums.EscrowType _escrowType
     ) external onlyGuardian {
-        //, bytes32 _recoveryHash
         bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, _newAccount);
         RecoveryData storage data = recoveryData[recoveryHash];
         if (data.executed) revert RecoveryAlreadyExecuted();
@@ -96,7 +92,7 @@ contract EscrowAccountRecovery {
     /// @notice Executes a previously confirmed recovery.
     /// @param _accountType The type of account being recovered, either CLIENT or CONTRACTOR.
     /// @param _oldAccount The current address that will be replaced.
-    function executeRecovery(AccountTypeRecovery _accountType, address _escrow, address _oldAccount) external {
+    function executeRecovery(Enums.AccountTypeRecovery _accountType, address _escrow, address _oldAccount) external {
         bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, msg.sender);
         RecoveryData storage data = recoveryData[recoveryHash];
 
@@ -108,11 +104,9 @@ contract EscrowAccountRecovery {
         data.executed = true;
         data.executeAfter = 0;
 
-        if (_accountType == AccountTypeRecovery.CLIENT) {
-            // transferClientOwnership(msg.sender); contractAddress
-            // IEscrow(data.escrow).transferClientOwnership(contractId, msg.sender) external onlyRecovery() {
-            // client = msg.sender}
-        } else if (_accountType == AccountTypeRecovery.CONTRACTOR) {
+        if (_accountType == Enums.AccountTypeRecovery.CLIENT) {
+            IEscrow(data.escrow).transferClientOwnership(msg.sender);
+        } else if (_accountType == Enums.AccountTypeRecovery.CONTRACTOR) {
             // enum param of the type of contract - EscrowType
             // FIXED_PRICE
             // IEscrow(data.escrow).transferContractorOwnership(contractId, msg.sender) external onlyRecovery() {
@@ -127,10 +121,6 @@ contract EscrowAccountRecovery {
             // Deposit storage D = deposits[contractId][weekId];
             // D.contractor = msg.sender}
         }
-
-        // unchecked {
-        //     recoveryNonce++;
-        // }
 
         emit RecoveryExecuted(msg.sender, recoveryHash);
     }
@@ -158,7 +148,7 @@ contract EscrowAccountRecovery {
         pure
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(_escrow, _oldAccount, _newAccount)); //, recoveryNonce
+        return keccak256(abi.encodePacked(_escrow, _oldAccount, _newAccount));
     }
 
     /// @dev Internal function to update the guardian address.

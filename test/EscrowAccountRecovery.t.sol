@@ -9,6 +9,7 @@ import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowAccountRecovery} from "src/modules/EscrowAccountRecovery.sol";
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
+import {IEscrow} from "src/interfaces/IEscrow.sol";
 import {Enums} from "src/libs/Enums.sol";
 
 contract EscrowAccountRecoveryUnitTest is Test {
@@ -33,6 +34,10 @@ contract EscrowAccountRecoveryUnitTest is Test {
     EscrowAccountRecovery.RecoveryData recoveryInfo;
 
     event RecoveryInitiated(address indexed sender, bytes32 indexed recoveryHash);
+    event RecoveryExecuted(address indexed sender, bytes32 indexed recoveryHash);
+    event RecoveryCanceled(address indexed sender, bytes32 indexed recoveryHash);
+    event GuardianUpdated(address guardian);
+    event ClientOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -90,15 +95,11 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.stopPrank();
     }
 
-    function getRecoveryHash(address escrow, address oldAccount, address newAccount) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(escrow, oldAccount, newAccount));
-    }
-
     function test_initiateRecovery() public {
         initializeEscrowFixedPrice();
         uint256 contractId = escrow.getCurrentContractId();
         Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
-        bytes32 recoveryHash = getRecoveryHash(address(escrow), client, new_client);
+        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrow), client, new_client);
 
         vm.prank(guardian);
         vm.expectEmit(true, false, false, true);
@@ -122,5 +123,102 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertFalse(_executed);
         assertTrue(_confirmed);
         assertEq(uint256(_escrowType), 0);
+    }
+
+    function test_cancelRecovery() public {
+        test_initiateRecovery();
+        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrow), client, new_client);
+        vm.prank(owner);
+        vm.expectRevert(EscrowAccountRecovery.UnauthorizedAccount.selector);
+        recovery.cancelRecovery(recoveryHash);
+        vm.prank(client);
+        vm.expectEmit(true, false, false, true);
+        emit RecoveryCanceled(client, recoveryHash);
+        recovery.cancelRecovery(recoveryHash);
+        (,,,, uint256 _executeAfter, bool _executed,,) = recovery.recoveryData(recoveryHash);
+        assertEq(_executeAfter, 0);
+        assertTrue(_executed);
+        vm.prank(client);
+        vm.expectRevert(EscrowAccountRecovery.RecoveryNotConfirmed.selector);
+        recovery.cancelRecovery(recoveryHash);
+    }
+
+    function test_executeRecovery_client_fixed_price() public {
+        test_initiateRecovery();
+        Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
+        uint256 contractId = escrow.getCurrentContractId();
+        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrow), client, new_client);
+        (
+            address _escrow,
+            address _oldAccount,
+            uint256 _contractId,
+            uint256 _milestoneId,
+            uint256 _executeAfter,
+            bool _executed,
+            bool _confirmed,
+            Enums.EscrowType _escrowType
+        ) = recovery.recoveryData(recoveryHash);
+        assertEq(_escrow, address(escrow));
+        assertEq(_oldAccount, client);
+        assertEq(_contractId, contractId);
+        assertEq(_milestoneId, 0);
+        assertEq(_executeAfter, block.timestamp + 3 days);
+        assertFalse(_executed);
+        assertTrue(_confirmed);
+        assertEq(uint256(_escrowType), 0);
+
+        vm.prank(new_client);
+        vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodStillPending.selector);
+        recovery.executeRecovery(accountType, address(escrow), client);
+
+        skip(3 days);
+        vm.prank(address(this));
+        vm.expectRevert(EscrowAccountRecovery.RecoveryNotConfirmed.selector);
+        recovery.executeRecovery(accountType, address(escrow), client);
+
+        bytes memory expectedRevertData =
+            abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(recovery));
+        vm.prank(new_client);
+        vm.expectRevert(expectedRevertData);
+        recovery.executeRecovery(accountType, address(escrow), client);
+
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+
+        vm.prank(new_client);
+        vm.expectEmit(true, true, true, true);
+        emit ClientOwnershipTransferred(client, new_client);
+        vm.expectEmit(true, true, true, true);
+        emit RecoveryExecuted(new_client, recoveryHash);
+        recovery.executeRecovery(accountType, address(escrow), client);
+        (,,,, _executeAfter, _executed,,) = recovery.recoveryData(recoveryHash);
+        assertEq(_executeAfter, 0);
+        assertTrue(_executed);
+        assertEq(escrow.client(), new_client);
+
+        vm.prank(new_client);
+        vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
+        recovery.executeRecovery(accountType, address(escrow), client);
+    }
+
+    // after executeRecovery
+    function test_executeRecovery_reverts() public {}
+
+    function test_updateGuardian() public {
+        assertEq(recovery.guardian(), guardian);
+        address notGuardian = makeAddr("notGuardian");
+        vm.prank(notGuardian);
+        vm.expectRevert(EscrowAccountRecovery.InvalidGuardian.selector);
+        recovery.updateGuardian(notGuardian);
+        assertEq(recovery.guardian(), guardian);
+        address newGuardian = makeAddr("newGuardian");
+        vm.startPrank(guardian);
+        vm.expectRevert(EscrowAccountRecovery.ZeroAddressProvided.selector);
+        recovery.updateGuardian(address(0));
+        vm.expectEmit(true, true, true, true);
+        emit GuardianUpdated(newGuardian);
+        recovery.updateGuardian(newGuardian);
+        assertEq(recovery.guardian(), newGuardian);
+        vm.stopPrank();
     }
 }
