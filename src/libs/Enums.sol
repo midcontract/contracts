@@ -47,4 +47,11 @@ library Enums {
         PREPAYMENT, // Indicates a refill to the contract's general prepayment pool, which can be used to cover future claims.
         WEEK_PAYMENT // Indicates a refill targeted at a specific week's deposit amount within the contract, typically to fulfill or increase the amount claimable for that week.
     }
+
+    /// @notice Enumerates the types of accounts that can be subject to recovery processes in the escrow system.
+    /// @dev Used to specify the type of account (client or contractor) that needs recovery in case of access issues.
+    enum AccountTypeRecovery {
+        CLIENT, // Represents a client account, typically the party funding the escrow.
+        CONTRACTOR // Represents a contractor account, typically the party performing services or work.
+    }
 }

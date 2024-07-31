@@ -37,6 +37,10 @@ interface IEscrowRegistry {
     /// @param treasury The new treasury contract address.
     event TreasurySet(address treasury);
 
+    /// @notice Emitted when the account recovery address is updated in the registry.
+    /// @param accountRecovery The new account recovery contract address.
+    event AccountRecoverySet(address accountRecovery);
+
     /// @notice Checks if a token is enabled as a payment token in the registry.
     /// @param token The address of the token to check.
     /// @return True if the token is enabled, false otherwise.
@@ -65,6 +69,10 @@ interface IEscrowRegistry {
     /// @notice Retrieves the current treasury account address stored in the registry.
     /// @return The address of the treasury account.
     function treasury() external view returns (address);
+
+    /// @notice Retrieves the current account recovery address stored in the registry.
+    /// @return The address of the account recovery contract.
+    function accountRecovery() external view returns (address);
 
     /// @notice Updates the address of the fixed price escrow contract used in the system.
     /// @param _escrowFixedPrice The new address of the fixed price escrow contract to be used across the platform.

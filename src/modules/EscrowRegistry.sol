@@ -31,6 +31,9 @@ contract EscrowRegistry is IEscrowRegistry, Ownable {
     /// @notice Address of the treasury where fees and other payments are collected.
     address public treasury;
 
+    /// @notice Address of the account recovery module contract.
+    address public accountRecovery;
+
     /// @notice Mapping of ERC20 token addresses that are enabled as payment options.
     /// @dev Includes the ability to enable the native chain token for payments.
     mapping(address token => bool enabled) public paymentTokens;
@@ -104,5 +107,13 @@ contract EscrowRegistry is IEscrowRegistry, Ownable {
         if (_treasury == address(0)) revert Registry__ZeroAddressProvided();
         treasury = _treasury;
         emit TreasurySet(_treasury);
+    }
+
+    /// @notice Updates the address of the account recovery module contract.
+    /// @param _accountRecovery The new address of the AccountRecovery module contract to be used.
+    function setAccountRecovery(address _accountRecovery) external onlyOwner {
+        if (_accountRecovery == address(0)) revert Registry__ZeroAddressProvided();
+        accountRecovery = _accountRecovery;
+        emit AccountRecoverySet(_accountRecovery);
     }
 }

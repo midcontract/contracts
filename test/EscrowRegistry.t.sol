@@ -19,6 +19,7 @@ contract EscrowRegistryUnitTest is Test {
 
     address owner;
     address treasury;
+    address accountRecovery;
 
     event PaymentTokenAdded(address token);
     event PaymentTokenRemoved(address token);
@@ -27,10 +28,12 @@ contract EscrowRegistryUnitTest is Test {
     event FactoryUpdated(address factory);
     event FeeManagerUpdated(address feeManager);
     event TreasurySet(address treasury);
+    event AccountRecoverySet(address accountRecovery);
 
     function setUp() public {
         owner = makeAddr("owner");
         treasury = makeAddr("treasury");
+        accountRecovery = makeAddr("accountRecovery");
         escrow = new EscrowFixedPrice();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
@@ -199,6 +202,23 @@ contract EscrowRegistryUnitTest is Test {
         emit FeeManagerUpdated(address(feeManager));
         registry.updateFeeManager(address(feeManager));
         assertEq(registry.feeManager(), address(feeManager));
+        vm.stopPrank();
+    }
+
+    function test_setAccountRecovery() public {
+        assertEq(registry.accountRecovery(), address(0));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        registry.setAccountRecovery(address(accountRecovery));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        registry.setAccountRecovery(address(0));
+        assertEq(registry.accountRecovery(), address(0));
+        vm.expectEmit(true, false, false, true);
+        emit AccountRecoverySet(accountRecovery);
+        registry.setAccountRecovery(address(accountRecovery));
+        assertEq(registry.accountRecovery(), address(accountRecovery));
         vm.stopPrank();
     }
 }

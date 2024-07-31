@@ -411,6 +411,20 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
         return currentContractId;
     }
 
+    /// @notice Transfers ownership of the client account to a new account.
+    /// @dev Can only be called by the account recovery module registered in the system.
+    /// @param _newAccount The address to which the client ownership will be transferred.
+    function transferClientOwnership(address _newAccount) external {
+        // Verify that the caller is the authorized account recovery module.
+        if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
+
+        // Emit the ownership transfer event before changing the state to reflect the previous state.
+        emit ClientOwnershipTransferred(client, _newAccount);
+
+        // Update the client address to the new owner's address.
+        client = _newAccount;
+    }
+
     /// @notice Updates the registry address used for fetching escrow implementations.
     /// @param _registry New registry address.
     function updateRegistry(address _registry) external onlyOwner {

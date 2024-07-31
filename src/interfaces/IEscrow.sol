@@ -91,9 +91,19 @@ interface IEscrow {
     /// @param registry The new registry address.
     event RegistryUpdated(address registry);
 
+    /// @notice Event emitted when the ownership of the client account is transferred.
+    /// @param previousOwner The previous owner of the client account.
+    /// @param newOwner The new owner of the client account.
+    event ClientOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
     /// @notice Initializes the escrow contract.
     /// @param client Address of the client initiating actions within the escrow.
     /// @param owner Address of the owner of the midcontract escrow platform.
     /// @param registry Address of the registry contract.
     function initialize(address client, address owner, address registry) external;
+
+    /// @notice Transfers ownership of the client account to a new account.
+    /// @dev Can only be called by the account recovery module registered in the system.
+    /// @param newOwner The address to which the client ownership will be transferred.
+    function transferClientOwnership(address newOwner) external;
 }
