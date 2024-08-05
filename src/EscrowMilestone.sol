@@ -254,7 +254,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         uint256 totalClientFee = 0;
 
         Deposit[] storage milestones = contractMilestones[_contractId];
-        uint256 length = milestones.length;        
+        uint256 length = milestones.length;
 
         for (uint256 i; i < length; ++i) {
             Deposit storage D = milestones[i];
@@ -563,6 +563,24 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
 
         // Update the client address to the new owner's address.
         client = _newAccount;
+    }
+
+    /// @notice Transfers ownership of the contractor account to a new account for a specified contract.
+    /// @dev Can only be called by the account recovery module registered in the system.
+    /// @param _contractId The identifier of the contract for which contractor ownership is being transferred.
+    /// @param _milestoneId The identifier of the milestone for which contractor ownership is being transferred.
+    /// @param _newAccount The address to which the contractor ownership will be transferred.
+    function transferContractorOwnership(uint256 _contractId, uint256 _milestoneId, address _newAccount) external {
+        // Verify that the caller is the authorized account recovery module.
+        if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
+
+        Deposit storage D = contractMilestones[_contractId][_milestoneId];
+
+        // Emit the ownership transfer event before changing the state to reflect the previous state.
+        emit ContractorOwnershipTransferred(_contractId, _milestoneId, D.contractor, _newAccount);
+
+        // Update the contractor address to the new owner's address.
+        D.contractor = _newAccount;
     }
 
     /// @notice Updates the registry address used for fetching escrow implementations.

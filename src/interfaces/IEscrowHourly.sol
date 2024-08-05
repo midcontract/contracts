@@ -117,4 +117,15 @@ interface IEscrowHourly is IEscrow {
     event DisputeResolved(
         uint256 contractId, uint256 weekId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount
     );
+
+    /// @notice Emitted when the ownership of a contractor account is transferred to a new owner.
+    /// @param contractId The identifier of the contract for which contractor ownership is being transferred.
+    /// @param previousOwner The previous owner of the contractor account.
+    /// @param newOwner The new owner of the contractor account.
+    event ContractorOwnershipTransferred(uint256 contractId, address indexed previousOwner, address indexed newOwner);
+
+    /// @notice Interface declaration for transferring contractor ownership.
+    /// @param contractId The identifier of the contract for which contractor ownership is being transferred.
+    /// @param newOwner The address to which the contractor ownership will be transferred.
+    function transferContractorOwnership(uint256 contractId, address newOwner) external;
 }

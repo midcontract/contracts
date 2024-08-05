@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {IEscrow} from "src/interfaces/IEscrow.sol";
+import {IEscrowFixedPrice} from "src/interfaces/IEscrowFixedPrice.sol";
+import {IEscrowMilestone} from "src/interfaces/IEscrowMilestone.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {Ownable} from "../libs/Ownable.sol";
 
@@ -21,7 +23,7 @@ contract EscrowAccountRecovery is Ownable {
         address escrow; // address of escrow contract where account should be recovered
         address account; // oldAccount to be recovered
         uint256 contractId;
-        uint256 milestoneId; //milestoneId or weekId
+        uint256 milestoneId; //milestoneId
         uint64 executeAfter;
         bool executed;
         bool confirmed;
@@ -109,9 +111,17 @@ contract EscrowAccountRecovery is Ownable {
         } else if (_accountType == Enums.AccountTypeRecovery.CONTRACTOR) {
             // enum param of the type of contract - EscrowType
             // FIXED_PRICE
-            // IEscrow(data.escrow).transferContractorOwnership(contractId, msg.sender) external onlyRecovery() {
-            // Deposit storage D = deposits[contractId];
-            // D.contractor = msg.sender}
+            if (data.escrowType == Enums.EscrowType.FIXED_PRICE) {
+                IEscrowFixedPrice(data.escrow).transferContractorOwnership(data.contractId, msg.sender);
+                //external onlyRecovery() {
+                // Deposit storage D = deposits[contractId];
+                // D.contractor = msg.sender}
+            } else if (data.escrowType == Enums.EscrowType.MILESTONE) {
+                 IEscrowMilestone(data.escrow).transferContractorOwnership(data.contractId, data.milestoneId, msg.sender);
+            } else if (data.escrowType == Enums.EscrowType.HOURLY) {
+                //  IEscrow(data.escrow).transferContractorOwnership(contractId, msg.sender);
+            }
+
             // MILESTONE
             // IEscrow(data.escrow).transferContractorOwnership(contractId, milestoneId, msg.sender) external onlyRecovery() {
             // Deposit storage D = deposits[contractId][milestoneId];
