@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {IEscrow} from "src/interfaces/IEscrow.sol";
 import {IEscrowFixedPrice} from "src/interfaces/IEscrowFixedPrice.sol";
 import {IEscrowMilestone} from "src/interfaces/IEscrowMilestone.sol";
+import {IEscrowHourly} from "src/interfaces/IEscrowHourly.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {Ownable} from "../libs/Ownable.sol";
 
@@ -109,33 +110,18 @@ contract EscrowAccountRecovery is Ownable {
         if (_accountType == Enums.AccountTypeRecovery.CLIENT) {
             IEscrow(data.escrow).transferClientOwnership(msg.sender);
         } else if (_accountType == Enums.AccountTypeRecovery.CONTRACTOR) {
-            // enum param of the type of contract - EscrowType
-            // FIXED_PRICE
             if (data.escrowType == Enums.EscrowType.FIXED_PRICE) {
                 IEscrowFixedPrice(data.escrow).transferContractorOwnership(data.contractId, msg.sender);
-                //external onlyRecovery() {
-                // Deposit storage D = deposits[contractId];
-                // D.contractor = msg.sender}
             } else if (data.escrowType == Enums.EscrowType.MILESTONE) {
-                 IEscrowMilestone(data.escrow).transferContractorOwnership(data.contractId, data.milestoneId, msg.sender);
+                IEscrowMilestone(data.escrow).transferContractorOwnership(data.contractId, data.milestoneId, msg.sender);
             } else if (data.escrowType == Enums.EscrowType.HOURLY) {
-                //  IEscrow(data.escrow).transferContractorOwnership(contractId, msg.sender);
+                IEscrowHourly(data.escrow).transferContractorOwnership(data.contractId, msg.sender);
             }
-
-            // MILESTONE
-            // IEscrow(data.escrow).transferContractorOwnership(contractId, milestoneId, msg.sender) external onlyRecovery() {
-            // Deposit storage D = deposits[contractId][milestoneId];
-            // D.contractor = msg.sender}
-            // HOURLY
-            // IEscrow(data.escrow).transferContractorOwnership(contractId, weekId, msg.sender) external onlyRecovery() {
-            // Deposit storage D = deposits[contractId][weekId];
-            // D.contractor = msg.sender}
         }
 
         emit RecoveryExecuted(msg.sender, recoveryHash);
     }
 
-    // _oldAccount address could be extracted from recoveryHash to check with msg.sender
     /// @notice Cancels a recovery process.
     /// @param _recoveryHash The hash of the recovery request.
     function cancelRecovery(bytes32 _recoveryHash) external {

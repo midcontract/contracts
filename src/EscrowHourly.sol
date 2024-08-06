@@ -484,7 +484,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         // Verify that the caller is the authorized account recovery module.
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
 
-        Deposit storage D = contractWeeks[_contractId][0];
+        Deposit storage D = contractWeeks[_contractId][0]; // The initial contractor set in this deposit is the sole contractor for this contractId.
 
         // Emit the ownership transfer event before changing the state to reflect the previous state.
         emit ContractorOwnershipTransferred(_contractId, D.contractor, _newAccount);

@@ -8,6 +8,7 @@ import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20M
 import {EscrowAccountRecovery} from "src/modules/EscrowAccountRecovery.sol";
 import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
+import {EscrowHourly, IEscrowHourly} from "src/EscrowHourly.sol";
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {IEscrow} from "src/interfaces/IEscrow.sol";
@@ -17,6 +18,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     EscrowAccountRecovery recovery;
     EscrowFixedPrice escrow;
     EscrowMilestone escrowMilestone;
+    EscrowHourly escrowHourly;
     EscrowRegistry registry;
     ERC20Mock paymentToken;
     EscrowFeeManager feeManager;
@@ -36,6 +38,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
     EscrowFixedPrice.Deposit deposit;
     EscrowAccountRecovery.RecoveryData recoveryInfo;
     IEscrowMilestone.Deposit[] deposits;
+    IEscrowHourly.Deposit depositHourly;
+    IEscrowHourly.ContractDetails contractDetails;
 
     event RecoveryInitiated(address indexed sender, bytes32 indexed recoveryHash);
     event RecoveryExecuted(address indexed sender, bytes32 indexed recoveryHash);
@@ -62,6 +66,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         paymentToken = new ERC20Mock();
         feeManager = new EscrowFeeManager(3_00, 5_00, owner);
         escrowMilestone = new EscrowMilestone();
+        escrowHourly = new EscrowHourly();
 
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
@@ -126,6 +131,32 @@ contract EscrowAccountRecoveryUnitTest is Test {
         paymentToken.mint(address(client), depositAmount);
         paymentToken.approve(address(escrowMilestone), depositAmount);
         escrowMilestone.deposit(0, address(paymentToken), deposits);
+        vm.stopPrank();
+    }
+
+    function initializeEscrowHourly() public {
+        contractDetails = IEscrowHourly.ContractDetails({
+            paymentToken: address(paymentToken),
+            prepaymentAmount: 1 ether,
+            status: Enums.Status.ACTIVE
+        });
+        depositHourly = IEscrowHourly.Deposit({
+            contractor: contractor,
+            amountToClaim: 0,
+            amountToWithdraw: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+        });
+
+        assertFalse(escrowHourly.initialized());
+        escrowHourly.initialize(client, owner, address(registry));
+        assertTrue(escrowHourly.initialized());
+
+        uint256 depositAmount = 1 ether;
+        uint256 totalDepositAmount = 1.03 ether;
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), totalDepositAmount);
+        paymentToken.approve(address(escrowHourly), totalDepositAmount);
+        escrowHourly.deposit(0, address(paymentToken), depositAmount, depositHourly);
         vm.stopPrank();
     }
 
@@ -420,8 +451,96 @@ contract EscrowAccountRecoveryUnitTest is Test {
         recovery.executeRecovery(accountType, address(escrowMilestone), contractor);
     }
 
-    // after executeRecovery
-    function test_executeRecovery_reverts() public {}
+    function test_initiateRecovery_hourly_contractor() public {
+        initializeEscrowHourly();
+        uint256 contractId = escrowHourly.getCurrentContractId();
+        Enums.EscrowType escrowType = Enums.EscrowType.HOURLY;
+        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrowHourly), contractor, new_contractor);
+
+        vm.prank(guardian);
+        vm.expectEmit(true, false, false, true);
+        emit RecoveryInitiated(guardian, recoveryHash);
+        recovery.initiateRecovery(address(escrowHourly), contractId, 0, contractor, new_contractor, escrowType);
+        (
+            address _escrow,
+            address _oldAccount,
+            uint256 _contractId,
+            uint256 _milestoneId,
+            uint256 _executeAfter,
+            bool _executed,
+            bool _confirmed,
+            Enums.EscrowType _escrowType
+        ) = recovery.recoveryData(recoveryHash);
+        assertEq(_escrow, address(escrowHourly));
+        assertEq(_oldAccount, contractor);
+        assertEq(_contractId, contractId);
+        assertEq(_milestoneId, 0);
+        assertEq(_executeAfter, block.timestamp + 3 days);
+        assertFalse(_executed);
+        assertTrue(_confirmed);
+        assertEq(uint256(_escrowType), 2);
+    }
+
+    function test_executeRecovery_contractor_hourly() public {
+        test_initiateRecovery_hourly_contractor();
+        Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
+        uint256 contractId = escrowHourly.getCurrentContractId();
+        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrowHourly), contractor, new_contractor);
+        (
+            address _escrow,
+            address _oldAccount,
+            uint256 _contractId,
+            uint256 _milestoneId,
+            uint256 _executeAfter,
+            bool _executed,
+            bool _confirmed,
+            Enums.EscrowType _escrowType
+        ) = recovery.recoveryData(recoveryHash);
+        assertEq(_escrow, address(escrowHourly));
+        assertEq(_oldAccount, contractor);
+        assertEq(_contractId, contractId);
+        assertEq(_milestoneId, 0);
+        assertEq(_executeAfter, block.timestamp + 3 days);
+        assertFalse(_executed);
+        assertTrue(_confirmed);
+        assertEq(uint256(_escrowType), 2);
+
+        (address _contractor,,,) = escrowHourly.contractWeeks(contractId, 0);
+        assertEq(_contractor, contractor);
+
+        vm.prank(new_contractor);
+        vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodStillPending.selector);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractor);
+
+        skip(3 days);
+        vm.prank(address(this));
+        vm.expectRevert(EscrowAccountRecovery.RecoveryNotConfirmed.selector);
+        recovery.executeRecovery(accountType, address(escrowHourly), new_contractor);
+
+        vm.prank(new_contractor);
+        vm.expectRevert(abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(recovery)));
+        recovery.executeRecovery(accountType, address(escrowHourly), contractor);
+
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+
+        vm.prank(new_contractor);
+        vm.expectEmit(true, true, true, true);
+        emit ContractorOwnershipTransferred(contractId, contractor, new_contractor);
+        vm.expectEmit(true, true, true, true);
+        emit RecoveryExecuted(new_contractor, recoveryHash);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractor);
+        (,,,, _executeAfter, _executed,,) = recovery.recoveryData(recoveryHash);
+        assertEq(_executeAfter, 0);
+        assertTrue(_executed);
+
+        (_contractor,,,) = escrowHourly.contractWeeks(contractId, 0);
+        assertEq(_contractor, new_contractor);
+
+        vm.prank(new_contractor);
+        vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractor);
+    }
 
     function test_updateGuardian() public {
         assertEq(recovery.guardian(), guardian);
