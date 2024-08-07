@@ -15,40 +15,55 @@ contract EscrowAccountRecovery is Ownable {
     /// @dev Recovery period after which recovery can be executed.
     uint256 public constant MIN_RECOVERY_PERIOD = 3 days;
 
-    /// @notice Indicates the guardian's address who can initiate recoveries.
+    /// @dev Configurable recovery period initialized to the minimum allowed.
+    uint256 public recoveryPeriod;
+
+    /// @notice Guardian's address authorized to initiate recovery processes.
     address public guardian;
 
-    /// TODO blacklisting globaly in Registry
-
+    /// @notice Data structure to store recovery-related information.
     struct RecoveryData {
-        address escrow; // address of escrow contract where account should be recovered
-        address account; // oldAccount to be recovered
-        uint256 contractId;
-        uint256 milestoneId; //milestoneId
-        uint64 executeAfter;
+        /// @dev Address of the escrow contract where account should be recovered.
+        address escrow; 
+        /// @dev Address of the old account to be recovered.
+        address account; 
+        /// @dev Identifier of the contract within the escrow.
+        uint256 contractId; 
+        /// @dev Identifier of the milestone within the contract.
+        uint256 milestoneId; 
+        /// @dev Timestamp after which the recovery can be executed.
+        uint64 executeAfter; 
+        /// @dev Flag indicating if the recovery has been executed.
         bool executed;
+        /// @dev Flag indicating if the recovery has been confirmed.
         bool confirmed;
+        /// @dev Type of escrow involved.
         Enums.EscrowType escrowType;
     }
 
     /// @dev Mapping of recovery hashes to their corresponding data.
     mapping(bytes32 recoveryHash => RecoveryData) public recoveryData;
 
-    /// @dev Custom errors
+    /// @dev Custom error for invalid guardian operation attempts.
     error InvalidGuardian();
+    /// @dev Custom error for zero address usage where prohibited.
     error ZeroAddressProvided();
+    /// @dev Custom error when trying to execute an already executed recovery.
     error RecoveryAlreadyExecuted();
+    /// @dev Custom error when trying to execute recovery before the period has elapsed.
     error RecoveryPeriodStillPending();
+    /// @dev Custom error when trying to execute a recovery that has not been confirmed.
     error RecoveryNotConfirmed();
+    /// @dev Custom error when an unauthorized account attempts a restricted action.
     error UnauthorizedAccount();
 
-    /// @dev Emitted when recovery is initiated by guardian
+    /// @dev Emitted when a recovery is initiated by the guardian.
     event RecoveryInitiated(address indexed sender, bytes32 indexed recoveryHash);
-    /// @dev Emitted when recovery is executed by new user account
+    /// @dev Emitted when a recovery is executed successfully.
     event RecoveryExecuted(address indexed sender, bytes32 indexed recoveryHash);
-    /// @dev Emmited when recovey is canceled by old user account
+    /// @dev Emitted when a recovery is canceled.
     event RecoveryCanceled(address indexed sender, bytes32 indexed recoveryHash);
-    /// @dev Emitted when guardian is updated
+    /// @dev Emitted when the guardian address is updated.
     event GuardianUpdated(address guardian);
 
     /// @dev Modifier to restrict functions to the guardian address.
@@ -57,15 +72,22 @@ contract EscrowAccountRecovery is Ownable {
         _;
     }
 
-    /// @dev Initializes the contract setting the owner to the message sender.
+    /// @dev Initializes the contract with the owner and guardian addresses.
     /// @param _owner Address of the initial owner of the account recovery contract.
+    /// @param _guardian Initial guardian authorized to manage recoveries.
     constructor(address _owner, address _guardian) {
         _initializeOwner(_owner);
         _updateGuardian(_guardian);
+        recoveryPeriod = MIN_RECOVERY_PERIOD;
     }
 
-    /// @notice Initiates a recovery process for an account.
-    // /// @param _recoveryHash The hash representing the recovery details.
+    /// @notice Initiates the recovery process for an account.
+    /// @param _escrow Address of the escrow contract related to the recovery.
+    /// @param _contractId Contract identifier within the escrow.
+    /// @param _milestoneId Milestone identifier within the contract.
+    /// @param _oldAccount Current account address that needs recovery.
+    /// @param _newAccount New account address to replace the old one.
+    /// @param _escrowType Type of the escrow contract involved.
     function initiateRecovery(
         address _escrow,
         uint256 _contractId,
@@ -83,7 +105,7 @@ contract EscrowAccountRecovery is Ownable {
             account: _oldAccount,
             contractId: _contractId,
             milestoneId: _milestoneId,
-            executeAfter: uint64(block.timestamp + MIN_RECOVERY_PERIOD),
+            executeAfter: uint64(block.timestamp + recoveryPeriod),
             executed: false,
             confirmed: true,
             escrowType: _escrowType
@@ -93,8 +115,9 @@ contract EscrowAccountRecovery is Ownable {
     }
 
     /// @notice Executes a previously confirmed recovery.
-    /// @param _accountType The type of account being recovered, either CLIENT or CONTRACTOR.
-    /// @param _oldAccount The current address that will be replaced.
+    /// @param _accountType Type of the account being recovered, either CLIENT or CONTRACTOR.
+    /// @param _escrow Address of the escrow involved in the recovery.
+    /// @param _oldAccount Old account address being replaced in the recovery.
     function executeRecovery(Enums.AccountTypeRecovery _accountType, address _escrow, address _oldAccount) external {
         bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, msg.sender);
         RecoveryData storage data = recoveryData[recoveryHash];
@@ -122,8 +145,8 @@ contract EscrowAccountRecovery is Ownable {
         emit RecoveryExecuted(msg.sender, recoveryHash);
     }
 
-    /// @notice Cancels a recovery process.
-    /// @param _recoveryHash The hash of the recovery request.
+    /// @notice Cancels an ongoing recovery process.
+    /// @param _recoveryHash Hash of the recovery request to be canceled.
     function cancelRecovery(bytes32 _recoveryHash) external {
         RecoveryData storage data = recoveryData[_recoveryHash];
         if (msg.sender != data.account) revert UnauthorizedAccount();
@@ -135,9 +158,10 @@ contract EscrowAccountRecovery is Ownable {
         emit RecoveryCanceled(msg.sender, _recoveryHash);
     }
 
-    /// @dev Internal function to generate a recovery hash.
-    /// @param _oldAccount Address of the user being replaced.
-    /// @param _newAccount Address of the new user.
+    /// @dev Generates the recovery hash based on the escrow, old account, and new account addresses.
+    /// @param _escrow Address of the escrow contract involved in the recovery.
+    /// @param _oldAccount Address of the old account being replaced.
+    /// @param _newAccount Address of the new account replacing the old.
     /// @return Hash of the recovery details.
     function _encodeRecoveryHash(address _escrow, address _oldAccount, address _newAccount)
         internal
@@ -147,7 +171,7 @@ contract EscrowAccountRecovery is Ownable {
         return keccak256(abi.encodePacked(_escrow, _oldAccount, _newAccount));
     }
 
-    /// @dev Internal function to update the guardian address.
+    /// @notice Updates the guardian address responsible for initiating recoveries.
     /// @param _guardian New guardian address.
     function _updateGuardian(address _guardian) internal {
         if (_guardian == address(0)) revert ZeroAddressProvided();
@@ -173,5 +197,4 @@ contract EscrowAccountRecovery is Ownable {
         _updateGuardian(_guardian);
     }
 
-    // updateRecoveryPeriod
 }
