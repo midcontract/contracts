@@ -24,15 +24,15 @@ contract EscrowAccountRecovery is Ownable {
     /// @notice Data structure to store recovery-related information.
     struct RecoveryData {
         /// @dev Address of the escrow contract where account should be recovered.
-        address escrow; 
+        address escrow;
         /// @dev Address of the old account to be recovered.
-        address account; 
+        address account;
         /// @dev Identifier of the contract within the escrow.
-        uint256 contractId; 
+        uint256 contractId;
         /// @dev Identifier of the milestone within the contract.
-        uint256 milestoneId; 
+        uint256 milestoneId;
         /// @dev Timestamp after which the recovery can be executed.
-        uint64 executeAfter; 
+        uint64 executeAfter;
         /// @dev Flag indicating if the recovery has been executed.
         bool executed;
         /// @dev Flag indicating if the recovery has been confirmed.
@@ -56,6 +56,8 @@ contract EscrowAccountRecovery is Ownable {
     error RecoveryNotConfirmed();
     /// @dev Custom error when an unauthorized account attempts a restricted action.
     error UnauthorizedAccount();
+    /// @dev Custom error indicates an attempt to set the recovery period below the minimum required or to zero.
+    error RecoveryPeriodTooSmall();
 
     /// @dev Emitted when a recovery is initiated by the guardian.
     event RecoveryInitiated(address indexed sender, bytes32 indexed recoveryHash);
@@ -65,6 +67,8 @@ contract EscrowAccountRecovery is Ownable {
     event RecoveryCanceled(address indexed sender, bytes32 indexed recoveryHash);
     /// @dev Emitted when the guardian address is updated.
     event GuardianUpdated(address guardian);
+    /// @dev Emitted when the recovery period is updated to a new value.
+    event RecoveryPeriodUpdated(uint256 recoveryPeriod);
 
     /// @dev Modifier to restrict functions to the guardian address.
     modifier onlyGuardian() {
@@ -197,4 +201,14 @@ contract EscrowAccountRecovery is Ownable {
         _updateGuardian(_guardian);
     }
 
+    /// @notice Updates the recovery period to a new value, ensuring it meets minimum requirements.
+    /// @dev Can only be called by the owner of the contract.
+    /// @param _recoveryPeriod The new recovery period in seconds.
+    function updateRecoveryPeriod(uint256 _recoveryPeriod) external onlyOwner {
+        if (_recoveryPeriod == 0 || _recoveryPeriod < MIN_RECOVERY_PERIOD) {
+            revert RecoveryPeriodTooSmall();
+        }
+        recoveryPeriod = _recoveryPeriod;
+        emit RecoveryPeriodUpdated(_recoveryPeriod);
+    }
 }

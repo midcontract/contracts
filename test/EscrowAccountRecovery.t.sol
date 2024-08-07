@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
-import {EscrowAccountRecovery} from "src/modules/EscrowAccountRecovery.sol";
+import {EscrowAccountRecovery, Ownable} from "src/modules/EscrowAccountRecovery.sol";
 import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
 import {EscrowHourly, IEscrowHourly} from "src/EscrowHourly.sol";
@@ -45,6 +45,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     event RecoveryExecuted(address indexed sender, bytes32 indexed recoveryHash);
     event RecoveryCanceled(address indexed sender, bytes32 indexed recoveryHash);
     event GuardianUpdated(address guardian);
+    event RecoveryPeriodUpdated(uint256 recoveryPeriod);
     event ClientOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event ContractorOwnershipTransferred(uint256 contractId, address indexed previousOwner, address indexed newOwner);
     event ContractorOwnershipTransferred(
@@ -557,6 +558,24 @@ contract EscrowAccountRecoveryUnitTest is Test {
         emit GuardianUpdated(newGuardian);
         recovery.updateGuardian(newGuardian);
         assertEq(recovery.guardian(), newGuardian);
+        vm.stopPrank();
+    }
+
+    function test_updateRecoveryPeriod() public {
+        assertEq(recovery.recoveryPeriod(), 3 days);
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        recovery.updateRecoveryPeriod(7 days);
+        vm.startPrank(owner);
+        vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodTooSmall.selector);
+        recovery.updateRecoveryPeriod(0);
+        vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodTooSmall.selector);
+        recovery.updateRecoveryPeriod(2 days);
+        vm.expectEmit(true, true, true, true);
+        emit RecoveryPeriodUpdated(7 days);
+        recovery.updateRecoveryPeriod(7 days);
+        assertEq(recovery.recoveryPeriod(), 7 days);
         vm.stopPrank();
     }
 }
