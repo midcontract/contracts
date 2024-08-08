@@ -41,6 +41,14 @@ interface IEscrowRegistry {
     /// @param accountRecovery The new account recovery contract address.
     event AccountRecoverySet(address accountRecovery);
 
+    /// @notice Emitted when an address is added to the blacklist.
+    /// @param user The address that has been blacklisted.
+    event Blacklisted(address indexed user);
+
+    /// @notice Emitted when an address is removed from the blacklist.
+    /// @param user The address that has been removed from the blacklist.
+    event Whitelisted(address indexed user);
+
     /// @notice Checks if a token is enabled as a payment token in the registry.
     /// @param token The address of the token to check.
     /// @return True if the token is enabled, false otherwise.
@@ -74,20 +82,25 @@ interface IEscrowRegistry {
     /// @return The address of the account recovery contract.
     function accountRecovery() external view returns (address);
 
+    /// @notice Checks if an address is blacklisted.
+    /// @param user The address to check against the blacklist.
+    /// @return bool True if the address is blacklisted, false otherwise.
+    function blacklist(address user) external view returns (bool);
+
     /// @notice Updates the address of the fixed price escrow contract used in the system.
-    /// @param _escrowFixedPrice The new address of the fixed price escrow contract to be used across the platform.
-    function updateEscrowFixedPrice(address _escrowFixedPrice) external;
+    /// @param escrowFixedPrice The new address of the fixed price escrow contract to be used across the platform.
+    function updateEscrowFixedPrice(address escrowFixedPrice) external;
 
     /// @notice Updates the address of the milestone escrow contract used in the system.
-    /// @param _escrowMilestone The new address of the milestone escrow contract to be used.
-    function updateEscrowMilestone(address _escrowMilestone) external;
+    /// @param escrowMilestone The new address of the milestone escrow contract to be used.
+    function updateEscrowMilestone(address escrowMilestone) external;
 
     /// @notice Updates the address of the hourly escrow contract used in the system.
-    /// @param _escrowHourly The new address of the hourly escrow contract to be used.
-    function updateEscrowHourly(address _escrowHourly) external;
+    /// @param escrowHourly The new address of the hourly escrow contract to be used.
+    function updateEscrowHourly(address escrowHourly) external;
 
     /// @notice Updates the address of the Factory contract used in the system.
     /// @dev This function allows the system administrator to set a new factory contract address.
-    /// @param _factory The new address of the Factory contract to be used across the platform.
-    function updateFactory(address _factory) external;
+    /// @param factory The new address of the Factory contract to be used across the platform.
+    function updateFactory(address factory) external;
 }

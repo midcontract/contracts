@@ -29,6 +29,8 @@ contract EscrowRegistryUnitTest is Test {
     event FeeManagerUpdated(address feeManager);
     event TreasurySet(address treasury);
     event AccountRecoverySet(address accountRecovery);
+    event Blacklisted(address indexed user);
+    event Whitelisted(address indexed user);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -219,6 +221,43 @@ contract EscrowRegistryUnitTest is Test {
         emit AccountRecoverySet(accountRecovery);
         registry.setAccountRecovery(address(accountRecovery));
         assertEq(registry.accountRecovery(), address(accountRecovery));
+        vm.stopPrank();
+    }
+
+    function test_addToBlacklist() public {
+        address malicious_user = makeAddr("malicious_user");
+        assertFalse(registry.blacklist(malicious_user));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        registry.addToBlacklist(owner);
+        assertFalse(registry.blacklist(owner));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        registry.addToBlacklist(address(0));
+        vm.expectEmit(true, false, false, true);
+        emit Blacklisted(malicious_user);
+        registry.addToBlacklist(malicious_user);
+        assertTrue(registry.blacklist(malicious_user));
+        vm.stopPrank();
+    }
+
+    function test_removeFromBlacklist() public {
+        address malicious_user = makeAddr("malicious_user");
+        vm.prank(owner);
+        registry.addToBlacklist(malicious_user);
+        assertTrue(registry.blacklist(malicious_user));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        registry.removeFromBlacklist(malicious_user);
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        registry.removeFromBlacklist(address(0));
+        vm.expectEmit(true, false, false, true);
+        emit Whitelisted(malicious_user);
+        registry.removeFromBlacklist(malicious_user);
+        assertFalse(registry.blacklist(malicious_user));
         vm.stopPrank();
     }
 }

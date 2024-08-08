@@ -38,6 +38,12 @@ contract EscrowRegistry is IEscrowRegistry, Ownable {
     /// @dev Includes the ability to enable the native chain token for payments.
     mapping(address token => bool enabled) public paymentTokens;
 
+    /// @notice Checks if an address is blacklisted.
+    /// Blacklisted addresses are restricted from participating in certain transactions
+    /// to enhance security and compliance, particularly with anti-money laundering (AML) regulations.
+    /// @dev Stores addresses that are blacklisted from participating in transactions.
+    mapping(address user => bool blacklisted) public blacklist;
+
     /// @dev Initializes the contract setting the owner to the message sender.
     /// @param _owner Address of the initial owner of the registry contract.
     constructor(address _owner) {
@@ -115,5 +121,21 @@ contract EscrowRegistry is IEscrowRegistry, Ownable {
         if (_accountRecovery == address(0)) revert Registry__ZeroAddressProvided();
         accountRecovery = _accountRecovery;
         emit AccountRecoverySet(_accountRecovery);
+    }
+
+    /// @notice Adds an address to the blacklist.
+    /// @param _user The address to add to the blacklist.
+    function addToBlacklist(address _user) external onlyOwner {
+        if (_user == address(0)) revert Registry__ZeroAddressProvided();
+        blacklist[_user] = true;
+        emit Blacklisted(_user);
+    }
+
+    /// @notice Removes an address from the blacklist.
+    /// @param _user The address to remove from the blacklist.
+    function removeFromBlacklist(address _user) external onlyOwner {
+        if (_user == address(0)) revert Registry__ZeroAddressProvided();
+        blacklist[_user] = false;
+        emit Whitelisted(_user);
     }
 }
