@@ -271,6 +271,12 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectRevert(IEscrowHourly.Escrow__InvalidContractId.selector);
         escrow.deposit(1, address(paymentToken), 1 ether, deposit);
         vm.stopPrank();
+
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.deposit(0, address(paymentToken), 1 ether, deposit);
     }
 
     function test_deposit_amountToClaim() public {
@@ -768,6 +774,17 @@ contract EscrowHourlyUnitTest is Test {
         (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
         assertEq(_amountToClaim, 1 ether);
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
+
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.refill(currentContractId, weekId, 1 ether, Enums.RefillType.PREPAYMENT);
+        vm.prank(owner);
+        registry.removeFromBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(); //TransferFromFailed
+        escrow.refill(currentContractId, weekId, 1 ether, Enums.RefillType.PREPAYMENT);
     }
 
     ////////////////////////////////////////////
@@ -865,6 +882,12 @@ contract EscrowHourlyUnitTest is Test {
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
         assertEq(uint256(_status), 2); //Status.APPROVED
+
+        vm.prank(owner);
+        registry.addToBlacklist(contractor);
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.claim(currentContractId, weekId);
     }
 
     ///////////////////////////////////////////
@@ -1084,6 +1107,16 @@ contract EscrowHourlyUnitTest is Test {
         (,, _status) = escrow.contractDetails(currentContractId);
         assertEq(uint256(_status), 6); //Status.RESOLVED
         assertEq(paymentToken.balanceOf(address(client)), 0);
+    }
+
+    function test_withdraw_reverts_BlacklistedAccount() public {
+        test_resolveDispute_winnerClient();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.withdraw(currentContractId, 0);
     }
 
     ////////////////////////////////////////////

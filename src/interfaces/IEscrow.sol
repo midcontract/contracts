@@ -87,6 +87,9 @@ interface IEscrow {
     /// @notice Thrown when the resolution exceeds the deposited amount.
     error Escrow__ResolutionExceedsDepositedAmount();
 
+    /// @notice Thrown when an operation is attempted by an account that is currently blacklisted.
+    error Escrow__BlacklistedAccount();
+
     /// @notice Emitted when the registry address is updated in the escrow.
     /// @param registry The new registry address.
     event RegistryUpdated(address registry);

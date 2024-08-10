@@ -82,6 +82,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @param _paymentToken  The address of the payment token for the contractId.
     /// @param _deposits Array of details for each new milestone.
     function deposit(uint256 _contractId, address _paymentToken, Deposit[] calldata _deposits) external onlyClient {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_deposits.length == 0) revert Escrow__NoDepositsProvided();
 
         uint256 contractId;
@@ -180,7 +181,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         if (uint256(D.status) != uint256(Enums.Status.SUBMITTED)) revert Escrow__InvalidStatusForApprove();
 
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
-
+        
         if (D.amountToClaim + _amountApprove > D.amount) revert Escrow__NotEnoughDeposit();
 
         D.amountToClaim += _amountApprove;
@@ -195,6 +196,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @param _milestoneId ID of the milestone within the contract to be refilled.
     /// @param _amountAdditional Additional amount to be added to the deposit.
     function refill(uint256 _contractId, uint256 _milestoneId, uint256 _amountAdditional) external onlyClient {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_amountAdditional == 0) revert Escrow__InvalidAmount();
 
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
@@ -215,13 +217,15 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @param _contractId ID of the deposit from which to claim funds.
     /// @param _milestoneId ID of the milestone within the contract to be claimed.
     function claim(uint256 _contractId, uint256 _milestoneId) external {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
+
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
         if (D.status != Enums.Status.APPROVED && D.status != Enums.Status.RESOLVED && D.status != Enums.Status.CANCELED)
         {
             revert Escrow__InvalidStatusToClaim();
         }
-        if (D.amountToClaim == 0) revert Escrow__NotApproved();
 
+        if (D.amountToClaim == 0) revert Escrow__NotApproved();
         if (D.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
 
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
@@ -249,6 +253,8 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @dev This function allows the contractor to claim all approved amounts across all milestones within a specified contract.
     /// @param _contractId ID of the contract from which to claim funds.
     function claimAll(uint256 _contractId) external {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
+
         uint256 totalClaimedAmount = 0;
         uint256 totalFeeAmount = 0;
         uint256 totalClientFee = 0;
@@ -301,14 +307,16 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
     /// @param _milestoneId ID of the milestone within the contract to be withdrawn.
     function withdraw(uint256 _contractId, uint256 _milestoneId) external onlyClient {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
+
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
         if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw(); // TODO check && add D.status = Enums.Status.COMPLETED
         }
+
         if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
 
         (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amountToWithdraw, D.feeConfig);
-
         (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
 
         MilestoneDetails storage M = milestoneData[_contractId][_milestoneId];

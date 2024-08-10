@@ -82,11 +82,10 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         external
         onlyClient
     {
-        // Validate deposit inputs
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_prepaymentAmount == 0 && _deposit.amountToClaim == 0) {
             revert Escrow__InvalidAmount();
         }
-
         if (_deposit.contractor == address(0)) revert Escrow__ZeroAddressProvided();
 
         // Determine contract ID
@@ -179,6 +178,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         external
         onlyClient
     {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_amount == 0) revert Escrow__InvalidAmount();
 
         ContractDetails storage C = contractDetails[_contractId];
@@ -211,6 +211,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @param _contractId ID of the deposit from which to claim funds.
     /// @param _weekId ID of the week within the contract to be claimed.
     function claim(uint256 _contractId, uint256 _weekId) external {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
+
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.CANCELED) {
             revert Escrow__InvalidStatusToClaim();
@@ -242,6 +244,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
     /// @param _weekId ID of the week within the contract to be withdrawn.
     function withdraw(uint256 _contractId, uint256 _weekId) external onlyClient {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
+
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.REFUND_APPROVED && C.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw();

@@ -70,8 +70,8 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
     /// @notice Creates a deposit within the escrow system.
     /// @param _deposit Details of the deposit to be created.
     function deposit(Deposit calldata _deposit) external onlyClient {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
-
         if (_deposit.amount == 0) revert Escrow__ZeroDepositAmount();
 
         (uint256 totalDepositAmount, uint256 feeApplied) =
@@ -147,6 +147,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
     /// @param _contractId ID of the deposit to be refilled.
     /// @param _amountAdditional Additional amount to be added to the deposit.
     function refill(uint256 _contractId, uint256 _amountAdditional) external onlyClient {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_amountAdditional == 0) revert Escrow__InvalidAmount();
 
         Deposit storage D = deposits[_contractId];
@@ -164,13 +165,15 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
     /// @dev This function allows the contractor to claim the approved amount from the deposit.
     /// @param _contractId ID of the deposit from which to claim funds.
     function claim(uint256 _contractId) external {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
+
         Deposit storage D = deposits[_contractId];
         if (D.status != Enums.Status.APPROVED && D.status != Enums.Status.RESOLVED && D.status != Enums.Status.CANCELED)
         {
             revert Escrow__InvalidStatusToClaim();
         }
-        if (D.amountToClaim == 0) revert Escrow__NotApproved();
 
+        if (D.amountToClaim == 0) revert Escrow__NotApproved();
         if (D.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
 
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
@@ -195,14 +198,16 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
     /// @notice Withdraws funds from a deposit under specific conditions.
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
     function withdraw(uint256 _contractId) external onlyClient {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
+
         Deposit storage D = deposits[_contractId];
         if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw();
         }
+
         if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
 
         (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, D.amountToWithdraw, D.feeConfig);
-
         (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.amount, D.feeConfig);
 
         D.amount -= D.amountToWithdraw;

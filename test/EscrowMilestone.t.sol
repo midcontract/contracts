@@ -308,6 +308,12 @@ contract EscrowMilestoneUnitTest is Test {
         vm.expectRevert(IEscrowMilestone.Escrow__InvalidContractId.selector);
         escrow.deposit(1, address(paymentToken), _deposits);
         vm.stopPrank();
+
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.deposit(0, address(paymentToken), _deposits);
     }
 
     function test_deposit_severalMilestones() public {
@@ -800,6 +806,17 @@ contract EscrowMilestoneUnitTest is Test {
 
         (, _amount,,,,,) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_amount, 1 ether);
+
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.refill(currentContractId, milestoneId, amountAdditional);
+        vm.prank(owner);
+        registry.removeFromBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
+        escrow.refill(currentContractId, milestoneId, amountAdditional);
     }
 
     ////////////////////////////////////////////
@@ -874,6 +891,12 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove); //0
         assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        vm.prank(owner);
+        registry.addToBlacklist(contractor);
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.claim(currentContractId, milestoneId);
     }
 
     function test_claim_whenResolveDispute_winnerSplit() public {
@@ -1490,6 +1513,33 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0.54 ether + 1.03 ether); //amountToWithdrawSplit+fee
     }
 
+    function test_claimAll_reverts_BlacklistedAccount() public {
+        test_deposit_severalMilestones();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(escrow.getMilestoneCount(currentContractId), 3);
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+
+        vm.startPrank(contractor);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 1, contractData, salt);
+        escrow.submit(currentContractId, 2, contractData, salt);
+        vm.stopPrank();
+
+        vm.startPrank(client);
+        escrow.approve(currentContractId, 0, 1 ether, contractor);
+        escrow.approve(currentContractId, 1, 2 ether, contractor);
+        escrow.approve(currentContractId, 2, 3 ether, contractor);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        registry.addToBlacklist(contractor);
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.claimAll(currentContractId);
+    }
+
     ///////////////////////////////////////////
     //           withdraw tests              //
     ///////////////////////////////////////////
@@ -1678,6 +1728,16 @@ contract EscrowMilestoneUnitTest is Test {
         (,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(uint256(_status), 6); //Status.RESOLVED
         assertEq(paymentToken.balanceOf(address(client)), 0);
+    }
+
+    function test_withdraw_reverts_BlacklistedAccount() public {
+        test_resolveDispute_winnerClient();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.withdraw(currentContractId, 0);
     }
 
     ////////////////////////////////////////////

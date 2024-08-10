@@ -207,6 +207,12 @@ contract EscrowFixedPriceUnitTest is Test {
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__ZeroDepositAmount.selector);
         escrow.deposit(deposit);
+
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.deposit(deposit);
     }
 
     function test_deposit_reverts_NotSetFeeManager() public {
@@ -496,6 +502,16 @@ contract EscrowFixedPriceUnitTest is Test {
         (,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 6); //Status.RESOLVED
         assertEq(paymentToken.balanceOf(address(client)), 0);
+    }
+
+    function test_withdraw_reverts_BlacklistedAccount() public {
+        test_resolveDispute_winnerClient();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.withdraw(currentContractId);
     }
 
     ///////////////////////////////////////////
@@ -870,6 +886,17 @@ contract EscrowFixedPriceUnitTest is Test {
         vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
         escrow.refill(currentContractId, 0 ether);
         vm.stopPrank();
+
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.refill(currentContractId, amountAdditional);
+        vm.prank(owner);
+        registry.removeFromBlacklist(client);
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
+        escrow.refill(currentContractId, 0 ether);
     }
 
     ////////////////////////////////////////////
@@ -933,6 +960,12 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove); //0
         assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        vm.prank(owner);
+        registry.addToBlacklist(contractor);
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.claim(currentContractId);
     }
 
     function test_claim_clientCoversOnly() public {
