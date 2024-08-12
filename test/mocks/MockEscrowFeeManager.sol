@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 import {IEscrowFeeManager} from "src/interfaces/IEscrowFeeManager.sol";
 import {Ownable} from "src/libs/Ownable.sol";

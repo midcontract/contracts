@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 /// @title Interface for the EscrowRegistry
 /// @dev Interface for the registry that manages configuration settings such as payment tokens and contract addresses for an escrow system.

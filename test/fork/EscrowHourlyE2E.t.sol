@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
 
@@ -35,6 +35,7 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
         uint256 prepaymentAmount;
         Enums.Status status;
     }
+
     IEscrowHourly.ContractDetails contractDetails;
 
     struct Deposit {
@@ -43,6 +44,7 @@ contract ExecuteEscrowHourlyEndToEndTest is Test {
         uint256 amountToClaim;
         Enums.FeeConfig feeConfig;
     }
+
     IEscrowHourly.Deposit deposit;
 
     function setUp() public {

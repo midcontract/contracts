@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Modified from OpenZeppelin Contracts (last updated v4.7.0) (security/Pausable.sol)
 
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 /**
  * @dev Contract module which allows children to implement an emergency stop

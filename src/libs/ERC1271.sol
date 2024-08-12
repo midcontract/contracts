@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 import {ECDSA} from "./ECDSA.sol";
 
@@ -22,7 +22,7 @@ abstract contract ERC1271 {
             return 0xffffffff;
         }
     }
-    
+
     /// @notice Internal function to validate the signature.
     /// @param _hash Hash of the data to be signed.
     /// @param _signature Signature byte array associated with the hash.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
 
@@ -190,7 +190,8 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(clientFee, 0);
         // NO_FEES
         feeConfig = Enums.FeeConfig.NO_FEES;
-        (claimableAmount, feeDeducted, clientFee) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        (claimableAmount, feeDeducted, clientFee) =
+            feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
         assertEq(clientFee, 0);
@@ -215,20 +216,23 @@ contract EscrowFeeManagerUnitTest is Test {
         clientFeeApplied = claimedAmount * coverage / 100_00;
         uint256 feeAmount = claimedAmount * claim / 100_00;
         feeConfig = Enums.FeeConfig.CLIENT_COVERS_ONLY;
-        (claimableAmount, feeDeducted, clientFee) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        (claimableAmount, feeDeducted, clientFee) =
+            feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount - feeAmount);
         assertEq(feeDeducted, feeAmount);
         assertEq(clientFee, clientFeeApplied);
         // CONTRACTOR_COVERS_CLAIM
         feeAmount = claimedAmount * claim / 100_00;
         feeConfig = Enums.FeeConfig.CONTRACTOR_COVERS_CLAIM;
-        (claimableAmount, feeDeducted, clientFee) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        (claimableAmount, feeDeducted, clientFee) =
+            feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount - feeAmount);
         assertEq(feeDeducted, feeAmount);
         assertEq(clientFee, 0);
         // NO_FEES
         feeConfig = Enums.FeeConfig.NO_FEES;
-        (claimableAmount, feeDeducted, clientFee) = feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        (claimableAmount, feeDeducted, clientFee) =
+            feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
         assertEq(clientFee, 0);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 /// @notice Minimal proxy library.
 /// @author SolDAO (https://github.com/Sol-DAO/solbase/blob/main/src/utils/LibClone.sol)
@@ -75,7 +75,6 @@ library LibClone {
              * f3      | RETURN         |                        | [0..rds): returndata  |
              * --------------------------------------------------------------------------+
              */
-
             mstore(0x21, 0x5af43d3d93803e602a57fd5bf3)
             mstore(0x14, implementation)
             mstore(0x00, 0x602c3d8160093d39f33d3d3d3d363d3d37363d73)

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 /// @notice Simple single owner authorization mixin.
 /// @author Modified from Solady (https://github.com/vectorized/solady/blob/main/src/auth/Ownable.sol)

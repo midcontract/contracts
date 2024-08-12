@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
@@ -181,7 +181,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
         if (uint256(D.status) != uint256(Enums.Status.SUBMITTED)) revert Escrow__InvalidStatusForApprove();
 
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
-        
+
         if (D.amountToClaim + _amountApprove > D.amount) revert Escrow__NotEnoughDeposit();
 
         D.amountToClaim += _amountApprove;

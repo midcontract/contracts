@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 /// @title Enumerations for Fee Configurations and Status
 library Enums {
@@ -9,6 +9,7 @@ library Enums {
         CLIENT_COVERS_ONLY, // Client pays only the coverage fee (3%), contractor responsible for the claim fee (5%)
         CONTRACTOR_COVERS_CLAIM, // Contractor pays the claim fee (5%), no coverage fee applied
         NO_FEES // No fees applied (0%)
+
     }
 
     /// @notice Enumerates the different statuses for a contract.
@@ -22,6 +23,7 @@ library Enums {
         RESOLVED, // The dispute has been resolved
         REFUND_APPROVED, // Refund has been approved, funds can be withdrawn
         CANCELED // Contract has been cancelled after a refund or resolution
+
     }
 
     /// @notice Enumerates the potential outcomes of a dispute resolution.
@@ -31,6 +33,7 @@ library Enums {
         CLIENT, // Indicates the dispute was resolved in favor of the client
         CONTRACTOR, // Indicates the dispute was resolved in favor of the contractor
         SPLIT // Indicates the dispute resolution benefits both parties
+
     }
 
     /// @notice Defines the types of escrow contracts that can be created.
@@ -39,6 +42,7 @@ library Enums {
         FIXED_PRICE, // Represents a fixed price contract where the payment is made as a lump sum.
         MILESTONE, // Represents a contract where payment is divided into milestones, each payable upon completion.
         HOURLY // Represents a contract where payment is made based on hourly rates and actual time worked.
+
     }
 
     /// @notice Specifies the types of refills possible within an escrow contract.
@@ -46,6 +50,7 @@ library Enums {
     enum RefillType {
         PREPAYMENT, // Indicates a refill to the contract's general prepayment pool, which can be used to cover future claims.
         WEEK_PAYMENT // Indicates a refill targeted at a specific week's deposit amount within the contract, typically to fulfill or increase the amount claimable for that week.
+
     }
 
     /// @notice Enumerates the types of accounts that can be subject to recovery processes in the escrow system.
@@ -53,5 +58,6 @@ library Enums {
     enum AccountTypeRecovery {
         CLIENT, // Represents a client account, typically the party funding the escrow.
         CONTRACTOR // Represents a contractor account, typically the party performing services or work.
+
     }
 }

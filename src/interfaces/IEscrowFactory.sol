@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.25;
 
 // import {IEscrow} from "./IEscrow.sol";
 import {Enums} from "../libs/Enums.sol";
@@ -31,10 +31,7 @@ interface IEscrowFactory {
     /// @param admin The address with administrative privileges over the new escrow.
     /// @param registry The address of the registry containing escrow configurations.
     /// @return The address of the newly deployed escrow contract.
-    function deployEscrow(
-        Enums.EscrowType escrowType,
-        address client,
-        address admin,
-        address registry
-    ) external returns (address);
+    function deployEscrow(Enums.EscrowType escrowType, address client, address admin, address registry)
+        external
+        returns (address);
 }
