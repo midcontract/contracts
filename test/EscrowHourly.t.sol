@@ -365,7 +365,7 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + totalDepositAmount); //amountApprove+fee
     }
 
-    function test_approve_by_admin_prepayment_equal_amount_to_approve() public {
+    function test_adminApprove_prepayment_equal_amount_to_approve() public {
         test_deposit_prepayment();
 
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -393,7 +393,7 @@ contract EscrowHourlyUnitTest is Test {
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
         emit Approved(currentContractId, weekId, amountApprove, contractor);
-        escrow.approve(currentContractId, weekId, amountApprove, contractor);
+        escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, false);
         (_contractor, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
         assertEq(_amountToClaim, amountApprove);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
@@ -403,7 +403,7 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee
     }
 
-    function test_approve_by_admin_prepayment_bigger_amount_to_approve() public {
+    function test_adminApprove_prepayment_bigger_amount_to_approve() public {
         test_deposit_prepayment();
 
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -431,7 +431,7 @@ contract EscrowHourlyUnitTest is Test {
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
         emit Approved(currentContractId, weekId, amountApprove, contractor);
-        escrow.approve(currentContractId, weekId, amountApprove, contractor);
+        escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, false);
         (_contractor, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
         assertEq(_amountToClaim, amountApprove);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
@@ -441,7 +441,7 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee
     }
 
-    function test_approve_by_admin_prepayment_less_than_amount_to_approve() public {
+    function test_adminApprove_prepayment_less_than_amount_to_approve() public {
         test_deposit_prepayment();
 
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -469,11 +469,98 @@ contract EscrowHourlyUnitTest is Test {
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
         emit Approved(currentContractId, weekId, amountApprove, contractor);
-        escrow.approve(currentContractId, weekId, amountApprove, contractor);
+        escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, false);
         (_contractor, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
         assertEq(_amountToClaim, _prepaymentAmount);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0 ether); //0
+        assertEq(uint256(_status), 2); //Status.APPROVED
+        vm.stopPrank();
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee
+    }
+
+    function test_adminApprove_prepayment_bigger_amount_to_approve_initializeNewWeek_zero_weekId() public {
+        test_deposit_prepayment();
+
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 1);
+        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.03 ether
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrow.contractDetails(currentContractId);
+        assertEq(address(_paymentToken), address(paymentToken));
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
+            escrow.contractWeeks(currentContractId, --weekId);
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(escrow.getWeeksCount(currentContractId), 1);
+
+        uint256 amountApprove = 0.5 ether;
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit Approved(currentContractId, weekId, amountApprove, contractor);
+        escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, true);
+        (_contractor, _amountToClaim, _amountToWithdraw, _feeConfig) = escrow.contractWeeks(currentContractId, weekId);
+        assertEq(_amountToClaim, amountApprove);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_feeConfig), 1);
+        assertEq(escrow.getWeeksCount(currentContractId), 1);
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0.5 ether); //_prepaymentAmount - amountApprove
+        assertEq(uint256(_status), 2); //Status.APPROVED
+        vm.stopPrank();
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee
+    }
+
+    function test_adminApprove_prepayment_bigger_amount_to_approve_initializeNewWeek() public {
+        test_deposit_prepayment();
+
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 1);
+        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.03 ether
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrow.contractDetails(currentContractId);
+        assertEq(address(_paymentToken), address(paymentToken));
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
+            escrow.contractWeeks(currentContractId, --weekId);
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(escrow.getWeeksCount(currentContractId), 1);
+
+        uint256 amountApprove = 0.5 ether;
+        weekId = escrow.getWeeksCount(currentContractId);
+        vm.startPrank(owner);
+        vm.expectRevert(IEscrowHourly.Escrow__InvalidWeekId.selector);
+        escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, false);
+        vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
+        escrow.adminApprove(currentContractId, weekId, 0, contractor, true);
+        vm.expectEmit(true, true, true, true);
+        emit Approved(currentContractId, weekId, amountApprove, contractor);
+        escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, true);
+        (_contractor, _amountToClaim, _amountToWithdraw, _feeConfig) = escrow.contractWeeks(currentContractId, weekId);
+        assertEq(_amountToClaim, amountApprove);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_feeConfig), 1);
+        assertEq(escrow.getWeeksCount(currentContractId), 2);
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0.5 ether); //_prepaymentAmount - amountApprove
         assertEq(uint256(_status), 2); //Status.APPROVED
         vm.stopPrank();
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee

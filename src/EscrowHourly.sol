@@ -77,6 +77,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @dev This function handles the initialization or update of a week's deposit in a single transaction.
     ///      If a new contract ID is provided, a new contract is initialized; otherwise, it adds to an existing contract.
     /// @param _contractId ID of the contract for which the deposit is made; if zero, a new contract is initialized.
+    /// @param _paymentToken  The address of the payment token for the contractId.
+    /// @param _prepaymentAmount The prepayment amount for the contractId.
     /// @param _deposit Details of the week's deposit.
     function deposit(uint256 _contractId, address _paymentToken, uint256 _prepaymentAmount, Deposit calldata _deposit)
         external
@@ -127,16 +129,16 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         emit Deposited(msg.sender, contractId, contractWeeks[contractId].length - 1, _paymentToken, totalDepositAmount);
     }
 
-    // - If the client initially sets up the contract with only a prepayment, they must subsequently call the `approve` function and transfer the amount approved for the specific service or task.
-    // - If the client does not make a prepayment, they should directly use the `deposit` function, providing all necessary details in the payload and transferring the amount approved for the work, but without including a prepayment.
     /// @notice Approves a deposit by the client.
     /// @dev This function allows the client or owner to approve a submitted deposit, specifying the amount to approve and any additional amount.
     /// @param _contractId ID of the deposit to be approved.
     /// @param _weekId ID of the week within the contract to be approved.
     /// @param _amountApprove Amount to approve for the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
-    function approve(uint256 _contractId, uint256 _weekId, uint256 _amountApprove, address _receiver) external {
-        if (msg.sender != client && msg.sender != owner()) revert Escrow__UnauthorizedAccount(msg.sender);
+    function approve(uint256 _contractId, uint256 _weekId, uint256 _amountApprove, address _receiver)
+        external
+        onlyClient
+    {
         if (_weekId >= contractWeeks[_contractId].length) revert Escrow__InvalidWeekId();
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
@@ -146,21 +148,59 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         if (uint256(C.status) != uint256(Enums.Status.ACTIVE)) revert Escrow__InvalidStatusForApprove();
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
-        if (msg.sender == owner()) {
-            if (C.prepaymentAmount < _amountApprove) {
-                // If the prepayment is less than the amount to approve, use the entire prepayment for the amount to claim.
-                D.amountToClaim += C.prepaymentAmount;
-                C.prepaymentAmount = 0; // All prepayment is used up.
+        // Transfer the specified amount after calculating fees.
+        (uint256 totalAmountApprove, uint256 feeApplied) =
+            _computeDepositAmountAndFee(msg.sender, _amountApprove, D.feeConfig);
+        SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountApprove);
+        D.amountToClaim += _amountApprove;
+
+        C.status = Enums.Status.APPROVED;
+        emit Approved(_contractId, _weekId, _amountApprove, _receiver);
+    }
+
+    /// @notice Approves an existing deposit or creates a new week for approval by the owner/admin.
+    /// @dev This function handles both regular approval within existing weeks and admin-triggered approvals that may need to create a new week.
+    /// @param _contractId ID of the contract for which the approval is happening.
+    /// @param _weekId ID of the week within the contract to be approved, or creates a new one if it does not exist.
+    /// @param _amountApprove Amount to approve or initialize the week with.
+    /// @param _receiver Address of the contractor receiving the approved amount.
+    /// @param _initializeNewWeek If true, will initialize a new week if the specified weekId doesn't exist.
+    function adminApprove(
+        uint256 _contractId,
+        uint256 _weekId,
+        uint256 _amountApprove,
+        address _receiver,
+        bool _initializeNewWeek
+    ) external onlyOwner {
+        if (_weekId >= contractWeeks[_contractId].length) {
+            if (_initializeNewWeek) {
+                // Initialize a new week if it does not exist and the flag is true.
+                uint256 lastIndex = contractWeeks[_contractId].length - 1;
+                Enums.FeeConfig lastFeeConfig = contractWeeks[_contractId][lastIndex].feeConfig;
+                Deposit memory newDeposit = Deposit({
+                    contractor: _receiver,
+                    amountToClaim: 0,
+                    amountToWithdraw: 0,
+                    feeConfig: lastFeeConfig // Using the feeConfig from the most recent week.
+                });
+                contractWeeks[_contractId].push(newDeposit);
             } else {
-                // If sufficient prepayment exists, use only the needed amount and reduce the prepayment balance.
-                C.prepaymentAmount -= _amountApprove;
-                D.amountToClaim += _amountApprove;
+                revert Escrow__InvalidWeekId();
             }
+        }
+
+        if (_amountApprove == 0) revert Escrow__InvalidAmount();
+
+        ContractDetails storage C = contractDetails[_contractId];
+        Deposit storage D = contractWeeks[_contractId][_weekId];
+
+        if (C.prepaymentAmount < _amountApprove) {
+            // If the prepayment is less than the amount to approve, use the entire prepayment for the amount to claim.
+            D.amountToClaim += C.prepaymentAmount;
+            C.prepaymentAmount = 0; // All prepayment is used up.
         } else {
-            // For non-admin approvals, transfer the specified amount after calculating fees.
-            (uint256 totalAmountApprove, uint256 feeApplied) =
-                _computeDepositAmountAndFee(msg.sender, _amountApprove, D.feeConfig);
-            SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountApprove);
+            // If sufficient prepayment exists, use only the needed amount and reduce the prepayment balance.
+            C.prepaymentAmount -= _amountApprove;
             D.amountToClaim += _amountApprove;
         }
 

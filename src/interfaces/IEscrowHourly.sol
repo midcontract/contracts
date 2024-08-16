@@ -19,7 +19,7 @@ interface IEscrowHourly is IEscrow {
     error Escrow__InsufficientPrepayment();
 
     /// @param paymentToken The address of the payment token.
-    /// @param prepaymentAmount The prepayment amount for the week.
+    /// @param prepaymentAmount The prepayment amount for the contract.
     /// @param status The status of the deposit.
     struct ContractDetails {
         address paymentToken;
