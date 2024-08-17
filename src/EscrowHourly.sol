@@ -321,7 +321,10 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
     /// @param _weekId ID of the week for which the return is requested.
     function requestReturn(uint256 _contractId, uint256 _weekId) external onlyClient {
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.ACTIVE) revert Escrow__ReturnNotAllowed();
+        if (C.status != Enums.Status.ACTIVE && C.status != Enums.Status.APPROVED && C.status != Enums.Status.COMPLETED)
+        {
+            revert Escrow__ReturnNotAllowed();
+        }
 
         C.status = Enums.Status.RETURN_REQUESTED;
         emit ReturnRequested(_contractId, _weekId);

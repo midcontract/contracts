@@ -233,7 +233,10 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
     /// @param _contractId ID of the deposit for which the return is requested.
     function requestReturn(uint256 _contractId) external onlyClient {
         Deposit storage D = deposits[_contractId];
-        if (D.status != Enums.Status.ACTIVE && D.status != Enums.Status.SUBMITTED) revert Escrow__ReturnNotAllowed();
+        if (
+            D.status != Enums.Status.ACTIVE && D.status != Enums.Status.SUBMITTED && D.status != Enums.Status.APPROVED
+                && D.status != Enums.Status.COMPLETED
+        ) revert Escrow__ReturnNotAllowed();
 
         D.status = Enums.Status.RETURN_REQUESTED;
         emit ReturnRequested(_contractId);

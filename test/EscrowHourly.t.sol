@@ -1175,7 +1175,7 @@ contract EscrowHourlyUnitTest is Test {
     }
 
     function test_withdraw_reverts_NoFundsAvailableForWithdraw() public {
-        test_requestReturn_whenPending();
+        test_requestReturn_whenActive();
         assertEq(paymentToken.balanceOf(address(client)), 0);
         uint256 currentContractId = escrow.getCurrentContractId();
         (,, Enums.Status _status) = escrow.contractDetails(currentContractId);
@@ -1210,7 +1210,7 @@ contract EscrowHourlyUnitTest is Test {
     //          return request tests          //
     ////////////////////////////////////////////
 
-    function test_requestReturn_whenPending() public {
+    function test_requestReturn_whenActive() public {
         test_deposit_prepayment();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
@@ -1218,6 +1218,41 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
         assertEq(uint256(_status), 0); //Status.ACTIVE
+        vm.prank(client);
+        vm.expectEmit(true, true, true, true);
+        emit ReturnRequested(currentContractId, weekId);
+        escrow.requestReturn(currentContractId, weekId);
+        (_paymentToken, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+    }
+
+    function test_requestReturn_whenApproved() public {
+        test_approve();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 2); //Status.APPROVED
+        vm.prank(client);
+        vm.expectEmit(true, true, true, true);
+        emit ReturnRequested(currentContractId, weekId);
+        escrow.requestReturn(currentContractId, weekId);
+        (_paymentToken, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+    }
+
+    // claim::if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED; // TODO TBC conditions to change the Status
+    function test_requestReturn_whenCompleted() public {
+        test_claim_clientCoversOnly();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 2); //Status.APPROVED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnRequested(currentContractId, weekId);
@@ -1245,7 +1280,7 @@ contract EscrowHourlyUnitTest is Test {
     }
 
     function test_requestReturn_reverts_ReturnNotAllowed() public {
-        test_requestReturn_whenPending();
+        test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (address _contractor,,,) = escrow.contractWeeks(currentContractId, --weekId);
@@ -1262,7 +1297,7 @@ contract EscrowHourlyUnitTest is Test {
     }
 
     function test_approveReturn_by_owner() public {
-        test_requestReturn_whenPending();
+        test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         weekId--;
@@ -1285,7 +1320,7 @@ contract EscrowHourlyUnitTest is Test {
     }
 
     function test_approveReturn_by_contractor() public {
-        test_requestReturn_whenPending();
+        test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         weekId--;
@@ -1308,7 +1343,7 @@ contract EscrowHourlyUnitTest is Test {
     }
 
     function test_approveReturn_reverts_UnauthorizedToApproveReturn() public {
-        test_requestReturn_whenPending();
+        test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         weekId--;
@@ -1342,7 +1377,7 @@ contract EscrowHourlyUnitTest is Test {
     }
 
     function test_cancelReturn() public {
-        test_requestReturn_whenPending();
+        test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         weekId--;
@@ -1359,7 +1394,7 @@ contract EscrowHourlyUnitTest is Test {
     }
 
     function test_cancelReturn_reverts() public {
-        test_requestReturn_whenPending();
+        test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         weekId--;
@@ -1385,7 +1420,7 @@ contract EscrowHourlyUnitTest is Test {
     ////////////////////////////////////////////
 
     function test_createDispute_by_client() public {
-        test_requestReturn_whenPending();
+        test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
@@ -1402,7 +1437,7 @@ contract EscrowHourlyUnitTest is Test {
     }
 
     function test_createDispute_by_contractor() public {
-        test_requestReturn_whenPending();
+        test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
@@ -1437,7 +1472,7 @@ contract EscrowHourlyUnitTest is Test {
     }
 
     function test_createDispute_reverts_UnauthorizedToApproveDispute() public {
-        test_requestReturn_whenPending();
+        test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =

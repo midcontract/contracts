@@ -359,7 +359,10 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271, Ownable {
     /// @param _milestoneId ID of the milestone for which the return is requested.
     function requestReturn(uint256 _contractId, uint256 _milestoneId) external onlyClient {
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
-        if (D.status != Enums.Status.ACTIVE && D.status != Enums.Status.SUBMITTED) revert Escrow__ReturnNotAllowed();
+        if (
+            D.status != Enums.Status.ACTIVE && D.status != Enums.Status.SUBMITTED && D.status != Enums.Status.APPROVED
+                && D.status != Enums.Status.COMPLETED
+        ) revert Escrow__ReturnNotAllowed();
 
         D.status = Enums.Status.RETURN_REQUESTED;
         emit ReturnRequested(_contractId, _milestoneId);
