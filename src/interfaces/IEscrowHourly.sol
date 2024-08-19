@@ -78,6 +78,24 @@ interface IEscrowHourly is IEscrow {
     /// @param amount The claimed amount.
     event Claimed(uint256 indexed contractId, uint256 indexed weekId, uint256 indexed amount);
 
+    /// @notice Emitted when a contractor claims amounts from multiple weeks in one transaction.
+    /// @param contractor The address of the contractor who performed the bulk claim.
+    /// @param contractId The identifier of the contract within which the bulk claim was made.
+    /// @param startWeekId The starting week ID of the range within which the claims were made.
+    /// @param endWeekId The ending week ID of the range within which the claims were made.
+    /// @param totalClaimedAmount The total amount claimed across all weeks in the specified range.
+    /// @param totalFeeAmount The total fee amount deducted from the claims.
+    /// @param totalClientFee The total additional fee paid by the client related to the claims.
+    event BulkClaimed(
+        address indexed contractor,
+        uint256 contractId,
+        uint256 startWeekId,
+        uint256 endWeekId,
+        uint256 totalClaimedAmount,
+        uint256 totalFeeAmount,
+        uint256 totalClientFee
+    );
+
     /// @notice Emitted when a withdrawal is made.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.

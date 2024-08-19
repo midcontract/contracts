@@ -90,6 +90,12 @@ interface IEscrow {
     /// @notice Thrown when an operation is attempted by an account that is currently blacklisted.
     error Escrow__BlacklistedAccount();
 
+    /// @notice Thrown when a specified range is invalid, such as an ending index being less than the starting index.
+    error Escrow__InvalidRange();
+
+    /// @notice Thrown when the specified ID is out of the valid range for the contract.
+    error Escrow__OutOfRange();
+
     /// @notice Emitted when the registry address is updated in the escrow.
     /// @param registry The new registry address.
     event RegistryUpdated(address registry);

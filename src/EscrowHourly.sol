@@ -11,8 +11,6 @@ import {Enums} from "src/libs/Enums.sol";
 import {Ownable} from "src/libs/Ownable.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
-import {console2} from "lib/forge-std/src/console2.sol";
-
 /// @title Deposit management for Escrow Hourly
 /// @notice Manages the creation and addition of multiple weekly beels to escrow contracts.
 /// @dev Handles both the creation of a new escrow contract and the addition of weekly beels to existing contracts.
@@ -278,6 +276,57 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED; // TODO TBC conditions to change the Status
 
         emit Claimed(_contractId, _weekId, claimAmount);
+    }
+
+    /// @notice Allows the contractor to claim for multiple weeks in a specified range if those weeks are approved.
+    /// @dev This function is designed to prevent running out of gas when claiming multiple weeks by limiting the range.
+    /// @param _contractId ID of the contract for which the claim is made.
+    /// @param _startWeekId Starting week ID from which to begin claims.
+    /// @param _endWeekId Ending week ID until which claims are made.
+    function claimAll(uint256 _contractId, uint256 _startWeekId, uint256 _endWeekId) external {
+        if (_startWeekId > _endWeekId) revert Escrow__InvalidRange();
+        if (_endWeekId >= contractWeeks[_contractId].length) revert Escrow__OutOfRange();
+
+        uint256 totalClaimedAmount = 0;
+        uint256 totalFeeAmount = 0;
+        uint256 totalClientFee = 0;
+
+        ContractDetails storage C = contractDetails[_contractId];
+        if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.CANCELED) {
+            revert Escrow__InvalidStatusToClaim();
+        }
+
+        for (uint256 i = _startWeekId; i <= _endWeekId;) {
+            Deposit storage D = contractWeeks[_contractId][i];
+
+            if (D.contractor != msg.sender) continue; // Skip if the caller is not the contractor for the week
+
+            if (D.amountToClaim > 0 && (C.status == Enums.Status.APPROVED || C.status == Enums.Status.COMPLETED)) {
+                (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+                    _computeClaimableAmountAndFee(msg.sender, D.amountToClaim, D.feeConfig);
+
+                D.amountToClaim = 0;
+                totalClaimedAmount += claimAmount;
+                totalFeeAmount += feeAmount;
+                totalClientFee += clientFee;
+            }
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        SafeTransferLib.safeTransfer(C.paymentToken, msg.sender, totalClaimedAmount);
+
+        if (C.status == Enums.Status.CANCELED && totalFeeAmount > 0) {
+            _sendPlatformFee(C.paymentToken, totalFeeAmount);
+        } else if (totalFeeAmount > 0 || totalClientFee > 0) {
+            _sendPlatformFee(C.paymentToken, totalFeeAmount + totalClientFee);
+        }
+
+        emit BulkClaimed(
+            msg.sender, _contractId, _startWeekId, _endWeekId, totalClaimedAmount, totalFeeAmount, totalClientFee
+        );
     }
 
     /// @notice Withdraws funds from a deposit under specific conditions.

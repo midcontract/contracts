@@ -66,6 +66,15 @@ contract EscrowHourlyUnitTest is Test {
     event DisputeResolved(
         uint256 contractId, uint256 weekId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount
     );
+    event BulkClaimed(
+        address indexed contractor,
+        uint256 contractId,
+        uint256 startWeekId,
+        uint256 endWeekId,
+        uint256 totalClaimedAmount,
+        uint256 totalFeeAmount,
+        uint256 totalClientFee
+    );
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -975,6 +984,73 @@ contract EscrowHourlyUnitTest is Test {
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
         escrow.claim(currentContractId, weekId);
+    }
+
+    function test_claimAll() public {
+        test_approve();
+        // uint256 prepaymentAmount = 1.03 ether;
+        uint256 amountToMint = 1.03 ether;
+        uint256 amountApprove = 1 ether;
+
+        assertEq(paymentToken.balanceOf(address(escrow)), amountToMint + amountToMint); //prepaymentAmount+amountToMint=2.06 ether
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        assertEq(weekId, 1);
+
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), amountToMint);
+        paymentToken.approve(address(escrow), amountToMint);
+        escrow.deposit(currentContractId, address(paymentToken), amountApprove, deposit);
+
+        currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 1);
+        weekId = escrow.getWeeksCount(currentContractId);
+        assertEq(weekId, 2);
+        vm.stopPrank();
+
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidStatusToClaim.selector);
+        escrow.claimAll(currentContractId, 1, 1);
+
+        vm.startPrank(address(client));
+        paymentToken.mint(address(client), amountToMint);
+        paymentToken.approve(address(escrow), amountToMint);
+        escrow.approve(currentContractId, 1, amountApprove, contractor);
+        (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, amountApprove);
+        assertEq(uint256(_status), 2); //Status.APPROVED
+        vm.stopPrank();
+
+        assertEq(paymentToken.balanceOf(address(escrow)), amountToMint * 4);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
+
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, amountApprove, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        uint256 startWeekId = 0;
+        uint256 endWeekId = 1;
+        vm.startPrank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidRange.selector);
+        escrow.claimAll(currentContractId, 1, 0);
+        vm.expectRevert(IEscrow.Escrow__OutOfRange.selector);
+        escrow.claimAll(currentContractId, 0, 2);
+        vm.expectEmit(true, true, true, true);
+        emit BulkClaimed(
+            contractor, currentContractId, startWeekId, endWeekId, claimAmount * 2, feeAmount * 2, clientFee * 2
+        );
+        escrow.claimAll(currentContractId, startWeekId, endWeekId);
+        vm.stopPrank();
+
+        assertEq(
+            paymentToken.balanceOf(address(escrow)),
+            (amountToMint * 4) - claimAmount * 2 - feeAmount * 2 - clientFee * 2
+        );
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount * 2);
+        assertEq(paymentToken.balanceOf(address(treasury)), feeAmount * 2 + clientFee * 2);
     }
 
     ///////////////////////////////////////////
