@@ -22,6 +22,8 @@ contract EscrowAdminManagerUnitTest is Test {
         guardian = makeAddr("guardian");
         newAdmin = makeAddr("newAdmin");
         notOwner = makeAddr("notOwner");
+        randomUser = makeAddr("randomUser");
+        pendingOwner = makeAddr("pendingOwner");
         initialOwner = makeAddr("initialOwner");
         adminManager = new EscrowAdminManager(initialOwner);
     }
@@ -117,5 +119,56 @@ contract EscrowAdminManagerUnitTest is Test {
         emit RolesUpdated(newAdmin, 0);
         adminManager.removeStrategist(newAdmin);
         assertFalse(adminManager.isStrategist(newAdmin));
+    }
+
+    function test_transferOwnership() public {
+        address newOwner = makeAddr("newOwner");
+        assertNotEq(adminManager.owner(), newOwner);
+        assertEq(adminManager.owner(), initialOwner);
+
+        vm.prank(randomUser);
+        vm.expectRevert(OwnedRoles.Unauthorized.selector);
+        adminManager.transferOwnership(randomUser);
+
+        vm.prank(initialOwner);
+        adminManager.transferOwnership(newOwner);
+        assertEq(adminManager.owner(), newOwner);
+        assertNotEq(adminManager.owner(), initialOwner);
+    }
+
+    function test_completeOwnershipHandover() public {
+        vm.prank(randomUser);
+        adminManager.requestOwnershipHandover();
+
+        vm.prank(randomUser);
+        vm.expectRevert(OwnedRoles.Unauthorized.selector);
+        adminManager.completeOwnershipHandover(pendingOwner);
+
+        vm.prank(initialOwner);
+        adminManager.cancelOwnershipHandover();
+
+        vm.prank(initialOwner);
+        vm.expectRevert(OwnedRoles.NoHandoverRequest.selector);
+        adminManager.completeOwnershipHandover(pendingOwner);
+
+        assertNotEq(adminManager.owner(), pendingOwner);
+
+        vm.prank(pendingOwner);
+        adminManager.requestOwnershipHandover();
+
+        vm.warp(block.timestamp + 172801); // Fast forward time to simulate handover period
+
+        vm.prank(initialOwner);
+        vm.expectRevert(OwnedRoles.NoHandoverRequest.selector);
+        adminManager.completeOwnershipHandover(pendingOwner);
+
+        vm.prank(pendingOwner);
+        adminManager.requestOwnershipHandover();
+
+        skip(1 days);
+        vm.prank(initialOwner);
+        adminManager.completeOwnershipHandover(pendingOwner);
+        assertEq(adminManager.owner(), pendingOwner);
+        assertNotEq(adminManager.owner(), initialOwner);
     }
 }
