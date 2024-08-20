@@ -4,6 +4,13 @@ out = "out"
 libs = ["lib"]
 gas_reports_ignore = ["test", "script"]
 
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/=lib/openzeppelin-contracts/contracts/",
+    "@solmate/=lib/solmate/src/",
+    "@solbase/=lib/solbase/src/",
+]
+
 solc = "0.8.25"
 optimizer = true
 optimizer_runs = 10000
