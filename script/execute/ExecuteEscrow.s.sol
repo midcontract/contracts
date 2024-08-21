@@ -75,10 +75,10 @@ contract ExecuteEscrowScript is Script {
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
 
-        EscrowRegistry(registry).transferOwnership(newOwner);
-        assert(address(EscrowFixedPrice(escrow).owner()) == deployerPublicKey);
-        EscrowFixedPrice(escrow).transferOwnership(newOwner);
-        assert(address(EscrowFixedPrice(escrow).owner()) == newOwner);
+        // EscrowRegistry(registry).transferOwnership(newOwner);
+        // assert(address(EscrowFixedPrice(escrow).owner()) == deployerPublicKey);
+        // EscrowFixedPrice(escrow).transferOwnership(newOwner);
+        // assert(address(EscrowFixedPrice(escrow).owner()) == newOwner);
 
         assert(address(EscrowFactory(factory).owner()) == deployerPublicKey);
         EscrowFactory(factory).transferOwnership(newOwner);

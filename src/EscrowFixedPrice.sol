@@ -3,22 +3,25 @@ pragma solidity 0.8.25;
 
 import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
+import {IEscrowAdminManager} from "src/interfaces/IEscrowAdminManager.sol";
 import {IEscrowFixedPrice} from "./interfaces/IEscrowFixedPrice.sol";
 import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
 import {IEscrowRegistry} from "./interfaces/IEscrowRegistry.sol";
 import {ECDSA, ERC1271} from "src/libs/ERC1271.sol";
 import {Enums} from "src/libs/Enums.sol";
-import {Ownable} from "src/libs/Ownable.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
 /// @title EscrowFixedPrice Contract
 /// @notice Manages deposits, approvals, submissions, and claims within the escrow system.
-contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
+contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     using ECDSA for bytes32;
 
     /*//////////////////////////////////////////////////////////////
                        CONFIGURATION & STORAGE
     //////////////////////////////////////////////////////////////*/
+
+    /// @dev Address of the adminManager contract.
+    IEscrowAdminManager public adminManager;
 
     /// @dev Address of the registry contract.
     IEscrowRegistry public registry;
@@ -47,18 +50,18 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
 
     /// @notice Initializes the escrow contract.
     /// @param _client Address of the client initiating actions within the escrow.
-    /// @param _owner Address of the owner of the midcontract escrow platform.
+    /// @param _adminManager Address of the adminManager contract of the escrow platform.
     /// @param _registry Address of the registry contract.
-    function initialize(address _client, address _owner, address _registry) external {
+    function initialize(address _client, address _adminManager, address _registry) external {
         if (initialized) revert Escrow__AlreadyInitialized();
 
-        if (_client == address(0) || _owner == address(0) || _registry == address(0)) {
+        if (_client == address(0) || _adminManager == address(0) || _registry == address(0)) {
             revert Escrow__ZeroAddressProvided();
         }
 
         client = _client;
+        adminManager = IEscrowAdminManager(_adminManager);
         registry = IEscrowRegistry(_registry);
-        _initializeOwner(_owner);
 
         initialized = true;
     }
@@ -124,7 +127,9 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
     /// @param _amountApprove Amount to approve for the deposit.
     /// @param _receiver Address of the contractor receiving the approved amount.
     function approve(uint256 _contractId, uint256 _amountApprove, address _receiver) external {
-        if (msg.sender != client && msg.sender != owner()) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (msg.sender != client && !IEscrowAdminManager(adminManager).isAdmin(msg.sender)) {
+            revert Escrow__UnauthorizedAccount(msg.sender);
+        }
 
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
@@ -247,7 +252,9 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
     function approveReturn(uint256 _contractId) external {
         Deposit storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-        if (msg.sender != D.contractor && msg.sender != owner()) revert Escrow__UnauthorizedToApproveReturn();
+        if (msg.sender != D.contractor && !IEscrowAdminManager(adminManager).isAdmin(msg.sender)) {
+            revert Escrow__UnauthorizedToApproveReturn();
+        }
 
         D.amountToWithdraw = D.amount;
 
@@ -291,8 +298,9 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
     /// @param _contractorAmount Amount to be allocated to the contractor if Split or Contractor wins.
     function resolveDispute(uint256 _contractId, Enums.Winner _winner, uint256 _clientAmount, uint256 _contractorAmount)
         external
-        onlyOwner
     {
+        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
+
         Deposit storage D = deposits[_contractId];
         if (D.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
 
@@ -452,7 +460,8 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271, Ownable {
 
     /// @notice Updates the registry address used for fetching escrow implementations.
     /// @param _registry New registry address.
-    function updateRegistry(address _registry) external onlyOwner {
+    function updateRegistry(address _registry) external {
+        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
         if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
         registry = IEscrowRegistry(_registry);
         emit RegistryUpdated(_registry);

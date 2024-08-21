@@ -3,7 +3,8 @@ pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
 
-import {EscrowFixedPrice, IEscrowFixedPrice, Ownable} from "src/EscrowFixedPrice.sol";
+import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
+import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {Enums} from "src/libs/Enums.sol";
@@ -17,6 +18,7 @@ contract EscrowFixedPriceUnitTest is Test {
     ERC20Mock paymentToken;
     ERC20Mock newPaymentToken;
     EscrowFeeManager feeManager;
+    EscrowAdminManager adminManager;
 
     address client;
     address contractor;
@@ -72,6 +74,8 @@ contract EscrowFixedPriceUnitTest is Test {
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
         feeManager = new EscrowFeeManager(3_00, 5_00, owner);
+        adminManager = new EscrowAdminManager(owner);
+
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
         registry.setTreasury(treasury);
@@ -105,9 +109,9 @@ contract EscrowFixedPriceUnitTest is Test {
 
     function test_initialize() public {
         assertFalse(escrow.initialized());
-        escrow.initialize(client, owner, address(registry));
+        escrow.initialize(client, address(adminManager), address(registry));
         assertEq(escrow.client(), client);
-        assertEq(escrow.owner(), owner);
+        assertEq(address(escrow.adminManager()), address(adminManager));
         assertEq(address(escrow.registry()), address(registry));
         assertEq(escrow.getCurrentContractId(), 0);
         assertTrue(escrow.initialized());
@@ -116,17 +120,17 @@ contract EscrowFixedPriceUnitTest is Test {
     function test_initialize_reverts() public {
         assertFalse(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(address(0), owner, address(registry));
+        escrow.initialize(address(0), address(adminManager), address(registry));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.initialize(client, address(0), address(registry));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, owner, address(0));
+        escrow.initialize(client, address(adminManager), address(0));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.initialize(address(0), address(0), address(0));
-        escrow.initialize(client, owner, address(registry));
+        escrow.initialize(client, address(adminManager), address(registry));
         assertTrue(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__AlreadyInitialized.selector);
-        escrow.initialize(client, owner, address(registry));
+        escrow.initialize(client, address(adminManager), address(registry));
     }
 
     ///////////////////////////////////////////
@@ -1203,29 +1207,14 @@ contract EscrowFixedPriceUnitTest is Test {
     //      ownership & management tests      //
     ////////////////////////////////////////////
 
-    function test_transferOwnership() public {
-        test_initialize();
-        assertEq(escrow.owner(), owner);
-        address notOwner = makeAddr("notOwner");
-        vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
-        escrow.transferOwnership(notOwner);
-        vm.startPrank(owner); //current owner
-        vm.expectRevert(Ownable.NewOwnerIsZeroAddress.selector);
-        escrow.transferOwnership(address(0));
-        address newOwner = makeAddr("newOwner");
-        vm.expectEmit(true, false, false, true);
-        emit OwnershipTransferred(owner, newOwner);
-        escrow.transferOwnership(newOwner);
-        vm.stopPrank();
-    }
-
     function test_updateRegistry() public {
         test_initialize();
         assertEq(address(escrow.registry()), address(registry));
         address notOwner = makeAddr("notOwner");
+        bytes memory expectedRevertData =
+            abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(notOwner));
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(expectedRevertData);
         escrow.updateRegistry(address(registry));
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);

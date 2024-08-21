@@ -3,23 +3,26 @@ pragma solidity 0.8.25;
 
 import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
+import {IEscrowAdminManager} from "src/interfaces/IEscrowAdminManager.sol";
 import {IEscrowHourly} from "./interfaces/IEscrowHourly.sol";
 import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
 import {IEscrowRegistry} from "./interfaces/IEscrowRegistry.sol";
 import {ECDSA, ERC1271} from "src/libs/ERC1271.sol";
 import {Enums} from "src/libs/Enums.sol";
-import {Ownable} from "src/libs/Ownable.sol";
 import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
 
 /// @title Deposit management for Escrow Hourly
 /// @notice Manages the creation and addition of multiple weekly beels to escrow contracts.
 /// @dev Handles both the creation of a new escrow contract and the addition of weekly beels to existing contracts.
-contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
+contract EscrowHourly is IEscrowHourly, ERC1271 {
     using ECDSA for bytes32;
 
     /*//////////////////////////////////////////////////////////////
                        CONFIGURATION & STORAGE
     //////////////////////////////////////////////////////////////*/
+
+    /// @dev Address of the adminManager contract.
+    IEscrowAdminManager public adminManager;
 
     /// @dev Address of the registry contract.
     IEscrowRegistry public registry;
@@ -51,18 +54,18 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
 
     /// @notice Initializes the escrow contract.
     /// @param _client Address of the client initiating actions within the escrow.
-    /// @param _owner Address of the owner of the midcontract escrow platform.
+    /// @param _adminManager Address of the adminManager contract of the escrow platform.
     /// @param _registry Address of the registry contract.
-    function initialize(address _client, address _owner, address _registry) external {
+    function initialize(address _client, address _adminManager, address _registry) external {
         if (initialized) revert Escrow__AlreadyInitialized();
 
-        if (_client == address(0) || _owner == address(0) || _registry == address(0)) {
+        if (_client == address(0) || _adminManager == address(0) || _registry == address(0)) {
             revert Escrow__ZeroAddressProvided();
         }
 
         client = _client;
+        adminManager = IEscrowAdminManager(_adminManager);
         registry = IEscrowRegistry(_registry);
-        _initializeOwner(_owner);
 
         initialized = true;
     }
@@ -169,7 +172,9 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         uint256 _amountApprove,
         address _receiver,
         bool _initializeNewWeek
-    ) external onlyOwner {
+    ) external {
+        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
+
         if (_weekId >= contractWeeks[_contractId].length) {
             if (_initializeNewWeek) {
                 // Initialize a new week if it does not exist and the flag is true.
@@ -387,7 +392,9 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         if (C.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
 
         Deposit storage D = contractWeeks[_contractId][_weekId];
-        if (msg.sender != D.contractor && msg.sender != owner()) revert Escrow__UnauthorizedToApproveReturn();
+        if (msg.sender != D.contractor && !IEscrowAdminManager(adminManager).isAdmin(msg.sender)) {
+            revert Escrow__UnauthorizedToApproveReturn();
+        }
 
         D.amountToWithdraw = C.prepaymentAmount;
         C.status = Enums.Status.REFUND_APPROVED;
@@ -438,7 +445,9 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
         Enums.Winner _winner,
         uint256 _clientAmount,
         uint256 _contractorAmount
-    ) external onlyOwner {
+    ) external {
+        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
+
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
 
@@ -591,7 +600,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271, Ownable {
 
     /// @notice Updates the registry address used for fetching escrow implementations.
     /// @param _registry New registry address.
-    function updateRegistry(address _registry) external onlyOwner {
+    function updateRegistry(address _registry) external {
+        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
         if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
         registry = IEscrowRegistry(_registry);
         emit RegistryUpdated(_registry);

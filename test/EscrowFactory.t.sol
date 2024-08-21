@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
 
+import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
 import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
 import {EscrowFactory, IEscrowFactory, Ownable, Pausable} from "src/EscrowFactory.sol";
@@ -18,6 +19,7 @@ contract EscrowFactoryUnitTest is Test {
     ERC20Mock paymentToken;
     EscrowFeeManager feeManager;
     EscrowMilestone escrowMilestone;
+    EscrowAdminManager adminManager;
 
     address client;
     address contractor;
@@ -60,6 +62,8 @@ contract EscrowFactoryUnitTest is Test {
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
         feeManager = new EscrowFeeManager(3_00, 5_00, owner);
+        adminManager = new EscrowAdminManager(owner);
+
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
         registry.updateEscrowFixedPrice(address(escrow));
@@ -113,11 +117,11 @@ contract EscrowFactoryUnitTest is Test {
         vm.startPrank(client);
         vm.expectEmit(true, true, false, false);
         emit EscrowProxyDeployed(client, deployedEscrowProxy, escrowType);
-        deployedEscrowProxy = factory.deployEscrow(escrowType, client, owner, address(registry));
+        deployedEscrowProxy = factory.deployEscrow(escrowType, client, address(adminManager), address(registry));
         vm.stopPrank();
         EscrowFixedPrice escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
         assertEq(escrowProxy.client(), client);
-        assertEq(escrowProxy.owner(), owner);
+        assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
         assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
@@ -128,10 +132,10 @@ contract EscrowFactoryUnitTest is Test {
     function test_deploy_and_deposit() public returns (EscrowFixedPrice escrowProxy) {
         vm.startPrank(client);
         // 1. deploy
-        address deployedEscrowProxy = factory.deployEscrow(escrowType, client, owner, address(registry));
+        address deployedEscrowProxy = factory.deployEscrow(escrowType, client, address(adminManager), address(registry));
         escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
         assertEq(escrowProxy.client(), client);
-        assertEq(escrowProxy.owner(), owner);
+        assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
         assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
@@ -225,7 +229,7 @@ contract EscrowFactoryUnitTest is Test {
         address deployedEscrowProxy = test_deployEscrow();
         EscrowFixedPrice escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
         assertEq(escrowProxy.client(), client);
-        assertEq(escrowProxy.owner(), owner);
+        assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
         assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
@@ -233,10 +237,11 @@ contract EscrowFactoryUnitTest is Test {
         assertTrue(factory.existingEscrow(address(escrowProxy)));
 
         vm.startPrank(client);
-        address deployedEscrowProxy2 = factory.deployEscrow(escrowType, client, owner, address(registry));
+        address deployedEscrowProxy2 =
+            factory.deployEscrow(escrowType, client, address(adminManager), address(registry));
         EscrowFixedPrice escrowProxy2 = EscrowFixedPrice(address(deployedEscrowProxy2));
         assertEq(escrowProxy2.client(), client);
-        assertEq(escrowProxy2.owner(), owner);
+        assertEq(address(escrowProxy2.adminManager()), address(adminManager));
         assertEq(address(escrowProxy2.registry()), address(registry));
         assertEq(escrowProxy2.getCurrentContractId(), 0);
         assertTrue(escrowProxy2.initialized());
@@ -271,11 +276,11 @@ contract EscrowFactoryUnitTest is Test {
         vm.startPrank(client);
         vm.expectEmit(true, true, false, false);
         emit EscrowProxyDeployed(client, deployedEscrowProxy, escrowType);
-        deployedEscrowProxy = factory.deployEscrow(escrowType, client, owner, address(registry));
+        deployedEscrowProxy = factory.deployEscrow(escrowType, client, address(adminManager), address(registry));
 
         EscrowMilestone escrowProxy = EscrowMilestone(address(deployedEscrowProxy));
         assertEq(escrowProxy.client(), client);
-        assertEq(escrowProxy.owner(), owner);
+        assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
         assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());

@@ -3,7 +3,8 @@ pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
 
-import {EscrowMilestone, IEscrowMilestone, Ownable} from "src/EscrowMilestone.sol";
+import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
+import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {Enums} from "src/libs/Enums.sol";
@@ -17,6 +18,7 @@ contract EscrowMilestoneUnitTest is Test {
     ERC20Mock paymentToken;
     ERC20Mock newPaymentToken;
     EscrowFeeManager feeManager;
+    EscrowAdminManager adminManager;
 
     address client;
     address contractor;
@@ -82,6 +84,8 @@ contract EscrowMilestoneUnitTest is Test {
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
         feeManager = new EscrowFeeManager(3_00, 5_00, owner);
+        adminManager = new EscrowAdminManager(owner);
+
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
         registry.setTreasury(treasury);
@@ -117,9 +121,9 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_initialize() public {
         assertFalse(escrow.initialized());
-        escrow.initialize(client, owner, address(registry));
+        escrow.initialize(client, address(adminManager), address(registry));
         assertEq(escrow.client(), client);
-        assertEq(escrow.owner(), owner);
+        assertEq(address(escrow.adminManager()), address(adminManager));
         assertEq(address(escrow.registry()), address(registry));
         assertEq(escrow.getCurrentContractId(), 0);
         assertTrue(escrow.initialized());
@@ -128,17 +132,17 @@ contract EscrowMilestoneUnitTest is Test {
     function test_initialize_reverts() public {
         assertFalse(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(address(0), owner, address(registry));
+        escrow.initialize(address(0), address(adminManager), address(registry));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.initialize(client, address(0), address(registry));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, owner, address(0));
+        escrow.initialize(client, address(adminManager), address(0));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.initialize(address(0), address(0), address(0));
-        escrow.initialize(client, owner, address(registry));
+        escrow.initialize(client, address(adminManager), address(registry));
         assertTrue(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__AlreadyInitialized.selector);
-        escrow.initialize(client, owner, address(registry));
+        escrow.initialize(client, address(adminManager), address(registry));
     }
 
     // Helpers
@@ -609,7 +613,7 @@ contract EscrowMilestoneUnitTest is Test {
         vm.stopPrank();
     }
 
-    function test_approve_byOwner() public {
+    function test_approve_by_admin() public {
         test_submit();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
@@ -623,6 +627,34 @@ contract EscrowMilestoneUnitTest is Test {
 
         uint256 amountApprove = 1 ether;
         vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit Approved(currentContractId, milestoneId, amountApprove, contractor);
+        escrow.approve(currentContractId, milestoneId, amountApprove, contractor);
+        (_contractor, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, amountApprove);
+        assertEq(uint256(_status), 2); //Status.APPROVED
+        vm.stopPrank();
+    }
+
+    function test_approve_by_new_admin() public {
+        test_submit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
+        milestoneId--;
+        (address _contractor, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        address newAdmin = makeAddr("newAdmin");
+        vm.prank(owner);
+        adminManager.addAdmin(newAdmin);
+
+        uint256 amountApprove = 1 ether;
+        vm.startPrank(newAdmin);
         vm.expectEmit(true, true, true, true);
         emit Approved(currentContractId, milestoneId, amountApprove, contractor);
         escrow.approve(currentContractId, milestoneId, amountApprove, contractor);

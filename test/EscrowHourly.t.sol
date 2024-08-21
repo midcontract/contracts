@@ -3,7 +3,8 @@ pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
 
-import {EscrowHourly, IEscrowHourly, Ownable} from "src/EscrowHourly.sol";
+import {EscrowHourly, IEscrowHourly} from "src/EscrowHourly.sol";
+import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {Enums} from "src/libs/Enums.sol";
@@ -17,6 +18,7 @@ contract EscrowHourlyUnitTest is Test {
     ERC20Mock paymentToken;
     ERC20Mock newPaymentToken;
     EscrowFeeManager feeManager;
+    EscrowAdminManager adminManager;
 
     address client;
     address contractor;
@@ -86,6 +88,8 @@ contract EscrowHourlyUnitTest is Test {
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
         feeManager = new EscrowFeeManager(3_00, 5_00, owner);
+        adminManager = new EscrowAdminManager(owner);
+
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
         registry.setTreasury(treasury);
@@ -121,9 +125,9 @@ contract EscrowHourlyUnitTest is Test {
 
     function test_initialize() public {
         assertFalse(escrow.initialized());
-        escrow.initialize(client, owner, address(registry));
+        escrow.initialize(client, address(adminManager), address(registry));
         assertEq(escrow.client(), client);
-        assertEq(escrow.owner(), owner);
+        assertEq(address(escrow.adminManager()), address(adminManager));
         assertEq(address(escrow.registry()), address(registry));
         assertEq(escrow.getCurrentContractId(), 0);
         assertTrue(escrow.initialized());
@@ -132,17 +136,17 @@ contract EscrowHourlyUnitTest is Test {
     function test_initialize_reverts() public {
         assertFalse(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(address(0), owner, address(registry));
+        escrow.initialize(address(0), address(adminManager), address(registry));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.initialize(client, address(0), address(registry));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, owner, address(0));
+        escrow.initialize(client, address(adminManager), address(0));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.initialize(address(0), address(0), address(0));
-        escrow.initialize(client, owner, address(registry));
+        escrow.initialize(client, address(adminManager), address(registry));
         assertTrue(escrow.initialized());
         vm.expectRevert(IEscrow.Escrow__AlreadyInitialized.selector);
-        escrow.initialize(client, owner, address(registry));
+        escrow.initialize(client, address(adminManager), address(registry));
     }
 
     // Helpers
@@ -152,8 +156,8 @@ contract EscrowHourlyUnitTest is Test {
         returns (uint256 totalDepositAmount, uint256 feeApplied)
     {
         address feeManagerAddress = registry.feeManager();
-        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
-        (totalDepositAmount, feeApplied) = feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
+        IEscrowFeeManager _feeManager = IEscrowFeeManager(feeManagerAddress);
+        (totalDepositAmount, feeApplied) = _feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
 
         return (totalDepositAmount, feeApplied);
     }
@@ -164,9 +168,9 @@ contract EscrowHourlyUnitTest is Test {
         returns (uint256 claimAmount, uint256 feeAmount, uint256 clientFee)
     {
         address feeManagerAddress = registry.feeManager();
-        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
+        IEscrowFeeManager _feeManager = IEscrowFeeManager(feeManagerAddress);
         (claimAmount, feeAmount, clientFee) =
-            feeManager.computeClaimableAmountAndFee(_contractor, _claimAmount, _feeConfig);
+            _feeManager.computeClaimableAmountAndFee(_contractor, _claimAmount, _feeConfig);
 
         return (claimAmount, feeAmount, clientFee);
     }
@@ -323,7 +327,7 @@ contract EscrowHourlyUnitTest is Test {
 
         (uint256 totalDepositAmount,) =
             _computeDepositAndFeeAmount(client, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY);
-        assertEq(paymentToken.balanceOf(address(escrow)), 1.03 ether);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.03 ether
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         assertEq(escrow.getWeeksCount(currentContractId), 1);
@@ -349,7 +353,7 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(uint256(_status), 0); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
+        (address _contractor, uint256 _amountToClaim,, Enums.FeeConfig _feeConfig) =
             escrow.contractWeeks(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
