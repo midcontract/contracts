@@ -3,9 +3,9 @@ pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
 
-import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
-
-import {EscrowAccountRecovery, Ownable} from "src/modules/EscrowAccountRecovery.sol";
+import {ERC20Mock} from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import {EscrowAccountRecovery} from "src/modules/EscrowAccountRecovery.sol";
+import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
 import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
 import {EscrowHourly, IEscrowHourly} from "src/EscrowHourly.sol";
@@ -22,6 +22,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     EscrowRegistry registry;
     ERC20Mock paymentToken;
     EscrowFeeManager feeManager;
+    EscrowAdminManager adminManager;
 
     address owner;
     address guardian;
@@ -61,7 +62,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
         new_client = makeAddr("new_client");
         new_contractor = makeAddr("new_contractor");
 
-        recovery = new EscrowAccountRecovery(owner, guardian);
+        adminManager = new EscrowAdminManager(owner);
+        recovery = new EscrowAccountRecovery(address(adminManager));
         escrow = new EscrowFixedPrice();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
@@ -73,6 +75,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         registry.addPaymentToken(address(paymentToken));
         registry.setTreasury(treasury);
         registry.updateFeeManager(address(feeManager));
+        adminManager.addGuardian(guardian);
         vm.stopPrank();
 
         contractData = bytes("contract_data");
@@ -93,15 +96,14 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_setUpState() public view {
         assertTrue(address(recovery).code.length > 0);
-        assertEq(recovery.owner(), address(owner));
-        assertEq(recovery.guardian(), address(guardian));
+        assertEq(address(recovery.adminManager()), address(adminManager));
         assertEq(recovery.MIN_RECOVERY_PERIOD(), 3 days);
     }
 
     // helpers
     function initializeEscrowFixedPrice() public {
         assertFalse(escrow.initialized());
-        escrow.initialize(client, owner, address(registry));
+        escrow.initialize(client, address(adminManager), address(registry));
         assertTrue(escrow.initialized());
         uint256 depositAmount = 1.03 ether;
         vm.startPrank(address(client));
@@ -124,7 +126,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
             })
         );
         assertFalse(escrowMilestone.initialized());
-        escrowMilestone.initialize(client, owner, address(registry));
+        escrowMilestone.initialize(client, address(adminManager), address(registry));
         assertTrue(escrowMilestone.initialized());
 
         uint256 depositAmount = 1.03 ether;
@@ -149,7 +151,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         });
 
         assertFalse(escrowHourly.initialized());
-        escrowHourly.initialize(client, owner, address(registry));
+        escrowHourly.initialize(client, address(adminManager), address(registry));
         assertTrue(escrowHourly.initialized());
 
         uint256 depositAmount = 1 ether;
@@ -543,29 +545,11 @@ contract EscrowAccountRecoveryUnitTest is Test {
         recovery.executeRecovery(accountType, address(escrowHourly), contractor);
     }
 
-    function test_updateGuardian() public {
-        assertEq(recovery.guardian(), guardian);
-        address notGuardian = makeAddr("notGuardian");
-        vm.prank(notGuardian);
-        vm.expectRevert(EscrowAccountRecovery.InvalidGuardian.selector);
-        recovery.updateGuardian(notGuardian);
-        assertEq(recovery.guardian(), guardian);
-        address newGuardian = makeAddr("newGuardian");
-        vm.startPrank(guardian);
-        vm.expectRevert(EscrowAccountRecovery.ZeroAddressProvided.selector);
-        recovery.updateGuardian(address(0));
-        vm.expectEmit(true, true, true, true);
-        emit GuardianUpdated(newGuardian);
-        recovery.updateGuardian(newGuardian);
-        assertEq(recovery.guardian(), newGuardian);
-        vm.stopPrank();
-    }
-
     function test_updateRecoveryPeriod() public {
         assertEq(recovery.recoveryPeriod(), 3 days);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(EscrowAccountRecovery.UnauthorizedAccount.selector);
         recovery.updateRecoveryPeriod(7 days);
         vm.startPrank(owner);
         vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodTooSmall.selector);

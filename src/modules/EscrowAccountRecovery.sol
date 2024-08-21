@@ -2,24 +2,24 @@
 pragma solidity 0.8.25;
 
 import {IEscrow} from "src/interfaces/IEscrow.sol";
+import {IEscrowAdminManager} from "src/interfaces/IEscrowAdminManager.sol";
 import {IEscrowFixedPrice} from "src/interfaces/IEscrowFixedPrice.sol";
 import {IEscrowMilestone} from "src/interfaces/IEscrowMilestone.sol";
 import {IEscrowHourly} from "src/interfaces/IEscrowHourly.sol";
 import {Enums} from "src/libs/Enums.sol";
-import {Ownable} from "../libs/Ownable.sol";
 
 /// @title Escrow Account Recovery
 /// @notice Provides mechanisms for recovering access to the client or contractor accounts
 /// in an escrow contract in case of lost credentials, using a guardian-based recovery process.
-contract EscrowAccountRecovery is Ownable {
+contract EscrowAccountRecovery {
+    /// @dev Address of the adminManager contract.
+    IEscrowAdminManager public adminManager;
+
     /// @dev Recovery period after which recovery can be executed.
     uint256 public constant MIN_RECOVERY_PERIOD = 3 days;
 
     /// @dev Configurable recovery period initialized to the minimum allowed.
     uint256 public recoveryPeriod;
-
-    /// @notice Guardian's address authorized to initiate recovery processes.
-    address public guardian;
 
     /// @notice Data structure to store recovery-related information.
     struct RecoveryData {
@@ -44,8 +44,6 @@ contract EscrowAccountRecovery is Ownable {
     /// @dev Mapping of recovery hashes to their corresponding data.
     mapping(bytes32 recoveryHash => RecoveryData) public recoveryData;
 
-    /// @dev Custom error for invalid guardian operation attempts.
-    error InvalidGuardian();
     /// @dev Custom error for zero address usage where prohibited.
     error ZeroAddressProvided();
     /// @dev Custom error when trying to execute an already executed recovery.
@@ -65,23 +63,13 @@ contract EscrowAccountRecovery is Ownable {
     event RecoveryExecuted(address indexed sender, bytes32 indexed recoveryHash);
     /// @dev Emitted when a recovery is canceled.
     event RecoveryCanceled(address indexed sender, bytes32 indexed recoveryHash);
-    /// @dev Emitted when the guardian address is updated.
-    event GuardianUpdated(address guardian);
     /// @dev Emitted when the recovery period is updated to a new value.
     event RecoveryPeriodUpdated(uint256 recoveryPeriod);
 
-    /// @dev Modifier to restrict functions to the guardian address.
-    modifier onlyGuardian() {
-        if (msg.sender != guardian) revert InvalidGuardian();
-        _;
-    }
-
     /// @dev Initializes the contract with the owner and guardian addresses.
-    /// @param _owner Address of the initial owner of the account recovery contract.
-    /// @param _guardian Initial guardian authorized to manage recoveries.
-    constructor(address _owner, address _guardian) {
-        _initializeOwner(_owner);
-        _updateGuardian(_guardian);
+    /// @param _adminManager Address of the adminManager contract of the escrow platform.
+    constructor(address _adminManager) {
+        adminManager = IEscrowAdminManager(_adminManager);
         recoveryPeriod = MIN_RECOVERY_PERIOD;
     }
 
@@ -99,7 +87,9 @@ contract EscrowAccountRecovery is Ownable {
         address _oldAccount,
         address _newAccount,
         Enums.EscrowType _escrowType
-    ) external onlyGuardian {
+    ) external {
+        if (!IEscrowAdminManager(adminManager).isGuardian(msg.sender)) revert UnauthorizedAccount();
+
         bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, _newAccount);
         RecoveryData storage data = recoveryData[recoveryHash];
         if (data.executed) revert RecoveryAlreadyExecuted();
@@ -154,7 +144,7 @@ contract EscrowAccountRecovery is Ownable {
     function cancelRecovery(bytes32 _recoveryHash) external {
         RecoveryData storage data = recoveryData[_recoveryHash];
         if (msg.sender != data.account) revert UnauthorizedAccount();
-        if (data.executeAfter == 0) revert RecoveryNotConfirmed(); // there could be several recovery processess, so executeAfter should be for particular recoveryHash
+        if (data.executeAfter == 0) revert RecoveryNotConfirmed();
 
         data.executed = true;
         data.executeAfter = 0;
@@ -175,14 +165,6 @@ contract EscrowAccountRecovery is Ownable {
         return keccak256(abi.encodePacked(_escrow, _oldAccount, _newAccount));
     }
 
-    /// @notice Updates the guardian address responsible for initiating recoveries.
-    /// @param _guardian New guardian address.
-    function _updateGuardian(address _guardian) internal {
-        if (_guardian == address(0)) revert ZeroAddressProvided();
-        guardian = _guardian;
-        emit GuardianUpdated(_guardian);
-    }
-
     /// @dev Generates the recovery hash that should be signed by the guardian to initiate a recovery.
     /// @param _oldAccount Address of the user being replaced.
     /// @param _newAccount Address of the new user.
@@ -195,16 +177,11 @@ contract EscrowAccountRecovery is Ownable {
         return _encodeRecoveryHash(_escrow, _oldAccount, _newAccount);
     }
 
-    /// @notice Allows the guardian to update to a new guardian address.
-    /// @param _guardian The new guardian's address.
-    function updateGuardian(address _guardian) external onlyGuardian {
-        _updateGuardian(_guardian);
-    }
-
     /// @notice Updates the recovery period to a new value, ensuring it meets minimum requirements.
     /// @dev Can only be called by the owner of the contract.
     /// @param _recoveryPeriod The new recovery period in seconds.
-    function updateRecoveryPeriod(uint256 _recoveryPeriod) external onlyOwner {
+    function updateRecoveryPeriod(uint256 _recoveryPeriod) external {
+        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert UnauthorizedAccount();
         if (_recoveryPeriod == 0 || _recoveryPeriod < MIN_RECOVERY_PERIOD) {
             revert RecoveryPeriodTooSmall();
         }
