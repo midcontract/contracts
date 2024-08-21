@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
 
-import {EscrowFeeManager, IEscrowFeeManager, Ownable} from "src/modules/EscrowFeeManager.sol";
+import {EscrowFeeManager, IEscrowFeeManager, OwnedThreeStep} from "src/modules/EscrowFeeManager.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {MockEscrowFeeManager} from "test/mocks/MockEscrowFeeManager.sol";
 
@@ -38,7 +38,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(claim, 5_00);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         feeManager.updateDefaultFees(0, 10_00);
         vm.startPrank(address(owner)); //current owner
         vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
@@ -64,7 +64,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(claim, 0);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         feeManager.setSpecialFees(client, 2_00, 3_50);
         vm.startPrank(address(owner)); //current owner
         vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);

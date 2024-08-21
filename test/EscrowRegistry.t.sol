@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
-import {EscrowFactory, Ownable} from "src/EscrowFactory.sol";
+import {EscrowFactory, OwnedThreeStep} from "src/EscrowFactory.sol";
 import {EscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
 
@@ -23,6 +23,7 @@ contract EscrowRegistryUnitTest is Test {
 
     event PaymentTokenAdded(address token);
     event PaymentTokenRemoved(address token);
+    event OwnerUpdateInitiated(address indexed user, address indexed ownerCandidate);
     event OwnershipTransferred(address indexed user, address indexed newOwner);
     event EscrowUpdated(address escrow);
     event FactoryUpdated(address factory);
@@ -54,7 +55,7 @@ contract EscrowRegistryUnitTest is Test {
         assertFalse(registry.paymentTokens(address(paymentToken)));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.addPaymentToken(address(paymentToken));
         assertFalse(registry.paymentTokens(address(paymentToken)));
         vm.startPrank(address(owner)); //current owner
@@ -74,7 +75,7 @@ contract EscrowRegistryUnitTest is Test {
         test_addPaymentToken();
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.removePaymentToken(address(paymentToken));
         assertTrue(registry.paymentTokens(address(paymentToken)));
         vm.startPrank(address(owner)); //current owner
@@ -88,28 +89,67 @@ contract EscrowRegistryUnitTest is Test {
     }
 
     function test_transferOwnership() public {
+        // Ensure the initial owner is correctly set
         assertEq(registry.owner(), address(owner));
+
+        // Create addresses for notOwner and newOwner
         address notOwner = makeAddr("notOwner");
-        vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
-        registry.transferOwnership(notOwner);
-        assertEq(registry.owner(), address(owner));
         address newOwner = makeAddr("newOwner");
-        vm.startPrank(address(owner)); //current owner
-        vm.expectRevert(Ownable.NewOwnerIsZeroAddress.selector);
-        registry.transferOwnership(address(0));
-        vm.expectEmit(true, false, false, true);
-        emit OwnershipTransferred(address(owner), newOwner);
+
+        // Try to transfer ownership from an unauthorized address (should revert)
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        registry.transferOwnership(notOwner);
+
+        // Try to confirm ownership from the foundation before initiating (should revert)
+        vm.prank(owner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        registry.confirmOwner();
+
+        // Initiate ownership transfer from the foundation
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit OwnerUpdateInitiated(owner, newOwner);
         registry.transferOwnership(newOwner);
+
+        // Try to confirm ownership from a non-candidate address (should revert)
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        registry.confirmOwner();
+
+        // Confirm ownership transfer from the new owner (first step)
+        vm.prank(newOwner);
+        registry.confirmOwner();
+
+        // Try to confirm ownership from the new owner again (should revert as it's not confirmed by owner yet)
+        vm.prank(newOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        registry.confirmOwner();
+
+        // Confirm ownership transfer from the owner (second step)
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(owner, newOwner);
+        registry.confirmOwner();
+
+        // Ensure the new owner is correctly set
         assertEq(registry.owner(), newOwner);
-        vm.stopPrank();
+
+        // Ensure renounce ownership functionality works
+        vm.prank(newOwner);
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(newOwner, address(0));
+        registry.renounceOwner();
+
+        // Ensure ownership is now renounced
+        assertEq(registry.owner(), address(0));
     }
 
     function test_updateEscrowFixedPrice() public {
         assertEq(registry.escrowFixedPrice(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.updateEscrowFixedPrice(address(escrow));
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
@@ -126,7 +166,7 @@ contract EscrowRegistryUnitTest is Test {
         assertEq(registry.escrowMilestone(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.updateEscrowMilestone(address(escrow));
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
@@ -143,7 +183,7 @@ contract EscrowRegistryUnitTest is Test {
         assertEq(registry.escrowHourly(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.updateEscrowHourly(address(escrow));
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
@@ -160,7 +200,7 @@ contract EscrowRegistryUnitTest is Test {
         assertEq(registry.factory(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.updateFactory(address(factory));
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
@@ -177,7 +217,7 @@ contract EscrowRegistryUnitTest is Test {
         assertEq(registry.treasury(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.setTreasury(address(treasury));
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
@@ -194,7 +234,7 @@ contract EscrowRegistryUnitTest is Test {
         assertEq(registry.feeManager(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.updateFeeManager(address(feeManager));
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
@@ -211,7 +251,7 @@ contract EscrowRegistryUnitTest is Test {
         assertEq(registry.accountRecovery(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.setAccountRecovery(address(accountRecovery));
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
@@ -229,7 +269,7 @@ contract EscrowRegistryUnitTest is Test {
         assertFalse(registry.blacklist(malicious_user));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.addToBlacklist(owner);
         assertFalse(registry.blacklist(owner));
         vm.startPrank(address(owner));
@@ -249,7 +289,7 @@ contract EscrowRegistryUnitTest is Test {
         assertTrue(registry.blacklist(malicious_user));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.removeFromBlacklist(malicious_user);
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);

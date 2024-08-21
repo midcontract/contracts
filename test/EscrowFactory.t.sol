@@ -4,13 +4,13 @@ pragma solidity 0.8.25;
 import "forge-std/Test.sol";
 
 import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
+import {EscrowFactory, IEscrowFactory, OwnedThreeStep, Pausable} from "src/EscrowFactory.sol";
+import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
-import {EscrowFactory, IEscrowFactory, Ownable, Pausable} from "src/EscrowFactory.sol";
-import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
-import {Enums} from "src/libs/Enums.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
-import {ERC20Mock} from "lib/openzeppelin-contracts/contracts/mocks/token/ERC20Mock.sol";
+import {ERC20Mock} from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import {Enums} from "src/libs/Enums.sol";
 
 contract EscrowFactoryUnitTest is Test {
     EscrowFactory factory;
@@ -255,7 +255,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(address(factory.registry()), address(registry));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         factory.updateRegistry(address(registry));
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
@@ -338,7 +338,7 @@ contract EscrowFactoryUnitTest is Test {
         assertFalse(factory.paused());
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         factory.pause();
         assertFalse(factory.paused());
         vm.startPrank(client);
@@ -355,7 +355,7 @@ contract EscrowFactoryUnitTest is Test {
         assertTrue(address(deployedEscrowProxy2).code.length == 0);
         vm.stopPrank();
         vm.prank(notOwner);
-        vm.expectRevert(Ownable.Unauthorized.selector);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         factory.unpause();
         vm.prank(address(owner));
         vm.expectEmit(true, false, false, true);

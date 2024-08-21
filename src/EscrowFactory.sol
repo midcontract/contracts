@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+import {OwnedThreeStep} from "@solbase/auth/OwnedThreeStep.sol";
+
 import {EscrowFixedPrice} from "./EscrowFixedPrice.sol";
 import {IEscrowFactory} from "./interfaces/IEscrowFactory.sol";
 import {IEscrowRegistry} from "./interfaces/IEscrowRegistry.sol";
 import {Enums} from "./libs/Enums.sol";
 import {LibClone} from "./libs/LibClone.sol";
-import {Ownable} from "./libs/Ownable.sol";
 import {Pausable} from "./libs/Pausable.sol";
 
 /// @title EscrowFixedPrice Factory Contract
 /// @dev This contract is used for creating new escrow contract instances using the clone factory pattern.
-contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
+contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
     /// @notice EscrowRegistry contract address storing escrow templates and configurations.
     IEscrowRegistry public registry;
 
@@ -24,12 +25,11 @@ contract EscrowFactory is IEscrowFactory, Ownable, Pausable {
     /// @dev Sets the initial registry used for cloning escrow contracts.
     /// @param _registry Address of the registry contract.
     /// @param _owner Address of the initial owner of the factory contract.
-    constructor(address _registry, address _owner) {
+    constructor(address _registry, address _owner) OwnedThreeStep(_owner) {
         if (_registry == address(0)) {
             revert Factory__ZeroAddressProvided();
         }
         registry = IEscrowRegistry(_registry);
-        _initializeOwner(_owner);
     }
 
     /// @notice Deploys a new escrow contract clone with unique settings for each project.

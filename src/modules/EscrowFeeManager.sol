@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+import {OwnedThreeStep} from "@solbase/auth/OwnedThreeStep.sol";
 import {IEscrowFeeManager} from "../interfaces/IEscrowFeeManager.sol";
-import {Ownable} from "../libs/Ownable.sol";
-import {Enums} from "src/libs/Enums.sol";
+import {Enums} from "../libs/Enums.sol";
 
 /// @title Escrow Fee Manager
 /// @notice Manages fee rates and calculations for escrow transactions.
-contract EscrowFeeManager is IEscrowFeeManager, Ownable {
+contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @notice The maximum allowable percentage in basis points (100%).
     uint256 public constant MAX_BPS = 100_00; // 100%
 
@@ -27,9 +27,8 @@ contract EscrowFeeManager is IEscrowFeeManager, Ownable {
     /// @param _coverage Initial default coverage fee percentage.
     /// @param _claim Initial default claim fee percentage.
     /// @param _owner Address of the initial owner of the fee manager contract.
-    constructor(uint16 _coverage, uint16 _claim, address _owner) {
+    constructor(uint16 _coverage, uint16 _claim, address _owner) OwnedThreeStep(_owner) {
         _updateDefaultFees(_coverage, _claim);
-        _initializeOwner(_owner);
     }
 
     /// @notice Updates the default coverage and claim fees.
