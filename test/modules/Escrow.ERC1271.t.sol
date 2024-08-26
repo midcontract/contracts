@@ -3,10 +3,10 @@ pragma solidity 0.8.25;
 
 import "forge-std/Test.sol";
 
-import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
-import {ERC1271, ECDSA} from "src/libs/ERC1271.sol";
 import {ERC1271WalletMock, ERC1271MaliciousMock} from "@openzeppelin/mocks/ERC1271WalletMock.sol";
 import {SignatureChecker, IERC1271} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
+import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
+import {ERC1271, ECDSA} from "src/libs/ERC1271.sol";
 
 contract EscrowERC1271UnitTest is Test {
     using ECDSA for bytes32;
