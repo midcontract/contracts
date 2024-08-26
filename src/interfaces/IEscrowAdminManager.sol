@@ -4,6 +4,10 @@ pragma solidity 0.8.25;
 /// @title Interface for Escrow Admin Manager
 /// @notice Provides interface methods for checking roles in the Escrow Admin Management system.
 interface IEscrowAdminManager {
+    /// @notice Retrieves the current owner of the contract.
+    /// @return The address of the current owner.
+    function owner() external view returns (address);
+
     /// @notice Determines if a given account has admin privileges.
     /// @param account The address to query for admin status.
     /// @return True if the specified account is an admin, false otherwise.

@@ -463,7 +463,19 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     function updateRegistry(address _registry) external {
         if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
         if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
+        
         registry = IEscrowRegistry(_registry);
         emit RegistryUpdated(_registry);
+    }
+
+    /// @notice Updates the address of the admin manager contract.
+    /// @dev Restricts the function to be callable only by the current owner of the admin manager.
+    /// @param _adminManager The new address of the admin manager contract.
+    function updateAdminManager(address _adminManager) external {
+        if (msg.sender != IEscrowAdminManager(adminManager).owner()) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (_adminManager == address(0)) revert Escrow__ZeroAddressProvided();
+
+        adminManager = IEscrowAdminManager(_adminManager);
+        emit AdminManagerUpdated(_adminManager);
     }
 }

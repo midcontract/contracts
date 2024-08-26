@@ -65,6 +65,8 @@ contract EscrowAccountRecovery {
     event RecoveryCanceled(address indexed sender, bytes32 indexed recoveryHash);
     /// @dev Emitted when the recovery period is updated to a new value.
     event RecoveryPeriodUpdated(uint256 recoveryPeriod);
+    /// @dev Emitted when the admin manager address is updated in the contract.
+    event AdminManagerUpdated(address adminManager);
 
     /// @dev Initializes the contract with the owner and guardian addresses.
     /// @param _adminManager Address of the adminManager contract of the escrow platform.
@@ -187,5 +189,16 @@ contract EscrowAccountRecovery {
         }
         recoveryPeriod = _recoveryPeriod;
         emit RecoveryPeriodUpdated(_recoveryPeriod);
+    }
+
+    /// @notice Updates the address of the admin manager contract.
+    /// @dev Restricts the function to be callable only by the current owner of the admin manager.
+    /// @param _adminManager The new address of the admin manager contract.
+    function updateAdminManager(address _adminManager) external {
+        if (msg.sender != IEscrowAdminManager(adminManager).owner()) revert UnauthorizedAccount();
+        if (_adminManager == address(0)) revert ZeroAddressProvided();
+
+        adminManager = IEscrowAdminManager(_adminManager);
+        emit AdminManagerUpdated(_adminManager);
     }
 }

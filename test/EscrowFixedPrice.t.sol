@@ -58,6 +58,7 @@ contract EscrowFixedPriceUnitTest is Test {
     event Claimed(uint256 indexed contractId, address indexed paymentToken, uint256 amount);
     event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
     event RegistryUpdated(address registry);
+    event AdminManagerUpdated(address adminManager);
     event ReturnRequested(uint256 contractId);
     event ReturnApproved(uint256 contractId, address sender);
     event ReturnCanceled(uint256 contractId);
@@ -1204,31 +1205,6 @@ contract EscrowFixedPriceUnitTest is Test {
     }
 
     ////////////////////////////////////////////
-    //      ownership & management tests      //
-    ////////////////////////////////////////////
-
-    function test_updateRegistry() public {
-        test_initialize();
-        assertEq(address(escrow.registry()), address(registry));
-        address notOwner = makeAddr("notOwner");
-        bytes memory expectedRevertData =
-            abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(notOwner));
-        vm.prank(notOwner);
-        vm.expectRevert(expectedRevertData);
-        escrow.updateRegistry(address(registry));
-        vm.startPrank(address(owner));
-        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.updateRegistry(address(0));
-        assertEq(address(escrow.registry()), address(registry));
-        EscrowRegistry newRegistry = new EscrowRegistry(owner);
-        vm.expectEmit(true, false, false, true);
-        emit RegistryUpdated(address(newRegistry));
-        escrow.updateRegistry(address(newRegistry));
-        assertEq(address(escrow.registry()), address(newRegistry));
-        vm.stopPrank();
-    }
-
-    ////////////////////////////////////////////
     //          return request tests          //
     ////////////////////////////////////////////
 
@@ -1854,5 +1830,53 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_status), 5); //Status.DISPUTED
+    }
+
+    ////////////////////////////////////////////
+    //      ownership & management tests      //
+    ////////////////////////////////////////////
+
+    function test_updateRegistry() public {
+        test_initialize();
+        assertEq(address(escrow.registry()), address(registry));
+        address notOwner = makeAddr("notOwner");
+        bytes memory expectedRevertData =
+            abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(notOwner));
+        vm.prank(notOwner);
+        vm.expectRevert(expectedRevertData);
+        escrow.updateRegistry(address(registry));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.updateRegistry(address(0));
+        assertEq(address(escrow.registry()), address(registry));
+        EscrowRegistry newRegistry = new EscrowRegistry(owner);
+        vm.expectEmit(true, false, false, true);
+        emit RegistryUpdated(address(newRegistry));
+        escrow.updateRegistry(address(newRegistry));
+        assertEq(address(escrow.registry()), address(newRegistry));
+        vm.stopPrank();
+    }
+
+    function test_updateAdminManager() public {
+        test_initialize();
+        assertEq(address(escrow.adminManager()), address(adminManager));
+        EscrowAdminManager newAdminManager = new EscrowAdminManager(owner);
+        address notOwner = makeAddr("notOwner");
+        bytes memory expectedRevertData =
+            abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(notOwner));
+        vm.prank(notOwner);
+        vm.expectRevert(expectedRevertData);
+        escrow.updateAdminManager(address(newAdminManager));
+
+        vm.startPrank(owner);
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.updateAdminManager(address(0));
+        assertEq(address(escrow.adminManager()), address(adminManager));
+
+        vm.expectEmit(true, false, false, true);
+        emit AdminManagerUpdated(address(newAdminManager));
+        escrow.updateAdminManager(address(newAdminManager));
+        assertEq(address(escrow.adminManager()), address(newAdminManager));
+        vm.stopPrank();
     }
 }

@@ -100,6 +100,10 @@ interface IEscrow {
     /// @param registry The new registry address.
     event RegistryUpdated(address registry);
 
+    /// @dev Emitted when the admin manager address is updated in the contract.
+    /// @param adminManager The new address of the admin manager.
+    event AdminManagerUpdated(address adminManager);
+
     /// @notice Event emitted when the ownership of the client account is transferred.
     /// @param previousOwner The previous owner of the client account.
     /// @param newOwner The new owner of the client account.

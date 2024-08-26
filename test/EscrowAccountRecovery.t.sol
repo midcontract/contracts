@@ -42,6 +42,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     IEscrowHourly.Deposit depositHourly;
     IEscrowHourly.ContractDetails contractDetails;
 
+    event AdminManagerUpdated(address adminManager);
     event RecoveryInitiated(address indexed sender, bytes32 indexed recoveryHash);
     event RecoveryExecuted(address indexed sender, bytes32 indexed recoveryHash);
     event RecoveryCanceled(address indexed sender, bytes32 indexed recoveryHash);
@@ -560,6 +561,26 @@ contract EscrowAccountRecoveryUnitTest is Test {
         emit RecoveryPeriodUpdated(7 days);
         recovery.updateRecoveryPeriod(7 days);
         assertEq(recovery.recoveryPeriod(), 7 days);
+        vm.stopPrank();
+    }
+
+    function test_updateAdminManager() public {
+        assertEq(address(recovery.adminManager()), address(adminManager));
+        EscrowAdminManager newAdminManager = new EscrowAdminManager(owner);
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(EscrowAccountRecovery.UnauthorizedAccount.selector);
+        recovery.updateAdminManager(address(newAdminManager));
+
+        vm.startPrank(owner);
+        vm.expectRevert(EscrowAccountRecovery.ZeroAddressProvided.selector);
+        recovery.updateAdminManager(address(0));
+        assertEq(address(recovery.adminManager()), address(adminManager));
+
+        vm.expectEmit(true, false, false, true);
+        emit AdminManagerUpdated(address(newAdminManager));
+        recovery.updateAdminManager(address(newAdminManager));
+        assertEq(address(recovery.adminManager()), address(newAdminManager));
         vm.stopPrank();
     }
 }
