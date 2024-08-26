@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+import {OwnedThreeStep} from "@solbase/auth/OwnedThreeStep.sol";
 import {IEscrowRegistry} from "src/interfaces/IEscrowRegistry.sol";
-import {Ownable} from "src/libs/Ownable.sol";
 
 /// @title EscrowRegistry Contract
 /// @dev This contract manages configuration settings for the escrow system including approved payment tokens.
-contract MockRegistry is IEscrowRegistry, Ownable {
+contract MockRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Constant for the native token of the chain.
     /// @dev Used to represent the native blockchain currency in payment tokens mapping.
     address public constant NATIVE_TOKEN = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -43,9 +43,8 @@ contract MockRegistry is IEscrowRegistry, Ownable {
     mapping(address user => bool blacklisted) public blacklist;
 
     /// @dev Initializes the contract setting the owner to the message sender.
-    constructor(address _owner) {
-        _initializeOwner(_owner);
-    }
+    /// @param _owner Address of the initial owner of the registry contract.
+    constructor(address _owner) OwnedThreeStep(_owner) {}
 
     /// @notice Adds a new ERC20 token to the list of accepted payment tokens.
     /// @param _token The address of the ERC20 token to enable.

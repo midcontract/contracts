@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {IEscrow} from "src/interfaces/IEscrow.sol";
-import {IEscrowAdminManager} from "src/interfaces/IEscrowAdminManager.sol";
-import {IEscrowFixedPrice} from "src/interfaces/IEscrowFixedPrice.sol";
-import {IEscrowMilestone} from "src/interfaces/IEscrowMilestone.sol";
-import {IEscrowHourly} from "src/interfaces/IEscrowHourly.sol";
-import {Enums} from "src/libs/Enums.sol";
+import {IEscrow} from "../interfaces/IEscrow.sol";
+import {IEscrowAdminManager} from "../interfaces/IEscrowAdminManager.sol";
+import {IEscrowFixedPrice} from "../interfaces/IEscrowFixedPrice.sol";
+import {IEscrowMilestone} from "../interfaces/IEscrowMilestone.sol";
+import {IEscrowHourly} from "../interfaces/IEscrowHourly.sol";
+import {Enums} from "../libs/Enums.sol";
 
 /// @title Escrow Account Recovery
 /// @notice Provides mechanisms for recovering access to the client or contractor accounts

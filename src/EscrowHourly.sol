@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+import {SafeTransferLib} from "@solbase/utils/SafeTransferLib.sol";
 import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
-import {IEscrowAdminManager} from "src/interfaces/IEscrowAdminManager.sol";
+import {IEscrowAdminManager} from "./interfaces/IEscrowAdminManager.sol";
 import {IEscrowHourly} from "./interfaces/IEscrowHourly.sol";
 import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
 import {IEscrowRegistry} from "./interfaces/IEscrowRegistry.sol";
-import {ECDSA, ERC1271} from "src/libs/ERC1271.sol";
-import {Enums} from "src/libs/Enums.sol";
-import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
+import {ECDSA, ERC1271} from "./libs/ERC1271.sol";
+import {Enums} from "./libs/Enums.sol";
 
 /// @title Deposit management for Escrow Hourly
 /// @notice Manages the creation and addition of multiple weekly beels to escrow contracts.

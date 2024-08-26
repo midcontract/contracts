@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+import {SafeTransferLib} from "@solbase/utils/SafeTransferLib.sol";
 import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
-import {IEscrowAdminManager} from "src/interfaces/IEscrowAdminManager.sol";
+import {IEscrowAdminManager} from "./interfaces/IEscrowAdminManager.sol";
 import {IEscrowMilestone, IEscrow} from "./interfaces/IEscrowMilestone.sol";
 import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
 import {IEscrowRegistry} from "./interfaces/IEscrowRegistry.sol";
-import {ECDSA, ERC1271} from "src/libs/ERC1271.sol";
-import {Enums} from "src/libs/Enums.sol";
-import {SafeTransferLib} from "src/libs/SafeTransferLib.sol";
+import {ECDSA, ERC1271} from "./libs/ERC1271.sol";
+import {Enums} from "./libs/Enums.sol";
 
 /// @title Deposit management for Escrow Milestones
 /// @notice Manages the creation and addition of multiple milestones to escrow contracts.
@@ -606,7 +606,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     function updateRegistry(address _registry) external {
         if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
         if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
-        
+
         registry = IEscrowRegistry(_registry);
         emit RegistryUpdated(_registry);
     }

@@ -350,7 +350,7 @@ contract EscrowFactoryUnitTest is Test {
         emit Paused(address(owner));
         factory.pause();
         assertTrue(factory.paused());
-        vm.expectRevert(Pausable.Pausable__Paused.selector);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         address deployedEscrowProxy2 = factory.deployEscrow(escrowType, client, owner, address(registry));
         assertTrue(address(deployedEscrowProxy2).code.length == 0);
         vm.stopPrank();
