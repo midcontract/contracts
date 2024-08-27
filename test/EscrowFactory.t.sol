@@ -8,6 +8,7 @@ import {EscrowFactory, IEscrowFactory, OwnedThreeStep, Pausable} from "src/Escro
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
 import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
+import {EscrowHourly, IEscrowHourly} from "src/EscrowHourly.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {Enums} from "src/libs/Enums.sol";
 import {ERC20Mock} from "@openzeppelin/mocks/token/ERC20Mock.sol";
@@ -20,6 +21,7 @@ contract EscrowFactoryUnitTest is Test {
     EscrowFeeManager feeManager;
     EscrowMilestone escrowMilestone;
     EscrowAdminManager adminManager;
+    EscrowHourly escrowHourly;
 
     address client;
     address contractor;
@@ -30,6 +32,8 @@ contract EscrowFactoryUnitTest is Test {
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
+    IEscrowHourly.Deposit depositHourly;
+    IEscrowHourly.ContractDetails contractDetails;
 
     bytes32 contractorData;
     bytes32 salt;
@@ -63,11 +67,13 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken = new ERC20Mock();
         feeManager = new EscrowFeeManager(3_00, 5_00, owner);
         adminManager = new EscrowAdminManager(owner);
+        escrowHourly = new EscrowHourly();
 
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
         registry.updateEscrowFixedPrice(address(escrow));
         registry.updateEscrowMilestone(address(escrowMilestone));
+        registry.updateEscrowHourly(address(escrowHourly));
         registry.updateFeeManager(address(feeManager));
         vm.stopPrank();
 
@@ -99,6 +105,15 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(address(factory.registry()), address(registry));
     }
 
+    function test_deployFactory_reverts() public {
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        new EscrowFactory(address(0), owner);
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        new EscrowFactory(address(0), address(0));
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        new EscrowFactory(address(registry), address(0));
+    }
+
     // helper
     function _computeDepositAndFeeAmount(address _client, uint256 _depositAmount, Enums.FeeConfig _feeConfig)
         internal
@@ -114,6 +129,8 @@ contract EscrowFactoryUnitTest is Test {
     }
 
     function test_deployEscrow() public returns (address deployedEscrowProxy) {
+        assertEq(factory.factoryNonce(client), 0);
+        escrowType = Enums.EscrowType.FIXED_PRICE;
         vm.startPrank(client);
         vm.expectEmit(true, true, false, false);
         emit EscrowProxyDeployed(client, deployedEscrowProxy, escrowType);
@@ -166,6 +183,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
         assertEq(uint256(_status), 0); //Status.ACTIVE
@@ -219,6 +237,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_amount, 2 ether);
         assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 3); //Enums.FeeConfig.NO_FEES
         assertEq(uint256(_status), 0); //Status.ACTIVE
@@ -251,27 +270,9 @@ contract EscrowFactoryUnitTest is Test {
         vm.stopPrank();
     }
 
-    function test_updateRegistry() public {
-        assertEq(address(factory.registry()), address(registry));
-        address notOwner = makeAddr("notOwner");
-        vm.prank(notOwner);
-        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
-        factory.updateRegistry(address(registry));
-        vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        factory.updateRegistry(address(0));
-        assertEq(address(factory.registry()), address(registry));
-        EscrowRegistry newRegistry = new EscrowRegistry(owner);
-        vm.expectEmit(true, false, false, true);
-        emit RegistryUpdated(address(newRegistry));
-        factory.updateRegistry(address(newRegistry));
-        assertEq(address(factory.registry()), address(newRegistry));
-        vm.stopPrank();
-    }
-
     function test_deploy_and_deposit_milestone() public {
         address deployedEscrowProxy;
-        Enums.EscrowType escrowType = Enums.EscrowType.MILESTONE;
+        escrowType = Enums.EscrowType.MILESTONE;
         // 1. deploy
         vm.startPrank(client);
         vm.expectEmit(true, true, false, false);
@@ -329,9 +330,98 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 0); //Status.ACTIVE
+    }
+
+    function test_deploy_and_deposit_hourly() public {
+        address deployedEscrowProxy;
+        escrowType = Enums.EscrowType.HOURLY;
+        vm.startPrank(client);
+        vm.expectRevert(IEscrowFactory.Factory__InvalidEscrowType.selector);
+        deployedEscrowProxy =
+            factory.deployEscrow(Enums.EscrowType.INVALID, client, address(adminManager), address(registry));
+        vm.expectEmit(true, true, false, false);
+        emit EscrowProxyDeployed(client, deployedEscrowProxy, escrowType);
+        deployedEscrowProxy = factory.deployEscrow(escrowType, client, address(adminManager), address(registry));
+
+        EscrowHourly escrowProxyHourly = EscrowHourly(address(deployedEscrowProxy));
+        assertEq(escrowProxyHourly.client(), client);
+        assertEq(address(escrowProxyHourly.adminManager()), address(adminManager));
+        assertEq(address(escrowProxyHourly.registry()), address(registry));
+        assertEq(escrowProxyHourly.getCurrentContractId(), 0);
+        assertTrue(escrowProxyHourly.initialized());
+        assertEq(factory.factoryNonce(client), 1);
+        assertTrue(factory.existingEscrow(address(escrowProxyHourly)));
+
+        // 2. mint, approve payment token
+        uint256 depositHourlyAmount = 1 ether;
+        (uint256 totalDepositHourlyAmount,) =
+            _computeDepositAndFeeAmount(client, depositHourlyAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        paymentToken.mint(address(client), totalDepositHourlyAmount);
+        paymentToken.approve(address(escrowProxyHourly), totalDepositHourlyAmount);
+
+        // 3. deposit
+        depositHourly = IEscrowHourly.Deposit({
+            contractor: contractor,
+            amountToClaim: 0,
+            amountToWithdraw: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+        });
+
+        uint256 currentContractId = escrowProxyHourly.getCurrentContractId();
+        assertEq(currentContractId, 0);
+
+        escrowProxyHourly.deposit(currentContractId, address(paymentToken), depositHourlyAmount, depositHourly);
+        assertEq(paymentToken.balanceOf(address(escrowProxyHourly)), totalDepositHourlyAmount);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        vm.stopPrank();
+
+        currentContractId = escrowProxyHourly.getCurrentContractId();
+        assertEq(currentContractId, 1);
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrowProxyHourly.contractDetails(currentContractId); //currentContractId
+        assertEq(address(_paymentToken), address(paymentToken));
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 0); //Status.ACTIVE
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
+            escrowProxyHourly.contractWeeks(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(escrowProxyHourly.getWeeksCount(currentContractId), 1);
+    }
+
+    function test_getEscrowImplementation() public {
+        assertEq(factory.getEscrowImplementation(Enums.EscrowType.FIXED_PRICE), registry.escrowFixedPrice());
+        assertEq(factory.getEscrowImplementation(Enums.EscrowType.MILESTONE), registry.escrowMilestone());
+        assertEq(factory.getEscrowImplementation(Enums.EscrowType.HOURLY), registry.escrowHourly());
+        assertNotEq(factory.getEscrowImplementation(Enums.EscrowType.FIXED_PRICE), registry.escrowHourly());
+
+        vm.expectRevert(IEscrowFactory.Factory__InvalidEscrowType.selector);
+        factory.getEscrowImplementation(Enums.EscrowType.INVALID);
+    }
+
+    function test_updateRegistry() public {
+        assertEq(address(factory.registry()), address(registry));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        factory.updateRegistry(address(registry));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        factory.updateRegistry(address(0));
+        assertEq(address(factory.registry()), address(registry));
+        EscrowRegistry newRegistry = new EscrowRegistry(owner);
+        vm.expectEmit(true, false, false, true);
+        emit RegistryUpdated(address(newRegistry));
+        factory.updateRegistry(address(newRegistry));
+        assertEq(address(factory.registry()), address(newRegistry));
+        vm.stopPrank();
     }
 
     function test_pause_unpause() public {

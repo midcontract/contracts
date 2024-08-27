@@ -26,7 +26,7 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
     /// @param _registry Address of the registry contract.
     /// @param _owner Address of the initial owner of the factory contract.
     constructor(address _registry, address _owner) OwnedThreeStep(_owner) {
-        if (_registry == address(0)) {
+        if (_registry == address(0) || _owner == address(0)) {
             revert Factory__ZeroAddressProvided();
         }
         registry = IEscrowRegistry(_registry);
@@ -61,7 +61,7 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
         emit EscrowProxyDeployed(msg.sender, deployedProxy, _escrowType);
     }
 
-    /// @notice Fetches the appropriate escrow contract implementation address from the registry based on the escrow type.
+    /// @dev Internal function to determine the implementation address for a given type of escrow.
     /// @param _escrowType The type of escrow contract (FixedPrice, Milestone, or Hourly).
     /// @return escrowImpl The address of the escrow implementation.
     /// @dev This internal helper function queries the registry to obtain the correct implementation address for cloning.
@@ -72,7 +72,16 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
             return IEscrowRegistry(registry).escrowMilestone();
         } else if (_escrowType == Enums.EscrowType.HOURLY) {
             return IEscrowRegistry(registry).escrowHourly();
+        } else {
+            revert Factory__InvalidEscrowType();
         }
+    }
+
+    /// @notice Fetches the escrow contract implementation address based on the escrow type.
+    /// @param _escrowType The type of escrow contract (FixedPrice, Milestone, or Hourly).
+    /// @return escrowImpl The address of the escrow implementation.
+    function getEscrowImplementation(Enums.EscrowType _escrowType) external view returns (address escrowImpl) {
+        return _getEscrowImplementation(_escrowType);
     }
 
     /// @notice Updates the registry address used for fetching escrow implementations.

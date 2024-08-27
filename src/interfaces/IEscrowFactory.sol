@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// import {IEscrow} from "./IEscrow.sol";
 import {Enums} from "../libs/Enums.sol";
 
 /// @title Interface for the Escrow Factory
@@ -9,6 +8,8 @@ import {Enums} from "../libs/Enums.sol";
 interface IEscrowFactory {
     /// @notice Thrown when an operation involves a zero address where a valid address is required.
     error Factory__ZeroAddressProvided();
+    /// @notice Thrown when an invalid escrow type is used in operations requiring a specific escrow type.
+    error Factory__InvalidEscrowType();
 
     /// @notice Emitted when a new escrow proxy is successfully deployed.
     /// @param sender The address of the sender who initiated the escrow deployment.

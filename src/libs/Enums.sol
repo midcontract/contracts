@@ -41,8 +41,8 @@ library Enums {
     enum EscrowType {
         FIXED_PRICE, // Represents a fixed price contract where the payment is made as a lump sum.
         MILESTONE, // Represents a contract where payment is divided into milestones, each payable upon completion.
-        HOURLY // Represents a contract where payment is made based on hourly rates and actual time worked.
-
+        HOURLY, // Represents a contract where payment is made based on hourly rates and actual time worked.
+        INVALID // Used as a sentinel value or error state where the escrow type is not defined or out of valid range.
     }
 
     /// @notice Specifies the types of refills possible within an escrow contract.
