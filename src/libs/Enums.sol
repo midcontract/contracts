@@ -8,7 +8,8 @@ library Enums {
         CLIENT_COVERS_ALL, // Client pays both coverage and claim fees (total 8%)
         CLIENT_COVERS_ONLY, // Client pays only the coverage fee (3%), contractor responsible for the claim fee (5%)
         CONTRACTOR_COVERS_CLAIM, // Contractor pays the claim fee (5%), no coverage fee applied
-        NO_FEES // No fees applied (0%)
+        NO_FEES, // No fees applied (0%)
+        INVALID // Used as a sentinel value or error state where the fee config is not defined or out of valid range.
 
     }
 

@@ -5,11 +5,9 @@ import "forge-std/Test.sol";
 
 import {EscrowFeeManager, IEscrowFeeManager, OwnedThreeStep} from "src/modules/EscrowFeeManager.sol";
 import {Enums} from "src/libs/Enums.sol";
-import {MockEscrowFeeManager} from "test/mocks/MockEscrowFeeManager.sol";
 
 contract EscrowFeeManagerUnitTest is Test {
     EscrowFeeManager feeManager;
-
     address owner;
     address client;
     address contractor;
@@ -158,7 +156,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(feeApplied, 0);
     }
 
-    function test_computeClaimableAmount_defaultFees() public view {
+    function test_computeClaimableAmount_defaultFees() public {
         uint256 claimedAmount = 1 ether;
         (uint16 coverage, uint16 claim) = feeManager.defaultFees();
         assertEq(coverage, 3_00);
@@ -193,6 +191,14 @@ contract EscrowFeeManagerUnitTest is Test {
         (claimableAmount, feeDeducted, clientFee) =
             feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, claimedAmount);
+        assertEq(feeDeducted, 0);
+        assertEq(clientFee, 0);
+        // INVALID
+        feeConfig = Enums.FeeConfig.INVALID;
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnsupportedFeeConfiguration.selector);
+        (claimableAmount, feeDeducted, clientFee) =
+            feeManager.computeClaimableAmountAndFee(contractor, claimedAmount, feeConfig);
+        assertEq(claimableAmount, 0);
         assertEq(feeDeducted, 0);
         assertEq(clientFee, 0);
     }
@@ -236,20 +242,5 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(claimableAmount, claimedAmount);
         assertEq(feeDeducted, 0);
         assertEq(clientFee, 0);
-    }
-
-    function test_computeDepositAndClaimableAmount_reverts() public {
-        MockEscrowFeeManager mockFeeManager = new MockEscrowFeeManager(3_00, 5_00, owner);
-        uint256 feeConfig = 4;
-        vm.expectRevert(MockEscrowFeeManager.EscrowFeeManager__UnsupportedFeeConfiguration.selector);
-        mockFeeManager.computeDepositAmountAndFee(client, 1 ether, feeConfig);
-        vm.expectRevert(MockEscrowFeeManager.EscrowFeeManager__UnsupportedFeeConfiguration.selector);
-        mockFeeManager.computeClaimableAmountAndFee(contractor, 1 ether, feeConfig);
-        vm.prank(owner);
-        feeManager.setSpecialFees(client, 2_00, 3_50);
-        vm.expectRevert(MockEscrowFeeManager.EscrowFeeManager__UnsupportedFeeConfiguration.selector);
-        mockFeeManager.computeDepositAmountAndFee(client, 1 ether, feeConfig);
-        vm.expectRevert(MockEscrowFeeManager.EscrowFeeManager__UnsupportedFeeConfiguration.selector);
-        mockFeeManager.computeClaimableAmountAndFee(contractor, 1 ether, feeConfig);
     }
 }
