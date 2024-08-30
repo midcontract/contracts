@@ -257,7 +257,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
 
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.CANCELED) {
+        if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.RESOLVED && C.status != Enums.Status.CANCELED)
+        {
             revert Escrow__InvalidStatusToClaim();
         }
 
@@ -267,6 +268,10 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
             _computeClaimableAmountAndFee(msg.sender, D.amountToClaim, D.feeConfig);
+
+        if (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED) {
+            C.prepaymentAmount -= D.amountToClaim; // Use prepaymentAmount in case not approved by client
+        }
 
         D.amountToClaim = 0;
 
@@ -297,7 +302,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         uint256 totalClientFee = 0;
 
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.CANCELED) {
+        if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.RESOLVED && C.status != Enums.Status.CANCELED)
+        {
             revert Escrow__InvalidStatusToClaim();
         }
 
@@ -306,7 +312,17 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
             if (D.contractor != msg.sender) continue; // Skip if the caller is not the contractor for the week
 
-            if (D.amountToClaim > 0 && (C.status == Enums.Status.APPROVED || C.status == Enums.Status.COMPLETED)) {
+            if (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED) {
+                C.prepaymentAmount -= D.amountToClaim; // Use prepaymentAmount in case not approved by client
+            }
+
+            if (
+                D.amountToClaim > 0
+                    && (
+                        C.status == Enums.Status.APPROVED || C.status == Enums.Status.RESOLVED
+                            || C.status == Enums.Status.CANCELED
+                    )
+            ) {
                 (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
                     _computeClaimableAmountAndFee(msg.sender, D.amountToClaim, D.feeConfig);
 
@@ -328,6 +344,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         } else if (totalFeeAmount > 0 || totalClientFee > 0) {
             _sendPlatformFee(C.paymentToken, totalFeeAmount + totalClientFee);
         }
+
+        if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED;
 
         emit BulkClaimed(
             msg.sender, _contractId, _startWeekId, _endWeekId, totalClaimedAmount, totalFeeAmount, totalClientFee
@@ -402,15 +420,15 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status.
-    /// @dev This function allows a client to cancel a return request, setting the deposit status back to either ACTIVE or SUBMITTED.
+    /// @dev This function allows a client to cancel a return request, setting the deposit status back to either ACTIVE or APPROVED or COMPLETED.
     /// @param _contractId The unique identifier of the deposit for which the return is cancelled.
     /// @param _weekId ID of the deposit for which the return is cancelled.
-    /// @param _status The new status to set for the deposit, must be either ACTIVE or SUBMITTED.
-    /// @custom:modifier onlyClient Ensures that only the client associated with the deposit can execute this function.
+    /// @param _status The new status to set for the deposit, must be either ACTIVE or APPROVED or COMPLETED.
     function cancelReturn(uint256 _contractId, uint256 _weekId, Enums.Status _status) external onlyClient {
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-        if (_status != Enums.Status.ACTIVE && _status != Enums.Status.SUBMITTED) {
+        if (_status != Enums.Status.ACTIVE && _status != Enums.Status.APPROVED && _status != Enums.Status.COMPLETED)
+        {
             revert Escrow__InvalidStatusProvided();
         }
 

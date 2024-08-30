@@ -263,14 +263,16 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status.
-    /// @dev This function allows a client to cancel a return request, setting the deposit status back to either ACTIVE or SUBMITTED.
+    /// @dev This function allows a client to cancel a return request, setting the deposit status back to either ACTIVE or SUBMITTED or APPROVED or COMPLETED.
     /// @param _contractId The unique identifier of the deposit for which the return is being cancelled.
-    /// @param _status The new status to set for the deposit, must be either ACTIVE or SUBMITTED.
-    /// @custom:modifier onlyClient Ensures that only the client associated with the deposit can execute this function.
+    /// @param _status The new status to set for the deposit, must be either ACTIVE or SUBMITTED or APPROVED or COMPLETED.
     function cancelReturn(uint256 _contractId, Enums.Status _status) external onlyClient {
         Deposit storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-        if (_status != Enums.Status.ACTIVE && _status != Enums.Status.SUBMITTED) {
+        if (
+            _status != Enums.Status.ACTIVE && _status != Enums.Status.SUBMITTED && _status != Enums.Status.APPROVED
+                && _status != Enums.Status.COMPLETED
+        ) {
             revert Escrow__InvalidStatusProvided();
         }
 
@@ -463,7 +465,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     function updateRegistry(address _registry) external {
         if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
         if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
-        
+
         registry = IEscrowRegistry(_registry);
         emit RegistryUpdated(_registry);
     }
