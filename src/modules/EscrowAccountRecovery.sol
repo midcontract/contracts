@@ -4,8 +4,8 @@ pragma solidity 0.8.25;
 import {IEscrow} from "../interfaces/IEscrow.sol";
 import {IEscrowAdminManager} from "../interfaces/IEscrowAdminManager.sol";
 import {IEscrowFixedPrice} from "../interfaces/IEscrowFixedPrice.sol";
-import {IEscrowMilestone} from "../interfaces/IEscrowMilestone.sol";
 import {IEscrowHourly} from "../interfaces/IEscrowHourly.sol";
+import {IEscrowMilestone} from "../interfaces/IEscrowMilestone.sol";
 import {Enums} from "../libs/Enums.sol";
 
 /// @title Escrow Account Recovery
@@ -44,17 +44,17 @@ contract EscrowAccountRecovery {
     /// @dev Mapping of recovery hashes to their corresponding data.
     mapping(bytes32 recoveryHash => RecoveryData) public recoveryData;
 
-    /// @dev Custom error for zero address usage where prohibited.
+    /// @dev Thrown when zero address usage where prohibited.
     error ZeroAddressProvided();
-    /// @dev Custom error when trying to execute an already executed recovery.
+    /// @dev Thrown when trying to execute an already executed recovery.
     error RecoveryAlreadyExecuted();
-    /// @dev Custom error when trying to execute recovery before the period has elapsed.
+    /// @dev Thrown when trying to execute recovery before the period has elapsed.
     error RecoveryPeriodStillPending();
-    /// @dev Custom error when trying to execute a recovery that has not been confirmed.
+    /// @dev Thrown when trying to execute a recovery that has not been confirmed.
     error RecoveryNotConfirmed();
-    /// @dev Custom error when an unauthorized account attempts a restricted action.
+    /// @dev Thrown when an unauthorized account attempts a restricted action.
     error UnauthorizedAccount();
-    /// @dev Custom error indicates an attempt to set the recovery period below the minimum required or to zero.
+    /// @dev Thrown indicates an attempt to set the recovery period below the minimum required or to zero.
     error RecoveryPeriodTooSmall();
 
     /// @dev Emitted when a recovery is initiated by the guardian.
@@ -71,6 +71,7 @@ contract EscrowAccountRecovery {
     /// @dev Initializes the contract with the owner and guardian addresses.
     /// @param _adminManager Address of the adminManager contract of the escrow platform.
     constructor(address _adminManager) {
+        if (_adminManager == address(0)) revert ZeroAddressProvided();
         adminManager = IEscrowAdminManager(_adminManager);
         recoveryPeriod = MIN_RECOVERY_PERIOD;
     }
@@ -114,29 +115,21 @@ contract EscrowAccountRecovery {
     /// @param _accountType Type of the account being recovered, either CLIENT or CONTRACTOR.
     /// @param _escrow Address of the escrow involved in the recovery.
     /// @param _oldAccount Old account address being replaced in the recovery.
+    /// @dev This function checks that the recovery period has elapsed and that the recovery is confirmed before executing it.
     function executeRecovery(Enums.AccountTypeRecovery _accountType, address _escrow, address _oldAccount) external {
         bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, msg.sender);
         RecoveryData storage data = recoveryData[recoveryHash];
 
         if (uint64(block.timestamp) < data.executeAfter) revert RecoveryPeriodStillPending();
-
         if (data.executed) revert RecoveryAlreadyExecuted();
         if (!data.confirmed) revert RecoveryNotConfirmed();
 
         data.executed = true;
         data.executeAfter = 0;
 
-        if (_accountType == Enums.AccountTypeRecovery.CLIENT) {
-            IEscrow(data.escrow).transferClientOwnership(msg.sender);
-        } else if (_accountType == Enums.AccountTypeRecovery.CONTRACTOR) {
-            if (data.escrowType == Enums.EscrowType.FIXED_PRICE) {
-                IEscrowFixedPrice(data.escrow).transferContractorOwnership(data.contractId, msg.sender);
-            } else if (data.escrowType == Enums.EscrowType.MILESTONE) {
-                IEscrowMilestone(data.escrow).transferContractorOwnership(data.contractId, data.milestoneId, msg.sender);
-            } else if (data.escrowType == Enums.EscrowType.HOURLY) {
-                IEscrowHourly(data.escrow).transferContractorOwnership(data.contractId, msg.sender);
-            }
-        }
+        _transferContractOwnership(
+            data.escrowType, data.escrow, data.contractId, data.milestoneId, msg.sender, _accountType
+        );
 
         emit RecoveryExecuted(msg.sender, recoveryHash);
     }
@@ -152,6 +145,40 @@ contract EscrowAccountRecovery {
         data.executeAfter = 0;
 
         emit RecoveryCanceled(msg.sender, _recoveryHash);
+    }
+
+    /// @dev Transfers the ownership of the escrow contract based on the specified account type and escrow type.
+    /// @param escrowType The type of escrow contract involved in the transfer.
+    /// @param escrow The address of the escrow contract.
+    /// @param contractId The identifier of the contract within the escrow, relevant for contractor transfers.
+    /// @param milestoneId The identifier of the milestone within the contract, relevant for milestone-specific contractor transfers.
+    /// @param newOwner The new owner address that will receive the ownership.
+    /// @param accountType The type of account to be transferred, can be either CLIENT or CONTRACTOR.
+    function _transferContractOwnership(
+        Enums.EscrowType escrowType,
+        address escrow,
+        uint256 contractId,
+        uint256 milestoneId,
+        address newOwner,
+        Enums.AccountTypeRecovery accountType
+    ) internal {
+        if (accountType == Enums.AccountTypeRecovery.CLIENT) {
+            if (escrowType == Enums.EscrowType.FIXED_PRICE) {
+                IEscrowFixedPrice(escrow).transferClientOwnership(msg.sender);
+            } else if (escrowType == Enums.EscrowType.MILESTONE) {
+                IEscrowMilestone(escrow).transferClientOwnership(msg.sender);
+            } else if (escrowType == Enums.EscrowType.HOURLY) {
+                IEscrowHourly(escrow).transferClientOwnership(msg.sender);
+            }
+        } else if (accountType == Enums.AccountTypeRecovery.CONTRACTOR) {
+            if (escrowType == Enums.EscrowType.FIXED_PRICE) {
+                IEscrowFixedPrice(escrow).transferContractorOwnership(contractId, msg.sender);
+            } else if (escrowType == Enums.EscrowType.MILESTONE) {
+                IEscrowMilestone(escrow).transferContractorOwnership(contractId, milestoneId, msg.sender);
+            } else if (escrowType == Enums.EscrowType.HOURLY) {
+                IEscrowHourly(escrow).transferContractorOwnership(contractId, msg.sender);
+            }
+        }
     }
 
     /// @dev Generates the recovery hash based on the escrow, old account, and new account addresses.
@@ -197,7 +224,6 @@ contract EscrowAccountRecovery {
     function updateAdminManager(address _adminManager) external {
         if (msg.sender != IEscrowAdminManager(adminManager).owner()) revert UnauthorizedAccount();
         if (_adminManager == address(0)) revert ZeroAddressProvided();
-
         adminManager = IEscrowAdminManager(_adminManager);
         emit AdminManagerUpdated(_adminManager);
     }
