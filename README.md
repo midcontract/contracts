@@ -45,6 +45,24 @@ cp .env.example .env
 make deploy-escrow
 ```
 
+### Test coverage:
+```bash
+make coverage
+```
+Visual line coverage report with LCOV.
+It is required to install lcov.
+```bash
+brew install lcov
+```
+To run the coverage report, the below command can be executed.
+```bash
+forge coverage --report lcov
+LCOV_EXCLUDE=('src/interfaces/*' 'test/*' 'script/*')
+lcov --remove lcov.info ${LCOV_EXCLUDE[@]} --output-file lcov-filtered.info --rc lcov_branch_coverage=1
+genhtml lcov-filtered.info --branch-coverage --output-directory out/coverage
+open out/coverage/index.html
+```
+
 ## Contracts on Ethereum Sepolia Testnet:
 
 | Name             | Address                                                                                                                       |

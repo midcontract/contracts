@@ -29,6 +29,7 @@ trace-test :; forge test -vvvv --match-test $(test)
 
 clean :; forge clean
 snapshot :; forge snapshot
+coverage :; forge coverage
 
 anvil :; anvil -m 'test test test test test test test test test test test junk' --steps-tracing --block-time 1
 
