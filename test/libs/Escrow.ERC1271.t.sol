@@ -12,6 +12,7 @@ import {ERC1271, ECDSA} from "src/libs/ERC1271.sol";
 
 contract EscrowERC1271UnitTest is Test {
     using ECDSA for bytes32;
+    using ECDSA for bytes;
 
     EscrowFixedPrice escrow;
     EscrowMilestone escrowMilestone;
@@ -25,7 +26,7 @@ contract EscrowERC1271UnitTest is Test {
     uint256 otherPrivateKey;
 
     bytes private signature;
-    bytes32 private constant TEST_MESSAGE = keccak256(abi.encodePacked("OpenZeppelin"));
+    bytes32 private constant TEST_MESSAGE = keccak256(abi.encodePacked("Escrow"));
     bytes32 private constant WRONG_MESSAGE = keccak256(abi.encodePacked("Nope"));
 
     function setUp() public {
@@ -39,217 +40,160 @@ contract EscrowERC1271UnitTest is Test {
         signature = signMessage(signerPrivateKey, TEST_MESSAGE);
     }
 
-    function signMessage(uint256 privateKey, bytes32 messageHash) internal returns (bytes memory) {
+    function signMessage(uint256 privateKey, bytes32 messageHash) internal pure returns (bytes memory) {
         bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(messageHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, ethSignedHash);
         return abi.encodePacked(r, s, v);
     }
 
-    function toEthSignedMessageHash(bytes32 hash) internal pure returns (bytes32) {
-        return ECDSA.toEthSignedMessageHash(hash);
+    function externalRecover(bytes32 hash, bytes calldata signature_) external view returns (address) {
+        return ECDSA.recover(hash, signature_);
+    }
+
+    function runRecoveryTest(bytes32 message, bytes memory signature_) private view returns (bool) {
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(message);
+        address recoveredSigner = this.externalRecover(ethSignedHash, signature_);
+        (recoveredSigner);
+        return escrow.isValidSignature(message, signature_) == 0x1626ba7e;
     }
 
     /// EscrowFixedPrice ///
 
     function test_signerAndSignature_EOAMatching_escrowFixedPrice() public {
         vm.startPrank(signerPublicKey);
-        signature = signMessage(signerPrivateKey, TEST_MESSAGE);
-
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
-
-        assertEq(recoveredSigner, signerPublicKey, "Recovered signer should match the signer public key");
-        bool isValid = escrow.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertTrue(isValid, "EOA matching signer and signature should be valid");
+        assertTrue(runRecoveryTest(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
-    function test_invalidSigner_EOA_escrowFixedPrice() public {
-        vm.startPrank(otherPublicKey);
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
-
-        assertNotEq(recoveredSigner, otherPublicKey, "Recovered signer should not match the other public key");
-        bool isValid = escrow.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "EOA invalid signer should not be valid");
+    function test_invalidSigner_EOA_escrowFixedPrice() public view {
+        assertFalse(runRecoveryTest(TEST_MESSAGE, signMessage(otherPrivateKey, TEST_MESSAGE)));
     }
 
     function test_invalidSignature_EOA_escrowFixedPrice() public {
         vm.startPrank(signerPublicKey);
-        bytes32 ethSignedHash = toEthSignedMessageHash(WRONG_MESSAGE);
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
-
-        assertNotEq(
-            recoveredSigner,
-            signerPublicKey,
-            "Recovered signer should not match the signer public key for wrong message"
-        );
-        bool isValid = escrow.isValidSignature(WRONG_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "EOA invalid signature should not be valid");
+        assertFalse(runRecoveryTest(WRONG_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_signerAndSignature_WalletMatching_escrowFixedPrice() public {
         vm.startPrank(address(wallet));
-
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        bool isValid = escrow.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-
-        assertTrue(isValid, "Wallet matching signer and signature should be valid");
+        assertTrue(runRecoveryTest(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_invalidSigner_Wallet_escrowFixedPrice() public {
         vm.startPrank(address(escrow));
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        bool isValid = escrow.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "Wallet invalid signer should not be valid");
+        assertFalse(runRecoveryTest(TEST_MESSAGE, signMessage(otherPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_invalidSignature_Wallet_escrowFixedPrice() public {
         vm.startPrank(address(wallet));
-        bytes32 ethSignedHash = toEthSignedMessageHash(WRONG_MESSAGE);
-        bool isValid = escrow.isValidSignature(WRONG_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "Wallet invalid signature should not be valid");
+        assertFalse(runRecoveryTest(WRONG_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_invalidSigner_MaliciousWallet_escrowFixedPrice() public {
         vm.startPrank(address(malicious));
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        bool isValid = escrow.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "Malicious wallet should not be valid");
+        assertFalse(runRecoveryTest(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     /// EscrowMilestone ///
 
-    function test_signerAndSignature_EOAMatching_escrowMilestone() public {
-        vm.startPrank(signerPublicKey);
-        signature = signMessage(signerPrivateKey, TEST_MESSAGE);
-
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
-
-        assertEq(recoveredSigner, signerPublicKey, "Recovered signer should match the signer public key");
-        bool isValid = escrowMilestone.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertTrue(isValid, "EOA matching signer and signature should be valid");
+    function runRecoveryTestMilestone(bytes32 message, bytes memory signature_) private view returns (bool) {
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(message);
+        address recoveredSignerMilestone = this.externalRecover(ethSignedHash, signature_);
+        (recoveredSignerMilestone);
+        return escrowMilestone.isValidSignature(message, signature_) == 0x1626ba7e;
     }
 
-    function test_invalidSigner_EOA_escrowMilestone() public {
-        vm.startPrank(otherPublicKey);
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
+    function test_signerAndSignature_EOAMatching_escrowMilestone() public {
+        vm.startPrank(signerPublicKey);
+        assertTrue(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
+    }
 
-        assertNotEq(recoveredSigner, otherPublicKey, "Recovered signer should not match the other public key");
-        bool isValid = escrowMilestone.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "EOA invalid signer should not be valid");
+    function test_invalidSigner_EOA_escrowMilestone() public view {
+        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(otherPrivateKey, TEST_MESSAGE)));
     }
 
     function test_invalidSignature_EOA_escrowMilestone() public {
         vm.startPrank(signerPublicKey);
-        bytes32 ethSignedHash = toEthSignedMessageHash(WRONG_MESSAGE);
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
-
-        assertNotEq(
-            recoveredSigner,
-            signerPublicKey,
-            "Recovered signer should not match the signer public key for wrong message"
-        );
-        bool isValid = escrowMilestone.isValidSignature(WRONG_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "EOA invalid signature should not be valid");
+        assertFalse(runRecoveryTestMilestone(WRONG_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_signerAndSignature_WalletMatching_escrowMilestone() public {
         vm.startPrank(address(wallet));
-
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        bool isValid = escrowMilestone.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-
-        assertTrue(isValid, "Wallet matching signer and signature should be valid");
+        assertTrue(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_invalidSigner_Wallet_escrowMilestone() public {
-        vm.startPrank(address(escrowMilestone));
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        bool isValid = escrowMilestone.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "Wallet invalid signer should not be valid");
+        vm.startPrank(address(escrow));
+        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(otherPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_invalidSignature_Wallet_escrowMilestone() public {
         vm.startPrank(address(wallet));
-        bytes32 ethSignedHash = toEthSignedMessageHash(WRONG_MESSAGE);
-        bool isValid = escrowMilestone.isValidSignature(WRONG_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "Wallet invalid signature should not be valid");
+        assertFalse(runRecoveryTestMilestone(WRONG_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_invalidSigner_MaliciousWallet_escrowMilestone() public {
         vm.startPrank(address(malicious));
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        bool isValid = escrowMilestone.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "Malicious wallet should not be valid");
+        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     /// EscrowHourly ///
 
-    function test_signerAndSignature_EOAMatching_escrowHourly() public {
-        vm.startPrank(signerPublicKey);
-        signature = signMessage(signerPrivateKey, TEST_MESSAGE);
-
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
-
-        assertEq(recoveredSigner, signerPublicKey, "Recovered signer should match the signer public key");
-        bool isValid = escrowHourly.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertTrue(isValid, "EOA matching signer and signature should be valid");
+    function runRecoveryTestHourly(bytes32 message, bytes memory signature_) private view returns (bool) {
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(message);
+        address recoveredSignerHourly = this.externalRecover(ethSignedHash, signature_);
+        (recoveredSignerHourly);
+        return escrowHourly.isValidSignature(message, signature_) == 0x1626ba7e;
     }
 
-    function test_invalidSigner_EOA_escrowHourly() public {
-        vm.startPrank(otherPublicKey);
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
+    function test_signerAndSignature_EOAMatching_escrowHourly() public {
+        vm.startPrank(signerPublicKey);
+        assertTrue(runRecoveryTestHourly(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
+    }
 
-        assertNotEq(recoveredSigner, otherPublicKey, "Recovered signer should not match the other public key");
-        bool isValid = escrowHourly.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "EOA invalid signer should not be valid");
+    function test_invalidSigner_EOA_escrowHourly() public view {
+        assertFalse(runRecoveryTestHourly(TEST_MESSAGE, signMessage(otherPrivateKey, TEST_MESSAGE)));
     }
 
     function test_invalidSignature_EOA_escrowHourly() public {
         vm.startPrank(signerPublicKey);
-        bytes32 ethSignedHash = toEthSignedMessageHash(WRONG_MESSAGE);
-        address recoveredSigner = ECDSA.recover(ethSignedHash, signature);
-
-        assertNotEq(
-            recoveredSigner,
-            signerPublicKey,
-            "Recovered signer should not match the signer public key for wrong message"
-        );
-        bool isValid = escrowHourly.isValidSignature(WRONG_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "EOA invalid signature should not be valid");
+        assertFalse(runRecoveryTestHourly(WRONG_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_signerAndSignature_WalletMatching_escrowHourly() public {
         vm.startPrank(address(wallet));
-
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        bool isValid = escrowHourly.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-
-        assertTrue(isValid, "Wallet matching signer and signature should be valid");
+        assertTrue(runRecoveryTestHourly(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_invalidSigner_Wallet_escrowHourly() public {
-        vm.startPrank(address(escrowHourly));
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        bool isValid = escrowHourly.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "Wallet invalid signer should not be valid");
+        vm.startPrank(address(escrow));
+        assertFalse(runRecoveryTestHourly(TEST_MESSAGE, signMessage(otherPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_invalidSignature_Wallet_escrowHourly() public {
         vm.startPrank(address(wallet));
-        bytes32 ethSignedHash = toEthSignedMessageHash(WRONG_MESSAGE);
-        bool isValid = escrowHourly.isValidSignature(WRONG_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "Wallet invalid signature should not be valid");
+        assertFalse(runRecoveryTestHourly(WRONG_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 
     function test_invalidSigner_MaliciousWallet_escrowHourly() public {
         vm.startPrank(address(malicious));
-        bytes32 ethSignedHash = toEthSignedMessageHash(TEST_MESSAGE);
-        bool isValid = escrowHourly.isValidSignature(TEST_MESSAGE, signature) == 0x1626ba7e;
-        assertFalse(isValid, "Malicious wallet should not be valid");
+        assertFalse(runRecoveryTestHourly(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        vm.stopPrank();
     }
 }

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {ECDSA} from "./ECDSA.sol";
+import {ECDSA} from "@solbase/utils/ECDSA.sol";
 
 /// @title ERC1271
 /// @dev Abstract contract for validating signatures as per ERC-1271 standard.
 abstract contract ERC1271 {
     using ECDSA for bytes32;
+    using ECDSA for bytes;
 
     /// @dev Magic value to be returned upon successful signature verification.
     bytes4 internal constant MAGICVALUE = 0x1626ba7e;
