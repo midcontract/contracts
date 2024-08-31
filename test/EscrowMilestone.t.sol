@@ -4,6 +4,7 @@ pragma solidity 0.8.25;
 import "forge-std/Test.sol";
 
 import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
+import {EscrowAccountRecovery} from "src/modules/EscrowAccountRecovery.sol";
 import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
 import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
@@ -18,6 +19,7 @@ contract EscrowMilestoneUnitTest is Test {
     ERC20Mock paymentToken;
     ERC20Mock newPaymentToken;
     EscrowFeeManager feeManager;
+    EscrowAccountRecovery recovery;
     EscrowAdminManager adminManager;
 
     address client;
@@ -87,11 +89,13 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken = new ERC20Mock();
         feeManager = new EscrowFeeManager(3_00, 5_00, owner);
         adminManager = new EscrowAdminManager(owner);
+        recovery = new EscrowAccountRecovery(address(adminManager));
 
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
         registry.setTreasury(treasury);
         registry.updateFeeManager(address(feeManager));
+        registry.setAccountRecovery(address(recovery));
         vm.stopPrank();
 
         contractData = bytes("contract_data");
@@ -320,6 +324,53 @@ contract EscrowMilestoneUnitTest is Test {
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
         escrow.deposit(0, address(paymentToken), _deposits);
+    }
+
+    function test_deposit_reverts_NotSetFeeManager() public {
+        // this test needs it's own setup
+        IEscrowMilestone.Deposit[] memory _deposits = new IEscrowMilestone.Deposit[](1);
+        _deposits[0] = IEscrowMilestone.Deposit({
+            contractor: contractor,
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.ACTIVE
+        });
+
+        EscrowMilestone escrow2 = new EscrowMilestone();
+        MockRegistry registry2 = new MockRegistry(owner);
+        ERC20Mock paymentToken2 = new ERC20Mock();
+        EscrowFeeManager feeManager2 = new EscrowFeeManager(3_00, 5_00, owner);
+        vm.prank(owner);
+        registry2.addPaymentToken(address(paymentToken2));
+        escrow2.initialize(client, owner, address(registry2));
+        vm.startPrank(address(client));
+        paymentToken2.mint(address(client), 1.08 ether);
+        paymentToken2.approve(address(escrow2), 1.08 ether);
+        vm.expectRevert(IEscrow.Escrow__NotSetFeeManager.selector);
+        escrow2.deposit(0, address(paymentToken2), _deposits);
+        vm.stopPrank();
+        vm.prank(owner);
+        registry2.updateFeeManager(address(feeManager2));
+        vm.prank(client);
+        escrow2.deposit(0, address(paymentToken2), _deposits);
+
+        uint256 currentContractId = escrow2.getCurrentContractId();
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(contractor);
+        escrow2.submit(currentContractId, 0, contractData, salt);
+        vm.prank(client);
+        escrow2.approve(currentContractId, 0, 1 ether, contractor);
+
+        vm.prank(owner);
+        registry2.updateFeeManager(address(0));
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__NotSetFeeManager.selector);
+        escrow2.claim(currentContractId, 0);
     }
 
     function test_deposit_severalMilestones() public {
@@ -916,20 +967,39 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusToClaim.selector);
-        // vm.expectRevert(IEscrow.Escrow__NotApproved.selector); //TODO test
         escrow.claim(currentContractId, milestoneId);
+
+        amountApprove = _amount;
+        vm.prank(client);
+        escrow.approve(currentContractId, milestoneId, amountApprove, contractor);
+    
+        bytes memory expectedRevertData =
+            abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(this));
+
         vm.prank(address(this));
-        vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
+        vm.expectRevert(expectedRevertData);
         escrow.claim(currentContractId, milestoneId);
         (, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove); //0
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.APPROVED
 
         vm.prank(owner);
         registry.addToBlacklist(contractor);
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.claim(currentContractId, milestoneId);
+
+        MockRegistry mockRegistry = new MockRegistry(owner);
+        vm.startPrank(owner);
+        mockRegistry.addPaymentToken(address(paymentToken));
+        // mockRegistry.setTreasury(treasury);
+        mockRegistry.updateFeeManager(address(feeManager));
+        escrow.updateRegistry(address(mockRegistry));
+        vm.stopPrank();
+
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
         escrow.claim(currentContractId, milestoneId);
     }
 
@@ -1018,6 +1088,59 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(treasury)), initialFeeAmount - feeAmount + claimFeeAmount);
         assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
         vm.stopPrank();
+    }
+
+    function test_claim_whenResolveDispute_winnerSplit_reverts_NotApproved() public {
+        test_submit();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
+        (
+            address _contractor,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _status
+        ) = escrow.contractMilestones(currentContractId, --milestoneId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        vm.prank(client);
+        escrow.requestReturn(currentContractId, milestoneId);
+        (_contractor, _amount, _amountToClaim, _amountToWithdraw,,, _status) =
+            escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+
+        vm.prank(contractor);
+        escrow.createDispute(currentContractId, milestoneId);
+        (_contractor, _amount, _amountToClaim, _amountToWithdraw,,, _status) =
+            escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 5); //Status.DISPUTED
+
+        vm.prank(owner);
+        escrow.resolveDispute(currentContractId, milestoneId, Enums.Winner.SPLIT, _amount / 2, 0);
+        (_contractor, _amount, _amountToClaim, _amountToWithdraw,,, _status) =
+            escrow.contractMilestones(currentContractId, milestoneId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0.5 ether);
+        assertEq(uint256(_status), 6); //Status.RESOLVED
+
+        vm.startPrank(contractor);
+        vm.expectRevert(IEscrow.Escrow__NotApproved.selector);
+        escrow.claim(currentContractId, milestoneId);
     }
 
     function test_claim_severalMilestone() public {
@@ -2491,5 +2614,9 @@ contract EscrowMilestoneUnitTest is Test {
         escrow.updateAdminManager(address(newAdminManager));
         assertEq(address(escrow.adminManager()), address(newAdminManager));
         vm.stopPrank();
+    }
+
+    function test_transferClientOwnership() public {
+
     }
 }

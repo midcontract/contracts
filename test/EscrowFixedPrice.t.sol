@@ -956,20 +956,42 @@ contract EscrowFixedPriceUnitTest is Test {
 
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusToClaim.selector);
-        // vm.expectRevert(IEscrow.Escrow__NotApproved.selector); //TODO test
         escrow.claim(currentContractId);
+
+        amountApprove = _amount;
+        vm.prank(client);
+        escrow.approve(currentContractId, amountApprove, contractor);
+
+        bytes memory expectedRevertData =
+            abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(this));
+
         vm.prank(address(this));
-        vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
+        vm.expectRevert(expectedRevertData);
         escrow.claim(currentContractId);
         (,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove); //0
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.APPROVED
+
+        // vm.startPrank(contractor); TODO // if (D.amountToClaim == 0) revert Escrow__NotApproved();
+        // escrow.claim(_contractId);
 
         vm.prank(owner);
         registry.addToBlacklist(contractor);
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.claim(currentContractId);
+
+        MockRegistry mockRegistry = new MockRegistry(owner);
+        vm.startPrank(owner);
+        mockRegistry.addPaymentToken(address(paymentToken));
+        // mockRegistry.setTreasury(treasury);
+        mockRegistry.updateFeeManager(address(feeManager));
+        escrow.updateRegistry(address(mockRegistry));
+        vm.stopPrank();
+
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector); //treasury() 0x0000000000000000000000000000000000000000
         escrow.claim(currentContractId);
     }
 
@@ -1202,6 +1224,80 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(treasury)), initialFeeAmount - feeAmount + claimFeeAmount);
         assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
         vm.stopPrank();
+    }
+
+    function test_claim_whenResolveDispute_winnerSplit_reverts_NotApproved() public {
+        test_initialize();
+        deposit = IEscrowFixedPrice.Deposit({
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.ACTIVE
+        });
+
+        (uint256 depositAmount, uint256 feeApplied) =
+            _computeDepositAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        vm.startPrank(client);
+        paymentToken.mint(address(client), depositAmount); //1.03 ether
+        paymentToken.approve(address(escrow), depositAmount);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+        uint256 currentContractId = escrow.getCurrentContractId();
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        vm.prank(contractor);
+        escrow.submit(currentContractId, contractData, salt);
+        (
+            address _contractor,
+            ,
+            uint256 _amount,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            ,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _status
+        ) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_status), 1); //Status.SUBMITTED
+
+        vm.prank(client);
+        escrow.requestReturn(currentContractId);
+        (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+
+        vm.prank(contractor);
+        escrow.createDispute(currentContractId);
+        (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(uint256(_status), 5); //Status.DISPUTED
+
+        vm.prank(owner);
+        escrow.resolveDispute(currentContractId, Enums.Winner.SPLIT, _amount / 2, 0);
+        (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, contractor);
+        assertEq(_amount, 1 ether);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(_amountToWithdraw, 0.5 ether);
+        assertEq(uint256(_status), 6); //Status.RESOLVED
+
+        vm.startPrank(contractor);
+        vm.expectRevert(IEscrow.Escrow__NotApproved.selector);
+        escrow.claim(currentContractId);
     }
 
     ////////////////////////////////////////////
