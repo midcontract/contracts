@@ -158,8 +158,8 @@ contract EscrowMilestoneUnitTest is Test {
         returns (uint256 totalDepositAmount, uint256 feeApplied)
     {
         address feeManagerAddress = registry.feeManager();
-        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
-        (totalDepositAmount, feeApplied) = feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
+        IEscrowFeeManager _feeManager = IEscrowFeeManager(feeManagerAddress);
+        (totalDepositAmount, feeApplied) = _feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
 
         return (totalDepositAmount, feeApplied);
     }
@@ -170,9 +170,9 @@ contract EscrowMilestoneUnitTest is Test {
         returns (uint256 claimAmount, uint256 feeAmount, uint256 clientFee)
     {
         address feeManagerAddress = registry.feeManager();
-        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
+        IEscrowFeeManager _feeManager = IEscrowFeeManager(feeManagerAddress);
         (claimAmount, feeAmount, clientFee) =
-            feeManager.computeClaimableAmountAndFee(_contractor, _claimAmount, _feeConfig);
+            _feeManager.computeClaimableAmountAndFee(_contractor, _claimAmount, _feeConfig);
 
         return (claimAmount, feeAmount, clientFee);
     }
@@ -360,7 +360,6 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 currentContractId = escrow2.getCurrentContractId();
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
         vm.prank(contractor);
         escrow2.submit(currentContractId, 0, contractData, salt);
         vm.prank(client);
@@ -576,7 +575,6 @@ contract EscrowMilestoneUnitTest is Test {
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusForSubmit.selector);
         escrow.submit(currentContractId, 0, contractData, salt);
@@ -972,7 +970,7 @@ contract EscrowMilestoneUnitTest is Test {
         amountApprove = _amount;
         vm.prank(client);
         escrow.approve(currentContractId, milestoneId, amountApprove, contractor);
-    
+
         bytes memory expectedRevertData =
             abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(this));
 
@@ -1074,8 +1072,9 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
 
         vm.startPrank(contractor);
-        (uint256 claimAmount, uint256 claimFeeAmount, uint256 clientFee) = IEscrowFeeManager(feeManager)
-            .computeClaimableAmountAndFee(contractor, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        (uint256 claimAmount, uint256 claimFeeAmount,) = IEscrowFeeManager(feeManager).computeClaimableAmountAndFee(
+            contractor, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY
+        );
         escrow.claim(currentContractId, milestoneId);
         (, _amount, _amountToClaim, _amountToWithdraw,,, _status) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -1168,7 +1167,6 @@ contract EscrowMilestoneUnitTest is Test {
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
         vm.prank(contractor);
         escrow.submit(currentContractId, milestoneId2, contractData, salt);
 
@@ -1209,7 +1207,6 @@ contract EscrowMilestoneUnitTest is Test {
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
 
         vm.startPrank(contractor);
         escrow.submit(currentContractId, 0, contractData, salt);
@@ -1282,7 +1279,6 @@ contract EscrowMilestoneUnitTest is Test {
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
 
         vm.startPrank(contractor);
         escrow.submit(currentContractId, 0, contractData, salt);
@@ -1331,7 +1327,6 @@ contract EscrowMilestoneUnitTest is Test {
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
 
         vm.startPrank(contractor);
         escrow.submit(currentContractId, 0, contractData, salt);
@@ -1397,7 +1392,6 @@ contract EscrowMilestoneUnitTest is Test {
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
 
         vm.startPrank(contractor);
         escrow.submit(currentContractId, 0, contractData, salt);
@@ -1446,7 +1440,6 @@ contract EscrowMilestoneUnitTest is Test {
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
 
         vm.startPrank(contractor);
         escrow.submit(1, 0, contractData, salt);
@@ -1467,8 +1460,7 @@ contract EscrowMilestoneUnitTest is Test {
         (uint256 withdrawableAmount, uint256 clientFeeAmount) =
             _computeDepositAndFeeAmount(client, 0.5 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
 
-        (uint256 initialDepositAmount, uint256 initialFeeAmount) =
-            _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        (, uint256 initialFeeAmount) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
         uint256 platformFee = initialFeeAmount - clientFeeAmount;
 
         vm.startPrank(client);
@@ -1557,7 +1549,6 @@ contract EscrowMilestoneUnitTest is Test {
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
 
         vm.startPrank(contractor);
         escrow.submit(1, 0, contractData, salt);
@@ -1578,8 +1569,7 @@ contract EscrowMilestoneUnitTest is Test {
         (uint256 withdrawableAmount, uint256 clientFeeAmount) =
             _computeDepositAndFeeAmount(client, 0.5 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
 
-        (uint256 initialDepositAmount, uint256 initialFeeAmount) =
-            _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        (, uint256 initialFeeAmount) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
         uint256 platformFee = initialFeeAmount - clientFeeAmount;
 
         vm.startPrank(client);
@@ -1676,7 +1666,6 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
 
         vm.startPrank(contractor);
         escrow.submit(currentContractId, 0, contractData, salt);
@@ -1718,8 +1707,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
 
-        (uint256 initialDepositAmount, uint256 initialFeeAmount) =
-            _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        (, uint256 initialFeeAmount) = _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
         uint256 platformFee = initialFeeAmount - feeAmount;
 
         vm.prank(client);
@@ -1753,8 +1741,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
 
-        (uint256 initialDepositAmount, uint256 initialFeeAmount) =
-            _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        (, uint256 initialFeeAmount) = _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
         uint256 platformFee = initialFeeAmount - feeAmount;
 
         vm.prank(client);
@@ -1775,7 +1762,7 @@ contract EscrowMilestoneUnitTest is Test {
         test_resolveDispute_winnerClient();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
-        (address _contractor, uint256 _amount,, uint256 _amountToWithdraw,,, Enums.Status _status) =
+        (, uint256 _amount,, uint256 _amountToWithdraw,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(_amount, 1 ether);
         assertEq(_amountToWithdraw, _amount);
@@ -1787,8 +1774,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
 
-        (uint256 initialDepositAmount, uint256 initialFeeAmount) =
-            _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        (, uint256 initialFeeAmount) = _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
         uint256 platformFee = initialFeeAmount - feeAmount;
 
         vm.prank(client);
@@ -1808,15 +1794,8 @@ contract EscrowMilestoneUnitTest is Test {
     function test_withdraw_whenDisputeResolvedSplit() public {
         test_resolveDispute_winnerSplit();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (
-            address _contractor,
-            uint256 _amount,
-            uint256 _amountToClaim,
-            uint256 _amountToWithdraw,
-            ,
-            ,
-            Enums.Status _status
-        ) = escrow.contractMilestones(currentContractId, 0);
+        (, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0.5 ether);
         assertEq(_amountToWithdraw, 0.5 ether);
@@ -1828,8 +1807,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
 
-        (uint256 initialDepositAmount, uint256 initialFeeAmount) =
-            _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        (, uint256 initialFeeAmount) = _computeDepositAndFeeAmount(client, _amount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
         uint256 platformFee = initialFeeAmount - feeAmount;
 
         vm.prank(client);
@@ -2132,7 +2110,7 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
-        Enums.Status status = Enums.Status.ACTIVE;
+        status = Enums.Status.ACTIVE;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnCanceled(currentContractId, milestoneId);
@@ -2148,7 +2126,7 @@ contract EscrowMilestoneUnitTest is Test {
         (address _contractor,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
-        Enums.Status status = Enums.Status.SUBMITTED;
+        status = Enums.Status.SUBMITTED;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnCanceled(currentContractId, milestoneId);
@@ -2164,7 +2142,7 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
-        Enums.Status status = Enums.Status.ACTIVE;
+        status = Enums.Status.ACTIVE;
         vm.prank(owner);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
         escrow.cancelReturn(currentContractId, milestoneId, status);
@@ -2187,7 +2165,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
-        Enums.Status status = Enums.Status.RESOLVED;
+        status = Enums.Status.RESOLVED;
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusProvided.selector);
         escrow.cancelReturn(currentContractId, milestoneId, status);
@@ -2202,7 +2180,7 @@ contract EscrowMilestoneUnitTest is Test {
         (address _contractor,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 1); //Status.SUBMITTED
-        Enums.Status status = Enums.Status.ACTIVE;
+        status = Enums.Status.ACTIVE;
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NoReturnRequested.selector);
         escrow.cancelReturn(currentContractId, milestoneId, status);
@@ -2614,9 +2592,5 @@ contract EscrowMilestoneUnitTest is Test {
         escrow.updateAdminManager(address(newAdminManager));
         assertEq(address(escrow.adminManager()), address(newAdminManager));
         vm.stopPrank();
-    }
-
-    function test_transferClientOwnership() public {
-
     }
 }

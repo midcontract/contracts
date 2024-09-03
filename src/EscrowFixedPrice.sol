@@ -77,8 +77,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
         if (_deposit.amount == 0) revert Escrow__ZeroDepositAmount();
 
-        (uint256 totalDepositAmount, uint256 feeApplied) =
-            _computeDepositAmountAndFee(msg.sender, _deposit.amount, _deposit.feeConfig);
+        (uint256 totalDepositAmount,) = _computeDepositAmountAndFee(msg.sender, _deposit.amount, _deposit.feeConfig);
 
         SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), totalDepositAmount);
 

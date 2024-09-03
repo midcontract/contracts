@@ -118,12 +118,12 @@ contract EscrowFactoryUnitTest is Test {
     function _computeDepositAndFeeAmount(address _client, uint256 _depositAmount, Enums.FeeConfig _feeConfig)
         internal
         view
-        returns (uint256 totalDepositAmount, uint256 feeApplied)
+        returns (uint256, uint256)
     {
         address feeManagerAddress = registry.feeManager();
-        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
+        IEscrowFeeManager _feeManager = IEscrowFeeManager(feeManagerAddress);
         (uint256 totalDepositAmount, uint256 feeApplied) =
-            feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
+            _feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
 
         return (totalDepositAmount, feeApplied);
     }

@@ -127,9 +127,7 @@ contract EscrowAccountRecovery {
         data.executed = true;
         data.executeAfter = 0;
 
-        _transferContractOwnership(
-            data.escrowType, data.escrow, data.contractId, data.milestoneId, msg.sender, _accountType
-        );
+        _transferContractOwnership(data.escrowType, data.escrow, data.contractId, data.milestoneId, _accountType);
 
         emit RecoveryExecuted(msg.sender, recoveryHash);
     }
@@ -152,14 +150,12 @@ contract EscrowAccountRecovery {
     /// @param escrow The address of the escrow contract.
     /// @param contractId The identifier of the contract within the escrow, relevant for contractor transfers.
     /// @param milestoneId The identifier of the milestone within the contract, relevant for milestone-specific contractor transfers.
-    /// @param newOwner The new owner address that will receive the ownership.
     /// @param accountType The type of account to be transferred, can be either CLIENT or CONTRACTOR.
     function _transferContractOwnership(
         Enums.EscrowType escrowType,
         address escrow,
         uint256 contractId,
         uint256 milestoneId,
-        address newOwner,
         Enums.AccountTypeRecovery accountType
     ) internal {
         if (accountType == Enums.AccountTypeRecovery.CLIENT) {

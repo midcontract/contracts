@@ -150,8 +150,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
         // Transfer the specified amount after calculating fees.
-        (uint256 totalAmountApprove, uint256 feeApplied) =
-            _computeDepositAmountAndFee(msg.sender, _amountApprove, D.feeConfig);
+        (uint256 totalAmountApprove,) = _computeDepositAmountAndFee(msg.sender, _amountApprove, D.feeConfig);
         SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountApprove);
         D.amountToClaim += _amountApprove;
 
@@ -229,8 +228,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (_type == Enums.RefillType.PREPAYMENT) {
             Deposit storage D = contractWeeks[_contractId][_weekId];
             // Add funds to prepayment
-            (uint256 totalAmountAdditional, uint256 feeApplied) =
-                _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
+            (uint256 totalAmountAdditional,) = _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
             SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
             C.prepaymentAmount += _amount;
             emit RefilledPrepayment(_contractId, _amount);
@@ -238,8 +236,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             // Ensure weekId is within range
             if (_weekId >= contractWeeks[_contractId].length) revert Escrow__InvalidWeekId();
             Deposit storage D = contractWeeks[_contractId][_weekId];
-            (uint256 totalAmountAdditional, uint256 feeApplied) =
-                _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
+            (uint256 totalAmountAdditional,) = _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
             SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
             D.amountToClaim += _amount;
             emit RefilledWeekPayment(_contractId, _weekId, _amount);
@@ -423,8 +420,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     function cancelReturn(uint256 _contractId, uint256 _weekId, Enums.Status _status) external onlyClient {
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-        if (_status != Enums.Status.ACTIVE && _status != Enums.Status.APPROVED && _status != Enums.Status.COMPLETED)
-        {
+        if (_status != Enums.Status.ACTIVE && _status != Enums.Status.APPROVED && _status != Enums.Status.COMPLETED) {
             revert Escrow__InvalidStatusProvided();
         }
 
