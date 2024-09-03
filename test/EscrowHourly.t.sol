@@ -907,6 +907,7 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
 
         uint256 amountAdditional = 0 ether;
+        uint256 invalidWeekId = escrow.getWeeksCount(currentContractId); // Out-of-bounds
         vm.prank(address(this));
         vm.expectRevert(); // Escrow__UnauthorizedAccount()
         escrow.refill(currentContractId, weekId, 1 ether, Enums.RefillType.PREPAYMENT);
@@ -915,8 +916,8 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.approve(address(escrow), amountAdditional);
         vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
         escrow.refill(currentContractId, weekId, amountAdditional, Enums.RefillType.WEEK_PAYMENT);
-        vm.expectRevert(); //IEscrowHourly.Escrow__InvalidWeekId.selector
-        escrow.refill(currentContractId, 2, 1 ether, Enums.RefillType.WEEK_PAYMENT);
+        vm.expectRevert(IEscrowHourly.Escrow__InvalidWeekId.selector);
+        escrow.refill(currentContractId, invalidWeekId, 1 ether, Enums.RefillType.WEEK_PAYMENT);
         vm.stopPrank();
 
         (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);

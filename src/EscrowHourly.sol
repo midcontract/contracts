@@ -223,14 +223,11 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_amount == 0) revert Escrow__InvalidAmount();
-
         ContractDetails storage C = contractDetails[_contractId];
-
         if (!registry.paymentTokens(C.paymentToken)) revert Escrow__NotSupportedPaymentToken();
 
-        Deposit storage D = contractWeeks[_contractId][_weekId];
-
         if (_type == Enums.RefillType.PREPAYMENT) {
+            Deposit storage D = contractWeeks[_contractId][_weekId];
             // Add funds to prepayment
             (uint256 totalAmountAdditional, uint256 feeApplied) =
                 _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
@@ -240,7 +237,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         } else if (_type == Enums.RefillType.WEEK_PAYMENT) {
             // Ensure weekId is within range
             if (_weekId >= contractWeeks[_contractId].length) revert Escrow__InvalidWeekId();
-
+            Deposit storage D = contractWeeks[_contractId][_weekId];
             (uint256 totalAmountAdditional, uint256 feeApplied) =
                 _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
             SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
@@ -255,7 +252,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @param _weekId ID of the week within the contract to be claimed.
     function claim(uint256 _contractId, uint256 _weekId) external {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.RESOLVED && C.status != Enums.Status.CANCELED)
         {
