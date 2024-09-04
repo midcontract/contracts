@@ -1165,6 +1165,14 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(weekId, 2);
         vm.stopPrank();
 
+        vm.prank(owner);
+        registry.addToBlacklist(contractor);
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.claimAll(currentContractId, 1, 1);
+        vm.prank(owner);
+        registry.removeFromBlacklist(contractor);
+
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusToClaim.selector);
         escrow.claimAll(currentContractId, 1, 1);

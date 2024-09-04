@@ -287,6 +287,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @param _startWeekId Starting week ID from which to begin claims.
     /// @param _endWeekId Ending week ID until which claims are made.
     function claimAll(uint256 _contractId, uint256 _startWeekId, uint256 _endWeekId) external {
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_startWeekId > _endWeekId) revert Escrow__InvalidRange();
         if (_endWeekId >= contractWeeks[_contractId].length) revert Escrow__OutOfRange();
 
