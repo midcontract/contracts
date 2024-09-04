@@ -253,19 +253,24 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     }
 
     /// @notice Claims all approved amounts by the contractor for a given contract.
-    /// @dev This function allows the contractor to claim all approved amounts across all milestones within a specified contract.
+    /// @dev Allows the contractor to claim for multiple milestones in a specified range to manage gas costs effectively.
     /// @param _contractId ID of the contract from which to claim funds.
-    function claimAll(uint256 _contractId) external {
+    /// @param _startMilestoneId Starting milestone ID from which to begin claims.
+    /// @param _endMilestoneId Ending milestone ID until which claims are made.
+    /// This function mitigates gas exhaustion issues by allowing batch processing within a specified limit.
+    /// It's designed to optimize transaction efficiency when dealing with numerous milestones.
+    function claimAll(uint256 _contractId, uint256 _startMilestoneId, uint256 _endMilestoneId) external {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
+        if (_startMilestoneId > _endMilestoneId) revert Escrow__InvalidRange();
+        if (_endMilestoneId >= contractMilestones[_contractId].length) revert Escrow__OutOfRange();
 
         uint256 totalClaimedAmount = 0;
         uint256 totalFeeAmount = 0;
         uint256 totalClientFee = 0;
 
         Deposit[] storage milestones = contractMilestones[_contractId];
-        uint256 length = milestones.length;
 
-        for (uint256 i; i < length; ++i) {
+        for (uint256 i = _startMilestoneId; i <= _endMilestoneId; ++i) {
             Deposit storage D = milestones[i];
 
             // Check if the milestone is in a state that allows claiming.
@@ -287,8 +292,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
                     D.amountToClaim = 0; // Reset the claimable amount after claiming.
 
                     if (D.amount == 0) D.status = Enums.Status.COMPLETED; // Update the status if all funds have been claimed.
-
-                    emit Claimed(_contractId, i, claimAmount);
                 }
             }
         }
@@ -304,6 +307,16 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         if (totalFeeAmount > 0 || totalClientFee > 0) {
             _sendPlatformFee(M.paymentToken, totalFeeAmount + totalClientFee);
         }
+
+        emit BulkClaimed(
+            msg.sender,
+            _contractId,
+            _startMilestoneId,
+            _endMilestoneId,
+            totalClaimedAmount,
+            totalFeeAmount,
+            totalClientFee
+        );
     }
 
     /// @notice Withdraws funds from a deposit under specific conditions.
@@ -517,7 +530,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _feeAmount Amount of the fee to be transferred.
     function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {
         address treasury = IEscrowRegistry(registry).treasury();
-        if (treasury == address(0)) revert Escrow__ZeroAddressProvided(); // TODO test
+        if (treasury == address(0)) revert Escrow__ZeroAddressProvided();
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
     }
 

@@ -67,6 +67,15 @@ contract EscrowMilestoneUnitTest is Test {
     event Approved(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amountApprove, address receiver);
     event Refilled(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amountAdditional);
     event Claimed(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amount);
+    event BulkClaimed(
+        address indexed contractor,
+        uint256 contractId,
+        uint256 startMilestoneId,
+        uint256 endMilestoneId,
+        uint256 totalClaimedAmount,
+        uint256 totalFeeAmount,
+        uint256 totalClientFee
+    );
     event Withdrawn(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount);
     event RegistryUpdated(address registry);
     event AdminManagerUpdated(address adminManager);
@@ -1245,8 +1254,20 @@ contract EscrowMilestoneUnitTest is Test {
         totalFeeAmount += feeAmount;
         totalClientFee += clientFee;
 
+        uint256 startMilestoneId = 0;
+        uint256 endMilestoneId = 2;
         vm.prank(contractor);
-        escrow.claimAll(currentContractId);
+        vm.expectEmit(true, true, true, true);
+        emit BulkClaimed(
+            contractor,
+            currentContractId,
+            startMilestoneId,
+            endMilestoneId,
+            totalClaimAmount,
+            totalFeeAmount,
+            totalClientFee
+        );
+        escrow.claimAll(currentContractId, startMilestoneId, endMilestoneId);
 
         (, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
@@ -1296,7 +1317,7 @@ contract EscrowMilestoneUnitTest is Test {
             _computeClaimableAndFeeAmount(contractor, 2 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
 
         vm.prank(contractor);
-        escrow.claimAll(currentContractId);
+        escrow.claimAll(currentContractId, 0, 2);
 
         (, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
@@ -1359,7 +1380,7 @@ contract EscrowMilestoneUnitTest is Test {
         totalClientFee += clientFee;
 
         vm.prank(contractor);
-        escrow.claimAll(currentContractId);
+        escrow.claimAll(currentContractId, 0, 2);
 
         (, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
@@ -1408,7 +1429,7 @@ contract EscrowMilestoneUnitTest is Test {
         address invalidContractor = makeAddr("invalidContractor");
 
         vm.prank(invalidContractor);
-        escrow.claimAll(currentContractId);
+        escrow.claimAll(currentContractId, 0, 2);
 
         (, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
@@ -1493,7 +1514,7 @@ contract EscrowMilestoneUnitTest is Test {
         escrow.withdraw(1, 1);
 
         vm.prank(contractor);
-        escrow.claimAll(1);
+        escrow.claimAll(1, 0, 2);
 
         (, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(1, 0);
         assertEq(_amount, 0 ether);
@@ -1599,7 +1620,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_status), 2); //Status.APPROVED
 
         vm.prank(contractor);
-        escrow.claimAll(1);
+        escrow.claimAll(1, 0, 2);
 
         (, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(1, 0);
         assertEq(_amount, 0 ether);
@@ -1683,7 +1704,38 @@ contract EscrowMilestoneUnitTest is Test {
         registry.addToBlacklist(contractor);
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.claimAll(currentContractId);
+        escrow.claimAll(currentContractId, 0, 2);
+    }
+
+    function test_claimAll_reverts_InvalidRange() public {
+        test_deposit_severalMilestones();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(escrow.getMilestoneCount(currentContractId), 3);
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+
+        vm.startPrank(contractor);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 1, contractData, salt);
+        escrow.submit(currentContractId, 2, contractData, salt);
+        vm.stopPrank();
+
+        vm.startPrank(client);
+        escrow.approve(currentContractId, 0, 1 ether, contractor);
+        escrow.approve(currentContractId, 1, 2 ether, contractor);
+        escrow.approve(currentContractId, 2, 3 ether, contractor);
+        vm.stopPrank();
+
+        uint256 startMilestoneId = 1;
+        uint256 endMilestoneId = 0;
+        vm.startPrank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidRange.selector);
+        escrow.claimAll(currentContractId, startMilestoneId, endMilestoneId);
+        startMilestoneId = 0;
+        endMilestoneId = 4;
+        vm.expectRevert(IEscrow.Escrow__OutOfRange.selector);
+        escrow.claimAll(currentContractId, startMilestoneId, endMilestoneId);
+        vm.stopPrank();
     }
 
     ///////////////////////////////////////////

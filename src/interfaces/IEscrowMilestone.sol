@@ -81,6 +81,24 @@ interface IEscrowMilestone is IEscrow {
     /// @param amount The claimed amount.
     event Claimed(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amount);
 
+    /// @notice Emitted when a contractor claims amounts from multiple milestones in one transaction.
+    /// @param contractor The address of the contractor who performed the bulk claim.
+    /// @param contractId The identifier of the contract within which the bulk claim was made.
+    /// @param startMilestoneId The starting milestone ID of the range within which the claims were made.
+    /// @param endMilestoneId The ending milestone ID of the range within which the claims were made.
+    /// @param totalClaimedAmount The total amount claimed across all milestones in the specified range.
+    /// @param totalFeeAmount The total fee amount deducted during the bulk claim process.
+    /// @param totalClientFee The total client fee amount deducted, if applicable, during the bulk claim process.
+    event BulkClaimed(
+        address indexed contractor,
+        uint256 contractId,
+        uint256 startMilestoneId,
+        uint256 endMilestoneId,
+        uint256 totalClaimedAmount,
+        uint256 totalFeeAmount,
+        uint256 totalClientFee
+    );
+
     /// @notice Emitted when a withdrawal is made.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
