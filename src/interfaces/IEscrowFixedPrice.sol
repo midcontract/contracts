@@ -46,58 +46,75 @@ interface IEscrowFixedPrice is IEscrow {
     event Submitted(address indexed sender, uint256 indexed contractId);
 
     /// @notice Emitted when an approval is made.
+    /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
     /// @param amountApprove The approved amount.
     /// @param receiver The address of the receiver.
-    event Approved(uint256 indexed contractId, uint256 indexed amountApprove, address indexed receiver);
+    event Approved(
+        address indexed approver, uint256 indexed contractId, uint256 amountApprove, address indexed receiver
+    );
 
     /// @notice Emitted when a contract is refilled.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param amountAdditional The additional amount added.
-    event Refilled(uint256 indexed contractId, uint256 indexed amountAdditional);
+    event Refilled(address indexed sender, uint256 indexed contractId, uint256 amountAdditional);
 
     /// @notice Emitted when a claim is made.
+    /// @param contractor The address of the contractor.
     /// @param contractId The ID of the contract.
     /// @param paymentToken The address of the payment token.
     /// @param amount The claimed amount.
-    event Claimed(uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+    event Claimed(address indexed contractor, uint256 indexed contractId, address paymentToken, uint256 amount);
 
     /// @notice Emitted when a withdrawal is made.
+    /// @param withdrawer The address of the withdrawer.
     /// @param contractId The ID of the contract.
     /// @param paymentToken The address of the payment token.
     /// @param amount The amount withdrawn.
-    event Withdrawn(uint256 indexed contractId, address indexed paymentToken, uint256 amount);
+    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, address paymentToken, uint256 amount);
 
     /// @notice Emitted when a return is requested.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
-    event ReturnRequested(uint256 contractId);
+    event ReturnRequested(address indexed sender, uint256 contractId);
 
     /// @notice Emitted when a return is approved.
+    /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
-    /// @param sender The address of the sender.
-    event ReturnApproved(uint256 contractId, address sender);
+    event ReturnApproved(address indexed approver, uint256 contractId);
 
     /// @notice Emitted when a return is canceled.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
-    event ReturnCanceled(uint256 contractId);
+    event ReturnCanceled(address indexed sender, uint256 contractId);
 
     /// @notice Emitted when a dispute is created.
-    /// @param contractId The ID of the contract.
     /// @param sender The address of the sender.
-    event DisputeCreated(uint256 contractId, address sender);
+    /// @param contractId The ID of the contract.
+    event DisputeCreated(address indexed sender, uint256 contractId);
 
     /// @notice Emitted when a dispute is resolved.
+    /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
     /// @param winner The winner of the dispute.
     /// @param clientAmount The amount awarded to the client.
     /// @param contractorAmount The amount awarded to the contractor.
-    event DisputeResolved(uint256 contractId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount);
+    event DisputeResolved(
+        address indexed approver,
+        uint256 contractId,
+        Enums.Winner winner,
+        uint256 clientAmount,
+        uint256 contractorAmount
+    );
 
     /// @notice Emitted when the ownership of a contractor account is transferred to a new owner.
     /// @param contractId The identifier of the contract for which contractor ownership is being transferred.
     /// @param previousOwner The previous owner of the contractor account.
     /// @param newOwner The new owner of the contractor account.
-    event ContractorOwnershipTransferred(uint256 contractId, address indexed previousOwner, address indexed newOwner);
+    event ContractorOwnershipTransferred(
+        uint256 indexed contractId, address indexed previousOwner, address indexed newOwner
+    );
 
     /// @notice Interface declaration for transferring contractor ownership.
     /// @param contractId The identifier of the contract for which contractor ownership is being transferred.

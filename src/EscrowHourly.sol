@@ -155,7 +155,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         D.amountToClaim += _amountApprove;
 
         C.status = Enums.Status.APPROVED;
-        emit Approved(_contractId, _weekId, _amountApprove, _receiver);
+        emit Approved(msg.sender, _contractId, _weekId, _amountApprove, _receiver);
     }
 
     /// @notice Approves an existing deposit or creates a new week for approval by the owner/admin.
@@ -207,7 +207,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         }
 
         C.status = Enums.Status.APPROVED;
-        emit Approved(_contractId, _weekId, _amountApprove, _receiver);
+        emit Approved(msg.sender, _contractId, _weekId, _amountApprove, _receiver);
     }
 
     /// @notice Refills the prepayment or a specific week's deposit with an additional amount.
@@ -231,7 +231,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             (uint256 totalAmountAdditional,) = _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
             SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
             C.prepaymentAmount += _amount;
-            emit RefilledPrepayment(_contractId, _amount);
+            emit RefilledPrepayment(msg.sender, _contractId, _amount);
         } else if (_type == Enums.RefillType.WEEK_PAYMENT) {
             // Ensure weekId is within range
             if (_weekId >= contractWeeks[_contractId].length) revert Escrow__InvalidWeekId();
@@ -239,7 +239,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             (uint256 totalAmountAdditional,) = _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
             SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
             D.amountToClaim += _amount;
-            emit RefilledWeekPayment(_contractId, _weekId, _amount);
+            emit RefilledWeekPayment(msg.sender, _contractId, _weekId, _amount);
         }
     }
 
@@ -278,7 +278,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED; // TODO TBC conditions to change the Status
 
-        emit Claimed(_contractId, _weekId, claimAmount);
+        emit Claimed(msg.sender, _contractId, _weekId, claimAmount);
     }
 
     /// @notice Allows the contractor to claim for multiple weeks in a specified range if those weeks are approved.
@@ -375,7 +375,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             _sendPlatformFee(C.paymentToken, platformFee);
         }
 
-        emit Withdrawn(_contractId, _weekId, withdrawAmount);
+        emit Withdrawn(msg.sender, _contractId, _weekId, withdrawAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -393,7 +393,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         }
 
         C.status = Enums.Status.RETURN_REQUESTED;
-        emit ReturnRequested(_contractId, _weekId);
+        emit ReturnRequested(msg.sender, _contractId, _weekId);
     }
 
     /// @notice Approves the return of funds, callable by contractor or platform owner/admin.
@@ -410,7 +410,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         D.amountToWithdraw = C.prepaymentAmount;
         C.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(_contractId, _weekId, msg.sender);
+        emit ReturnApproved(msg.sender, _contractId, _weekId);
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status.
@@ -426,7 +426,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         }
 
         C.status = _status;
-        emit ReturnCanceled(_contractId, _weekId);
+        emit ReturnCanceled(msg.sender, _contractId, _weekId);
     }
 
     /// @notice Creates a dispute over a specific deposit.
@@ -441,7 +441,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         C.status = Enums.Status.DISPUTED;
-        emit DisputeCreated(_contractId, _weekId, msg.sender);
+        emit DisputeCreated(msg.sender, _contractId, _weekId);
     }
 
     /// @notice Resolves a dispute over a specific deposit.
@@ -482,7 +482,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             D.amountToWithdraw = _clientAmount; // Set the withdrawable amount for the client
         }
 
-        emit DisputeResolved(_contractId, _weekId, _winner, _clientAmount, _contractorAmount);
+        emit DisputeResolved(msg.sender, _contractId, _weekId, _winner, _clientAmount, _contractorAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -539,7 +539,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @param _feeAmount Amount of the fee to be transferred.
     function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {
         address treasury = IEscrowRegistry(registry).treasury();
-        if (treasury == address(0)) revert Escrow__ZeroAddressProvided(); // TODO test
+        if (treasury == address(0)) revert Escrow__ZeroAddressProvided();
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
     }
 

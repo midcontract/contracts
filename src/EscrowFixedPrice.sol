@@ -143,7 +143,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         D.amountToClaim += _amountApprove;
         D.status = Enums.Status.APPROVED;
 
-        emit Approved(_contractId, _amountApprove, _receiver);
+        emit Approved(msg.sender, _contractId, _amountApprove, _receiver);
     }
 
     /// @notice Refills the deposit with an additional amount.
@@ -162,7 +162,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
 
         SafeTransferLib.safeTransferFrom(D.paymentToken, msg.sender, address(this), totalAmountAdditional);
         D.amount += _amountAdditional;
-        emit Refilled(_contractId, _amountAdditional);
+        emit Refilled(msg.sender, _contractId, _amountAdditional);
     }
 
     /// @notice Claims the approved amount by the contractor.
@@ -196,7 +196,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
 
         if (D.amount == 0) D.status = Enums.Status.COMPLETED;
 
-        emit Claimed(_contractId, D.paymentToken, claimAmount);
+        emit Claimed(msg.sender, _contractId, D.paymentToken, claimAmount);
     }
 
     /// @notice Withdraws funds from a deposit under specific conditions.
@@ -226,7 +226,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
             _sendPlatformFee(D.paymentToken, platformFee);
         }
 
-        emit Withdrawn(_contractId, D.paymentToken, withdrawAmount);
+        emit Withdrawn(msg.sender, _contractId, D.paymentToken, withdrawAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -243,7 +243,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         ) revert Escrow__ReturnNotAllowed();
 
         D.status = Enums.Status.RETURN_REQUESTED;
-        emit ReturnRequested(_contractId);
+        emit ReturnRequested(msg.sender, _contractId);
     }
 
     /// @notice Approves the return of funds, callable by contractor or platform owner/admin.
@@ -258,7 +258,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         D.amountToWithdraw = D.amount;
 
         D.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(_contractId, msg.sender);
+        emit ReturnApproved(msg.sender, _contractId);
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status.
@@ -276,7 +276,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         }
 
         D.status = _status;
-        emit ReturnCanceled(_contractId);
+        emit ReturnCanceled(msg.sender, _contractId);
     }
 
     /// @notice Creates a dispute over a specific deposit.
@@ -289,7 +289,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         D.status = Enums.Status.DISPUTED;
-        emit DisputeCreated(_contractId, msg.sender);
+        emit DisputeCreated(msg.sender, _contractId);
     }
 
     /// @notice Resolves a dispute over a specific deposit.
@@ -324,7 +324,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
             D.amountToWithdraw = _clientAmount; // Set the withdrawable amount for the client
         }
 
-        emit DisputeResolved(_contractId, _winner, _clientAmount, _contractorAmount);
+        emit DisputeResolved(msg.sender, _contractId, _winner, _clientAmount, _contractorAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -381,7 +381,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @param _feeAmount Amount of the fee to be transferred.
     function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {
         address treasury = IEscrowRegistry(registry).treasury();
-        if (treasury == address(0)) revert Escrow__ZeroAddressProvided(); // TODO test
+        if (treasury == address(0)) revert Escrow__ZeroAddressProvided();
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
     }
 

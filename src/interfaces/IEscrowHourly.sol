@@ -45,7 +45,6 @@ interface IEscrowHourly is IEscrow {
     /// @param weekId The ID of the week.
     /// @param paymentToken The address of the payment token.
     /// @param totalDepositAmount The total amount deposited: principal + platform fee.
-    // /// @param feeConfig The fee configuration.
     event Deposited(
         address indexed sender,
         uint256 indexed contractId,
@@ -55,28 +54,34 @@ interface IEscrowHourly is IEscrow {
     );
 
     /// @notice Emitted when an approval is made.
+    /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
     /// @param amountApprove The approved amount.
     /// @param receiver The address of the receiver.
-    event Approved(uint256 indexed contractId, uint256 indexed weekId, uint256 amountApprove, address receiver);
+    event Approved(
+        address indexed approver, uint256 indexed contractId, uint256 weekId, uint256 amountApprove, address receiver
+    );
 
     /// @notice Emitted when the prepayment for a contract is refilled.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param amount The additional amount added.
-    event RefilledPrepayment(uint256 indexed contractId, uint256 amount);
+    event RefilledPrepayment(address indexed sender, uint256 indexed contractId, uint256 amount);
 
     /// @notice Emitted when a contract is refilled.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
     /// @param amount The additional amount added.
-    event RefilledWeekPayment(uint256 indexed contractId, uint256 indexed weekId, uint256 amount);
+    event RefilledWeekPayment(address indexed sender, uint256 indexed contractId, uint256 weekId, uint256 amount);
 
     /// @notice Emitted when a claim is made.
+    /// @param contractor The address of the contractor.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
     /// @param amount The claimed amount.
-    event Claimed(uint256 indexed contractId, uint256 indexed weekId, uint256 indexed amount);
+    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 weekId, uint256 amount);
 
     /// @notice Emitted when a contractor claims amounts from multiple weeks in one transaction.
     /// @param contractor The address of the contractor who performed the bulk claim.
@@ -88,7 +93,7 @@ interface IEscrowHourly is IEscrow {
     /// @param totalClientFee The total additional fee paid by the client related to the claims.
     event BulkClaimed(
         address indexed contractor,
-        uint256 contractId,
+        uint256 indexed contractId,
         uint256 startWeekId,
         uint256 endWeekId,
         uint256 totalClaimedAmount,
@@ -97,50 +102,62 @@ interface IEscrowHourly is IEscrow {
     );
 
     /// @notice Emitted when a withdrawal is made.
+    /// @param withdrawer The address of the withdrawer.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
     /// @param amount The amount withdrawn.
-    event Withdrawn(uint256 indexed contractId, uint256 indexed weekId, uint256 amount);
-
-    // TODO Return Request for the PrepaymenAmount not weekId
+    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 weekId, uint256 amount);
 
     /// @notice Emitted when a return is requested.
+    /// @dev Currently focuses on the return of prepayment amounts but includes a `weekId` for potential future use 
+    /// where returns might be processed on a week-by-week basis.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
-    event ReturnRequested(uint256 contractId, uint256 weekId);
+    event ReturnRequested(address indexed sender, uint256 indexed contractId, uint256 weekId);
 
     /// @notice Emitted when a return is approved.
+    /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
-    /// @param sender The address of the sender.
-    event ReturnApproved(uint256 contractId, uint256 weekId, address sender);
+    event ReturnApproved(address indexed approver, uint256 indexed contractId, uint256 weekId);
 
     /// @notice Emitted when a return is canceled.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
-    event ReturnCanceled(uint256 contractId, uint256 weekId);
+    event ReturnCanceled(address indexed sender, uint256 indexed contractId, uint256 weekId);
 
     /// @notice Emitted when a dispute is created.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
     /// @param sender The address of the sender.
-    event DisputeCreated(uint256 contractId, uint256 weekId, address sender);
+    event DisputeCreated(address indexed sender, uint256 indexed contractId, uint256 weekId);
 
     /// @notice Emitted when a dispute is resolved.
+    /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
     /// @param winner The winner of the dispute.
     /// @param clientAmount The amount awarded to the client.
     /// @param contractorAmount The amount awarded to the contractor.
     event DisputeResolved(
-        uint256 contractId, uint256 weekId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount
+        address indexed approver,
+        uint256 indexed contractId,
+        uint256 weekId,
+        Enums.Winner winner,
+        uint256 clientAmount,
+        uint256 contractorAmount
     );
 
     /// @notice Emitted when the ownership of a contractor account is transferred to a new owner.
     /// @param contractId The identifier of the contract for which contractor ownership is being transferred.
     /// @param previousOwner The previous owner of the contractor account.
     /// @param newOwner The new owner of the contractor account.
-    event ContractorOwnershipTransferred(uint256 contractId, address indexed previousOwner, address indexed newOwner);
+    event ContractorOwnershipTransferred(
+        uint256 indexed contractId, address indexed previousOwner, address indexed newOwner
+    );
 
     /// @notice Interface declaration for transferring contractor ownership.
     /// @param contractId The identifier of the contract for which contractor ownership is being transferred.

@@ -190,7 +190,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         D.amountToClaim += _amountApprove;
         D.status = Enums.Status.APPROVED;
 
-        emit Approved(_contractId, _milestoneId, _amountApprove, _receiver);
+        emit Approved(msg.sender, _contractId, _milestoneId, _amountApprove, _receiver);
     }
 
     /// @notice Refills the deposit with an additional amount.
@@ -212,7 +212,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
         SafeTransferLib.safeTransferFrom(M.paymentToken, msg.sender, address(this), totalAmountAdditional);
         D.amount += _amountAdditional;
-        emit Refilled(_contractId, _milestoneId, _amountAdditional);
+        emit Refilled(msg.sender, _contractId, _milestoneId, _amountAdditional);
     }
 
     /// @notice Claims the approved amount by the contractor for a given contract and milestone.
@@ -249,7 +249,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
         if (D.amount == 0) D.status = Enums.Status.COMPLETED;
 
-        emit Claimed(_contractId, _milestoneId, claimAmount);
+        emit Claimed(msg.sender, _contractId, _milestoneId, claimAmount);
     }
 
     /// @notice Claims all approved amounts by the contractor for a given contract.
@@ -363,7 +363,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
         D.status = Enums.Status.CANCELED; // Mark the deposit as canceled after funds are withdrawn
 
-        emit Withdrawn(_contractId, _milestoneId, withdrawAmount);
+        emit Withdrawn(msg.sender, _contractId, _milestoneId, withdrawAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -381,7 +381,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         ) revert Escrow__ReturnNotAllowed();
 
         D.status = Enums.Status.RETURN_REQUESTED;
-        emit ReturnRequested(_contractId, _milestoneId);
+        emit ReturnRequested(msg.sender, _contractId, _milestoneId);
     }
 
     /// @notice Approves the return of funds, callable by contractor or platform owner/admin.
@@ -397,7 +397,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         D.amountToWithdraw = D.amount;
 
         D.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(_contractId, _milestoneId, msg.sender);
+        emit ReturnApproved(msg.sender, _contractId, _milestoneId);
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status.
@@ -416,7 +416,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         }
 
         D.status = _status;
-        emit ReturnCanceled(_contractId, _milestoneId);
+        emit ReturnCanceled(msg.sender, _contractId, _milestoneId);
     }
 
     /// @notice Creates a dispute over a specific deposit.
@@ -430,7 +430,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         D.status = Enums.Status.DISPUTED;
-        emit DisputeCreated(_contractId, _milestoneId, msg.sender);
+        emit DisputeCreated(msg.sender, _contractId, _milestoneId);
     }
 
     /// @notice Resolves a dispute over a specific deposit.
@@ -473,7 +473,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         MilestoneDetails storage M = milestoneData[_contractId][_milestoneId];
         M.winner = _winner;
 
-        emit DisputeResolved(_contractId, _milestoneId, _winner, _clientAmount, _contractorAmount);
+        emit DisputeResolved(msg.sender, _contractId, _milestoneId, _winner, _clientAmount, _contractorAmount);
     }
 
     /*//////////////////////////////////////////////////////////////

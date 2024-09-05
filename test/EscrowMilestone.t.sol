@@ -64,27 +64,42 @@ contract EscrowMilestoneUnitTest is Test {
         Enums.FeeConfig feeConfig
     );
     event Submitted(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
-    event Approved(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amountApprove, address receiver);
-    event Refilled(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amountAdditional);
-    event Claimed(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amount);
+    event Approved(
+        address indexed approver,
+        uint256 indexed contractId,
+        uint256 indexed milestoneId,
+        uint256 amountApprove,
+        address receiver
+    );
+    event Refilled(
+        address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amountAdditional
+    );
+    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount);
     event BulkClaimed(
         address indexed contractor,
-        uint256 contractId,
+        uint256 indexed contractId,
         uint256 startMilestoneId,
         uint256 endMilestoneId,
         uint256 totalClaimedAmount,
         uint256 totalFeeAmount,
         uint256 totalClientFee
     );
-    event Withdrawn(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount);
+    event Withdrawn(
+        address indexed withdrawer, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount
+    );
     event RegistryUpdated(address registry);
     event AdminManagerUpdated(address adminManager);
-    event ReturnRequested(uint256 contractId, uint256 milestoneId);
-    event ReturnApproved(uint256 contractId, uint256 milestoneId, address sender);
-    event ReturnCanceled(uint256 contractId, uint256 milestoneId);
-    event DisputeCreated(uint256 contractId, uint256 milestoneId, address sender);
+    event ReturnRequested(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
+    event ReturnApproved(address indexed approver, uint256 indexed contractId, uint256 indexed milestoneId);
+    event ReturnCanceled(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
+    event DisputeCreated(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
     event DisputeResolved(
-        uint256 contractId, uint256 milestoneId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount
+        address indexed approver,
+        uint256 indexed contractId,
+        uint256 indexed milestoneId,
+        Enums.Winner winner,
+        uint256 clientAmount,
+        uint256 contractorAmount
     );
 
     function setUp() public {
@@ -192,11 +207,11 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_deposit() public {
         test_initialize();
-        vm.startPrank(address(client));
-        paymentToken.mint(address(client), 1.03 ether);
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(address(client), 1, 0, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        emit Deposited(client, 1, 0, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
         escrow.deposit(0, address(paymentToken), deposits);
         vm.stopPrank();
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -233,11 +248,11 @@ contract EscrowMilestoneUnitTest is Test {
         test_deposit();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 1);
-        vm.startPrank(address(client));
-        paymentToken.mint(address(client), 1.03 ether);
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(address(client), 1, 1, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        emit Deposited(client, 1, 1, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
         escrow.deposit(currentContractId, address(paymentToken), deposits);
         vm.stopPrank();
         (
@@ -664,7 +679,7 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 amountApprove = 1 ether;
         vm.startPrank(client);
         vm.expectEmit(true, true, true, true);
-        emit Approved(currentContractId, milestoneId, amountApprove, contractor);
+        emit Approved(client, currentContractId, milestoneId, amountApprove, contractor);
         escrow.approve(currentContractId, milestoneId, amountApprove, contractor);
         (_contractor, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_amount, 1 ether);
@@ -688,7 +703,7 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 amountApprove = 1 ether;
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
-        emit Approved(currentContractId, milestoneId, amountApprove, contractor);
+        emit Approved(owner, currentContractId, milestoneId, amountApprove, contractor);
         escrow.approve(currentContractId, milestoneId, amountApprove, contractor);
         (_contractor, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_amount, 1 ether);
@@ -716,7 +731,7 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 amountApprove = 1 ether;
         vm.startPrank(newAdmin);
         vm.expectEmit(true, true, true, true);
-        emit Approved(currentContractId, milestoneId, amountApprove, contractor);
+        emit Approved(newAdmin, currentContractId, milestoneId, amountApprove, contractor);
         escrow.approve(currentContractId, milestoneId, amountApprove, contractor);
         (_contractor, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_amount, 1 ether);
@@ -857,11 +872,11 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
 
         uint256 amountAdditional = 1 ether;
-        vm.startPrank(address(client));
-        paymentToken.mint(address(client), totalDepositAmount);
+        vm.startPrank(client);
+        paymentToken.mint(client, totalDepositAmount);
         paymentToken.approve(address(escrow), totalDepositAmount);
         vm.expectEmit(true, true, true, true);
-        emit Refilled(currentContractId, milestoneId, amountAdditional);
+        emit Refilled(client, currentContractId, milestoneId, amountAdditional);
         escrow.refill(currentContractId, milestoneId, amountAdditional);
         vm.stopPrank();
         (_contractor, _amount, _amountToClaim,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
@@ -947,7 +962,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.startPrank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit Claimed(currentContractId, milestoneId, claimAmount);
+        emit Claimed(contractor, currentContractId, milestoneId, claimAmount);
         escrow.claim(currentContractId, milestoneId);
 
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
@@ -1764,7 +1779,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(currentContractId, milestoneId, _amountToWithdraw + feeAmount);
+        emit Withdrawn(client, currentContractId, milestoneId, _amountToWithdraw + feeAmount);
         escrow.withdraw(currentContractId, milestoneId);
         (, uint256 _amountAfter, uint256 _amountToWithdrawAfter,,,, Enums.Status _statusAfter) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -1798,7 +1813,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(currentContractId, milestoneId, totalDepositAmount);
+        emit Withdrawn(client, currentContractId, milestoneId, totalDepositAmount);
         escrow.withdraw(currentContractId, milestoneId);
         (, uint256 _amountAfter, uint256 _amountToWithdrawAfter,,,, Enums.Status _statusAfter) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -1831,7 +1846,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(currentContractId, milestoneId, totalDepositAmount);
+        emit Withdrawn(client, currentContractId, milestoneId, totalDepositAmount);
         escrow.withdraw(currentContractId, milestoneId);
         (, uint256 _amountAfter, uint256 _amountToWithdrawAfter,,,, Enums.Status _statusAfter) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -1864,7 +1879,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(currentContractId, 0, totalDepositAmount);
+        emit Withdrawn(client, currentContractId, 0, totalDepositAmount);
         escrow.withdraw(currentContractId, 0);
         (, uint256 _amountAfter,, uint256 _amountToWithdrawAfter,,, Enums.Status _statusAfter) =
             escrow.contractMilestones(currentContractId, 0);
@@ -1942,7 +1957,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_status), 0); //Status.ACTIVE
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit ReturnRequested(currentContractId, milestoneId);
+        emit ReturnRequested(client, currentContractId, milestoneId);
         escrow.requestReturn(currentContractId, milestoneId);
         (_contractor, _amount,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_contractor, address(0));
@@ -1961,7 +1976,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_status), 1); //Status.SUBMITTED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit ReturnRequested(currentContractId, milestoneId);
+        emit ReturnRequested(client, currentContractId, milestoneId);
         escrow.requestReturn(currentContractId, milestoneId);
         (_contractor, _amount,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_contractor, contractor);
@@ -1980,7 +1995,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_status), 2); //Status.APPROVED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit ReturnRequested(currentContractId, milestoneId);
+        emit ReturnRequested(client, currentContractId, milestoneId);
         escrow.requestReturn(currentContractId, milestoneId);
         (_contractor, _amount,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_contractor, contractor);
@@ -1999,7 +2014,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_status), 3); //Status.COMPLETED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit ReturnRequested(currentContractId, milestoneId);
+        emit ReturnRequested(client, currentContractId, milestoneId);
         escrow.requestReturn(currentContractId, milestoneId);
         (_contractor, _amount,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_contractor, contractor);
@@ -2073,7 +2088,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit ReturnApproved(currentContractId, milestoneId, owner);
+        emit ReturnApproved(owner, currentContractId, milestoneId);
         escrow.approveReturn(currentContractId, milestoneId);
         (_contractor, _amount,, _amountToWithdraw,,, _status) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -2095,7 +2110,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit ReturnApproved(currentContractId, milestoneId, contractor);
+        emit ReturnApproved(contractor, currentContractId, milestoneId);
         escrow.approveReturn(currentContractId, milestoneId);
         (_contractor, _amount,, _amountToWithdraw,,, _status) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -2165,7 +2180,7 @@ contract EscrowMilestoneUnitTest is Test {
         status = Enums.Status.ACTIVE;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit ReturnCanceled(currentContractId, milestoneId);
+        emit ReturnCanceled(client, currentContractId, milestoneId);
         escrow.cancelReturn(currentContractId, milestoneId, status);
         (,,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(uint256(_status), 0); //Status.ACTIVE
@@ -2181,7 +2196,7 @@ contract EscrowMilestoneUnitTest is Test {
         status = Enums.Status.SUBMITTED;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit ReturnCanceled(currentContractId, milestoneId);
+        emit ReturnCanceled(client, currentContractId, milestoneId);
         escrow.cancelReturn(currentContractId, milestoneId, status);
         (_contractor,,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_contractor, contractor);
@@ -2256,7 +2271,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit DisputeCreated(currentContractId, milestoneId, client);
+        emit DisputeCreated(client, currentContractId, milestoneId);
         escrow.createDispute(currentContractId, milestoneId);
         (_contractor, _amount,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_contractor, contractor);
@@ -2275,7 +2290,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit DisputeCreated(currentContractId, milestoneId, contractor);
+        emit DisputeCreated(contractor, currentContractId, milestoneId);
         escrow.createDispute(currentContractId, milestoneId);
         (_contractor, _amount,,,,, _status) = escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_contractor, contractor);
@@ -2341,7 +2356,7 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 clientAmount = _amount;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(currentContractId, milestoneId, _winner, clientAmount, 0);
+        emit DisputeResolved(owner, currentContractId, milestoneId, _winner, clientAmount, 0);
         escrow.resolveDispute(currentContractId, milestoneId, _winner, clientAmount, 0);
         (_contractor, _amount, _amountToClaim, _amountToWithdraw,,, _status) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -2374,7 +2389,7 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 contractorAmount = _amount;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(currentContractId, milestoneId, _winner, 0, contractorAmount);
+        emit DisputeResolved(owner, currentContractId, milestoneId, _winner, 0, contractorAmount);
         escrow.resolveDispute(currentContractId, milestoneId, _winner, 0, contractorAmount);
         (_contractor, _amount, _amountToClaim, _amountToWithdraw,,, _status) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -2408,7 +2423,7 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 contractorAmount = _amount / 2;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(currentContractId, milestoneId, _winner, clientAmount, contractorAmount);
+        emit DisputeResolved(owner, currentContractId, milestoneId, _winner, clientAmount, contractorAmount);
         escrow.resolveDispute(currentContractId, milestoneId, _winner, clientAmount, contractorAmount);
         (_contractor, _amount, _amountToClaim, _amountToWithdraw,,, _status) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -2440,7 +2455,7 @@ contract EscrowMilestoneUnitTest is Test {
         Enums.Winner _winner = Enums.Winner.SPLIT;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(currentContractId, milestoneId, _winner, 0, 0);
+        emit DisputeResolved(owner, currentContractId, milestoneId, _winner, 0, 0);
         escrow.resolveDispute(currentContractId, milestoneId, _winner, 0, 0);
         (_contractor, _amount, _amountToClaim, _amountToWithdraw,,, _status) =
             escrow.contractMilestones(currentContractId, milestoneId);

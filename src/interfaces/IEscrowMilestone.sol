@@ -63,23 +63,34 @@ interface IEscrowMilestone is IEscrow {
     event Submitted(address indexed sender, uint256 indexed milestoneId, uint256 indexed contractId);
 
     /// @notice Emitted when an approval is made.
+    /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
     /// @param amountApprove The approved amount.
     /// @param receiver The address of the receiver.
-    event Approved(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amountApprove, address receiver);
+    event Approved(
+        address indexed approver,
+        uint256 indexed contractId,
+        uint256 indexed milestoneId,
+        uint256 amountApprove,
+        address receiver
+    );
 
     /// @notice Emitted when a contract is refilled.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
     /// @param amountAdditional The additional amount added.
-    event Refilled(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amountAdditional);
+    event Refilled(
+        address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amountAdditional
+    );
 
     /// @notice Emitted when a claim is made.
+    /// @param contractor The address of the contractor.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
     /// @param amount The claimed amount.
-    event Claimed(uint256 indexed contractId, uint256 indexed milestoneId, uint256 indexed amount);
+    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount);
 
     /// @notice Emitted when a contractor claims amounts from multiple milestones in one transaction.
     /// @param contractor The address of the contractor who performed the bulk claim.
@@ -91,7 +102,7 @@ interface IEscrowMilestone is IEscrow {
     /// @param totalClientFee The total client fee amount deducted, if applicable, during the bulk claim process.
     event BulkClaimed(
         address indexed contractor,
-        uint256 contractId,
+        uint256 indexed contractId,
         uint256 startMilestoneId,
         uint256 endMilestoneId,
         uint256 totalClaimedAmount,
@@ -100,41 +111,52 @@ interface IEscrowMilestone is IEscrow {
     );
 
     /// @notice Emitted when a withdrawal is made.
+    /// @param withdrawer The address of the withdrawer.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
     /// @param amount The amount withdrawn.
-    event Withdrawn(uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount);
+    event Withdrawn(
+        address indexed withdrawer, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount
+    );
 
     /// @notice Emitted when a return is requested.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    event ReturnRequested(uint256 contractId, uint256 milestoneId);
+    event ReturnRequested(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
 
     /// @notice Emitted when a return is approved.
+    /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    /// @param sender The address of the sender.
-    event ReturnApproved(uint256 contractId, uint256 milestoneId, address sender);
+    event ReturnApproved(address indexed approver, uint256 indexed contractId, uint256 indexed milestoneId);
 
     /// @notice Emitted when a return is canceled.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    event ReturnCanceled(uint256 contractId, uint256 milestoneId);
+    event ReturnCanceled(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
 
     /// @notice Emitted when a dispute is created.
+    /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    /// @param sender The address of the sender.
-    event DisputeCreated(uint256 contractId, uint256 milestoneId, address sender);
+    event DisputeCreated(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
 
     /// @notice Emitted when a dispute is resolved.
+    /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
     /// @param winner The winner of the dispute.
     /// @param clientAmount The amount awarded to the client.
     /// @param contractorAmount The amount awarded to the contractor.
     event DisputeResolved(
-        uint256 contractId, uint256 milestoneId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount
+        address indexed approver,
+        uint256 indexed contractId,
+        uint256 indexed milestoneId,
+        Enums.Winner winner,
+        uint256 clientAmount,
+        uint256 contractorAmount
     );
 
     /// @notice Emitted when the ownership of a contractor account is transferred to a new owner.
@@ -143,7 +165,7 @@ interface IEscrowMilestone is IEscrow {
     /// @param previousOwner The previous owner of the contractor account.
     /// @param newOwner The new owner of the contractor account.
     event ContractorOwnershipTransferred(
-        uint256 contractId, uint256 milestoneId, address indexed previousOwner, address indexed newOwner
+        uint256 indexed contractId, uint256 indexed milestoneId, address previousOwner, address indexed newOwner
     );
 
     /// @notice Interface declaration for transferring contractor ownership.
