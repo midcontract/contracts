@@ -633,6 +633,27 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee
     }
 
+    function test_adminApprove_reverts_InvalidStatusForApprove() public {
+        test_requestReturn_whenActive();
+        assertEq(paymentToken.balanceOf(address(client)), 0);
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+
+        uint256 amountApprove = 1.03 ether;
+        vm.startPrank(owner);
+        paymentToken.mint(address(client), amountApprove);
+        paymentToken.approve(address(escrow), amountApprove);
+        vm.expectRevert(IEscrow.Escrow__InvalidStatusForApprove.selector);
+        escrow.adminApprove(currentContractId, --weekId, amountApprove, contractor, true);
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        vm.stopPrank();
+    }
+
     function test_approve_reverts_UnauthorizedAccount() public {
         test_deposit_prepayment();
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -1099,7 +1120,6 @@ contract EscrowHourlyUnitTest is Test {
 
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusToClaim.selector);
-        // vm.expectRevert(IEscrow.Escrow__NotApproved.selector); //TODO test
         escrow.claim(currentContractId, weekId);
 
         uint256 amountToMint = 1.03 ether;
@@ -1542,7 +1562,7 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
     }
 
-    // claim::if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED; // TODO TBC conditions to change the Status
+    // claim::if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED;
     function test_requestReturn_whenCompleted() public {
         test_claim_clientCoversOnly();
         uint256 currentContractId = escrow.getCurrentContractId();

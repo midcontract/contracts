@@ -146,8 +146,11 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         ContractDetails storage C = contractDetails[_contractId];
         Deposit storage D = contractWeeks[_contractId][_weekId];
 
-        if (uint256(C.status) != uint256(Enums.Status.ACTIVE)) revert Escrow__InvalidStatusForApprove();
         if (D.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
+        if (C.status != Enums.Status.ACTIVE && C.status != Enums.Status.COMPLETED && C.status != Enums.Status.CANCELED)
+        {
+            revert Escrow__InvalidStatusForApprove();
+        }
 
         // Transfer the specified amount after calculating fees.
         (uint256 totalAmountApprove,) = _computeDepositAmountAndFee(msg.sender, _amountApprove, D.feeConfig);
@@ -195,6 +198,12 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         ContractDetails storage C = contractDetails[_contractId];
         Deposit storage D = contractWeeks[_contractId][_weekId];
+        if (
+            C.status != Enums.Status.ACTIVE && C.status != Enums.Status.APPROVED && C.status != Enums.Status.COMPLETED
+                && C.status != Enums.Status.CANCELED
+        ) {
+            revert Escrow__InvalidStatusForApprove();
+        }
 
         if (C.prepaymentAmount < _amountApprove) {
             // If the prepayment is less than the amount to approve, use the entire prepayment for the amount to claim.
@@ -276,7 +285,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             _sendPlatformFee(C.paymentToken, feeAmount + clientFee);
         }
 
-        if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED; // TODO TBC conditions to change the Status
+        if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED;
 
         emit Claimed(msg.sender, _contractId, _weekId, claimAmount);
     }
@@ -435,7 +444,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     function createDispute(uint256 _contractId, uint256 _weekId) external {
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.RETURN_REQUESTED && C.status != Enums.Status.APPROVED) {
-            revert Escrow__CreateDisputeNotAllowed(); // TODO TBC APPROVED
+            revert Escrow__CreateDisputeNotAllowed();
         }
         Deposit storage D = contractWeeks[_contractId][_weekId];
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
