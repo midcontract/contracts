@@ -327,7 +327,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
         Deposit storage D = contractMilestones[_contractId][_milestoneId];
         if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {
-            revert Escrow__InvalidStatusToWithdraw(); // TODO check && add D.status = Enums.Status.COMPLETED
+            revert Escrow__InvalidStatusToWithdraw();
         }
 
         if (D.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();

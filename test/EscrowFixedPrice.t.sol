@@ -951,9 +951,6 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amountToClaim, amountApprove); //0
         assertEq(uint256(_status), 2); //Status.APPROVED
 
-        // vm.startPrank(contractor); TODO // if (D.amountToClaim == 0) revert Escrow__NotApproved();
-        // escrow.claim(_contractId);
-
         vm.prank(owner);
         registry.addToBlacklist(contractor);
         vm.prank(contractor);

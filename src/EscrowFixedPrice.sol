@@ -282,7 +282,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @notice Creates a dispute over a specific deposit.
     /// @param _contractId ID of the deposit where the dispute occurred.
     function createDispute(uint256 _contractId) external {
-        Deposit storage D = deposits[_contractId]; // TODO TBC Enums.Status.ACTIVE for the client
+        Deposit storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED && D.status != Enums.Status.SUBMITTED) {
             revert Escrow__CreateDisputeNotAllowed();
         }
