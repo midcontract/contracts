@@ -3,13 +3,13 @@ pragma solidity 0.8.25;
 
 import "forge-std/Script.sol";
 
-import {EscrowHourly} from "src/EscrowHourly.sol";
+import {EscrowFactory} from "src/EscrowFactory.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 import {PolAmoyConfig} from "config/PolAmoyConfig.sol";
 
-contract DeployEscrowHourlyScript is Script {
-    EscrowHourly escrow;
+contract DeployEscrowFactoryScript is Script {
+    EscrowFactory factory;
     address registry;
     address ownerPublicKey;
     uint256 ownerPrivateKey;
@@ -26,15 +26,14 @@ contract DeployEscrowHourlyScript is Script {
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        escrow = new EscrowHourly();
-        escrow.initialize(address(deployerPublicKey), address(ownerPublicKey), address(registry));
+        factory = new EscrowFactory(registry, ownerPublicKey);
+        console.log("==factory addr=%s", address(factory));
+        assert(address(factory) != address(0));
         vm.stopBroadcast();
 
         vm.startBroadcast(ownerPrivateKey);
-        EscrowRegistry(registry).updateEscrowHourly(address(escrow));
-        console.log("==escrow addr=%s", address(escrow));
-        assert(address(escrow) != address(0));
-        assert(EscrowRegistry(registry).escrowHourly() == address(escrow));
+        EscrowRegistry(registry).updateFactory(address(factory));
+        assert(EscrowRegistry(registry).factory() == address(factory));
         vm.stopBroadcast();
     }
 }

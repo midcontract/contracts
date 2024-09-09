@@ -43,13 +43,13 @@ contract DeployRegistryScript is Script {
         vm.stopBroadcast();
 
         vm.startBroadcast(ownerPrivateKey);
-        EscrowRegistry(registry).setTreasury(ownerPublicKey);
-        EscrowRegistry(registry).addPaymentToken(0xa801061f49970Ef796e0fD0998348f3436ccCb1d);
-        EscrowRegistry(registry).updateEscrowFixedPrice(0xD8038Fae596CDC13cC9b3681A6Eb44cC1984D670);
-        EscrowRegistry(registry).updateEscrowMilestone(0x2dc075B51ef3b4f0AD868b0cc342951682019E62);
-        EscrowRegistry(registry).updateEscrowHourly(0x2b8660f1c512dBc74967d35BC23A6186a5CDE90a);
-        EscrowRegistry(registry).updateFactory(0xeaD5265B6412103d316b6389c0c15EBA82a0cbDa);
-        EscrowRegistry(registry).updateFeeManager(0xA4857B1178425cfaaaeedBcFc220F242b4A518fA);
+        // EscrowRegistry(registry).setTreasury(ownerPublicKey);
+        EscrowRegistry(registry).addPaymentToken(paymentToken);
+        // EscrowRegistry(registry).updateEscrowFixedPrice(0xD8038Fae596CDC13cC9b3681A6Eb44cC1984D670);
+        // EscrowRegistry(registry).updateEscrowMilestone(0x2dc075B51ef3b4f0AD868b0cc342951682019E62);
+        // EscrowRegistry(registry).updateEscrowHourly(0x2b8660f1c512dBc74967d35BC23A6186a5CDE90a);
+        // EscrowRegistry(registry).updateFactory(0xeaD5265B6412103d316b6389c0c15EBA82a0cbDa);
+        // EscrowRegistry(registry).updateFeeManager(0xA4857B1178425cfaaaeedBcFc220F242b4A518fA);
 
         // EscrowRegistry(registry).updateEscrowHourly(address(escrow));
         vm.stopBroadcast();

@@ -3,13 +3,15 @@ pragma solidity 0.8.25;
 
 import "forge-std/Script.sol";
 
-import {EscrowFixedPrice} from "src/EscrowFixedPrice.sol";
+import {EscrowAccountRecovery} from "src/modules/EscrowAccountRecovery.sol";
+import {EscrowAdminManager} from "src/modules/EscrowAdminManager.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 import {PolAmoyConfig} from "config/PolAmoyConfig.sol";
 
-contract DeployEscrowFixedPriceScript is Script {
-    EscrowFixedPrice escrow;
+contract DeployAccountRecoveryScript is Script {
+    EscrowAccountRecovery accountRecovery;
+    address adminManager;
     address registry;
     address ownerPublicKey;
     uint256 ownerPrivateKey;
@@ -22,19 +24,18 @@ contract DeployEscrowFixedPriceScript is Script {
         deployerPublicKey = vm.envAddress("DEPLOYER_PUBLIC_KEY");
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         registry = PolAmoyConfig.REGISTRY;
+        adminManager = PolAmoyConfig.ADMIN_MANAGER;
     }
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        escrow = new EscrowFixedPrice();
-        escrow.initialize(address(deployerPublicKey), address(deployerPublicKey), address(registry));
-        console.log("==escrow addr=%s", address(escrow));
-        assert(address(escrow) != address(0));
+        accountRecovery = new EscrowAccountRecovery(adminManager);
+        console.log("==accountRecovery addr=%s", address(accountRecovery));
         vm.stopBroadcast();
 
         vm.startBroadcast(ownerPrivateKey);
-        EscrowRegistry(registry).updateEscrowFixedPrice(0xA925686d8DA646854BF47b493C0f053ce62308C5);
-        assert(EscrowRegistry(registry).escrowFixedPrice() == address(0xA925686d8DA646854BF47b493C0f053ce62308C5));
+        EscrowRegistry(registry).setAccountRecovery(address(accountRecovery));
+        assert(EscrowRegistry(registry).accountRecovery() == address(accountRecovery));
         vm.stopBroadcast();
     }
 }

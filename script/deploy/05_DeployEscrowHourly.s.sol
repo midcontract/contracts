@@ -3,14 +3,16 @@ pragma solidity 0.8.25;
 
 import "forge-std/Script.sol";
 
-import {EscrowFactory} from "src/EscrowFactory.sol";
+import {EscrowHourly} from "src/EscrowHourly.sol";
 import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
+import {EscrowAdminManager} from "src/modules/EscrowAdminManager.sol";
 import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
 import {PolAmoyConfig} from "config/PolAmoyConfig.sol";
 
-contract DeployEscrowFactoryScript is Script {
-    EscrowFactory factory;
+contract DeployEscrowHourlyScript is Script {
+    EscrowHourly escrow;
     address registry;
+    address adminManager;
     address ownerPublicKey;
     uint256 ownerPrivateKey;
     address deployerPublicKey;
@@ -22,18 +24,20 @@ contract DeployEscrowFactoryScript is Script {
         deployerPublicKey = vm.envAddress("DEPLOYER_PUBLIC_KEY");
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         registry = PolAmoyConfig.REGISTRY;
+        adminManager = PolAmoyConfig.ADMIN_MANAGER;
     }
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        factory = new EscrowFactory(registry, ownerPublicKey);
-        console.log("==factory addr=%s", address(factory));
-        assert(address(factory) != address(0));
+        escrow = new EscrowHourly();
+        escrow.initialize(address(deployerPublicKey), address(adminManager), address(registry));
         vm.stopBroadcast();
 
         vm.startBroadcast(ownerPrivateKey);
-        IEscrowRegistry(registry).updateFactory(address(factory));
-        assert(IEscrowRegistry(registry).factory() == address(factory));
+        EscrowRegistry(registry).updateEscrowHourly(address(escrow));
+        console.log("==escrow addr=%s", address(escrow));
+        assert(address(escrow) != address(0));
+        assert(EscrowRegistry(registry).escrowHourly() == address(escrow));
         vm.stopBroadcast();
     }
 }
