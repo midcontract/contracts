@@ -34,8 +34,9 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Address of the account recovery module contract.
     address public accountRecovery;
 
-    /// @notice Mapping of ERC20 token addresses that are enabled as payment options.
-    /// @dev Includes the ability to enable the native chain token for payments.
+    /// @notice Mapping of token addresses allowed for use as payment in escrows.
+    /// @dev Initially includes ERC20 stablecoins and optionally wrapped native tokens.
+    /// This setting can be updated to reflect changes in allowed payment methods, adhering to security and usability standards.
     mapping(address token => bool enabled) public paymentTokens;
 
     /// @notice Checks if an address is blacklisted.

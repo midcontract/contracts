@@ -88,19 +88,19 @@ interface IEscrowRegistry {
     function blacklist(address user) external view returns (bool);
 
     /// @notice Updates the address of the fixed price escrow contract used in the system.
-    /// @param escrowFixedPrice The new address of the fixed price escrow contract to be used across the platform.
-    function updateEscrowFixedPrice(address escrowFixedPrice) external;
+    /// @param newEscrowFixedPrice The new address of the fixed price escrow contract to be used across the platform.
+    function updateEscrowFixedPrice(address newEscrowFixedPrice) external;
 
     /// @notice Updates the address of the milestone escrow contract used in the system.
-    /// @param escrowMilestone The new address of the milestone escrow contract to be used.
-    function updateEscrowMilestone(address escrowMilestone) external;
+    /// @param newEscrowMilestone The new address of the milestone escrow contract to be used.
+    function updateEscrowMilestone(address newEscrowMilestone) external;
 
     /// @notice Updates the address of the hourly escrow contract used in the system.
-    /// @param escrowHourly The new address of the hourly escrow contract to be used.
-    function updateEscrowHourly(address escrowHourly) external;
+    /// @param newEscrowHourly The new address of the hourly escrow contract to be used.
+    function updateEscrowHourly(address newEscrowHourly) external;
 
     /// @notice Updates the address of the Factory contract used in the system.
     /// @dev This function allows the system administrator to set a new factory contract address.
-    /// @param factory The new address of the Factory contract to be used across the platform.
-    function updateFactory(address factory) external;
+    /// @param newFactory The new address of the Factory contract to be used across the platform.
+    function updateFactory(address newFactory) external;
 }
