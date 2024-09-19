@@ -303,6 +303,15 @@ contract EscrowAccountRecoveryUnitTest is Test {
         recovery.executeRecovery(accountType, address(escrow), client);
     }
 
+    function test_executeRecovery_fixed_price_client_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_fixed_price_client();
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.transferClientOwnership(address(0));
+    }
+
     function test_initiateRecovery_fixed_price_contractor() public {
         initializeEscrowFixedPrice();
         uint256 contractId = escrow.getCurrentContractId();
@@ -396,6 +405,16 @@ contract EscrowAccountRecoveryUnitTest is Test {
         recovery.executeRecovery(accountType, address(escrow), contractor);
     }
 
+    function test_executeRecovery_fixed_price_contractor_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_fixed_price_contractor();
+        uint256 contractId = escrow.getCurrentContractId();
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.transferContractorOwnership(contractId, address(0));
+    }
+
     function test_initiateRecovery_milestone_client() public {
         initializeEscrowMilestone();
         uint256 contractId = escrowMilestone.getCurrentContractId();
@@ -481,6 +500,15 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
         recovery.executeRecovery(accountType, address(escrowMilestone), client);
+    }
+
+    function test_executeRecovery_milestone_client_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_milestone_client();
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrowMilestone.transferClientOwnership(address(0));
     }
 
     function test_initiateRecovery_milestone_contractor() public {
@@ -575,6 +603,17 @@ contract EscrowAccountRecoveryUnitTest is Test {
         recovery.executeRecovery(accountType, address(escrowMilestone), contractor);
     }
 
+    function test_executeRecovery_milestone_contractor_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_milestone_contractor();
+        uint256 contractId = escrowMilestone.getCurrentContractId();
+        uint256 milestoneId = escrowMilestone.getMilestoneCount(contractId);
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrowMilestone.transferContractorOwnership(contractId, --milestoneId, address(0));
+    }
+
     function test_initiateRecovery_hourly_client() public {
         initializeEscrowHourly();
         uint256 contractId = escrowHourly.getCurrentContractId();
@@ -659,6 +698,15 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
         recovery.executeRecovery(accountType, address(escrowHourly), client);
+    }
+
+    function test_executeRecovery_hourly_client_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_hourly_client();
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrowHourly.transferClientOwnership(address(0));
     }
 
     function test_initiateRecovery_hourly_contractor() public {
@@ -750,6 +798,16 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
         recovery.executeRecovery(accountType, address(escrowHourly), contractor);
+    }
+
+    function test_executeRecovery_hourly_contractor_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_hourly_contractor();
+        uint256 contractId = escrowHourly.getCurrentContractId();
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrowHourly.transferContractorOwnership(contractId, address(0));
     }
 
     function test_updateRecoveryPeriod() public {

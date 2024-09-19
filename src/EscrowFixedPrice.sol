@@ -435,6 +435,8 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Verify that the caller is the authorized account recovery module.
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
 
+        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
+
         // Emit the ownership transfer event before changing the state to reflect the previous state.
         emit ClientOwnershipTransferred(client, _newAccount);
 
@@ -449,6 +451,8 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     function transferContractorOwnership(uint256 _contractId, address _newAccount) external {
         // Verify that the caller is the authorized account recovery module.
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
+        
+        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
 
         Deposit storage D = deposits[_contractId];
 

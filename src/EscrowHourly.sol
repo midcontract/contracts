@@ -594,6 +594,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         // Verify that the caller is the authorized account recovery module.
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
 
+        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
+
         // Emit the ownership transfer event before changing the state to reflect the previous state.
         emit ClientOwnershipTransferred(client, _newAccount);
 
@@ -608,6 +610,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     function transferContractorOwnership(uint256 _contractId, address _newAccount) external {
         // Verify that the caller is the authorized account recovery module.
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
+
+        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
 
         Deposit storage D = contractWeeks[_contractId][0]; // The initial contractor set in this deposit is the sole contractor for this contractId.
 
