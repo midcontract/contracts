@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {SafeTransferLib} from "@solbase/utils/SafeTransferLib.sol";
-import {SignatureChecker} from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
+import { SafeTransferLib } from "@solbase/utils/SafeTransferLib.sol";
+import { SignatureChecker } from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
-import {IEscrowAdminManager} from "./interfaces/IEscrowAdminManager.sol";
-import {IEscrowFixedPrice} from "./interfaces/IEscrowFixedPrice.sol";
-import {IEscrowFeeManager} from "./interfaces/IEscrowFeeManager.sol";
-import {IEscrowRegistry} from "./interfaces/IEscrowRegistry.sol";
-import {ECDSA, ERC1271} from "./libs/ERC1271.sol";
-import {Enums} from "./libs/Enums.sol";
+import { IEscrowAdminManager } from "./interfaces/IEscrowAdminManager.sol";
+import { IEscrowFixedPrice } from "./interfaces/IEscrowFixedPrice.sol";
+import { IEscrowFeeManager } from "./interfaces/IEscrowFeeManager.sol";
+import { IEscrowRegistry } from "./interfaces/IEscrowRegistry.sol";
+import { ECDSA, ERC1271 } from "./libs/ERC1271.sol";
+import { Enums } from "./libs/Enums.sol";
 
 /// @title EscrowFixedPrice Contract
 /// @notice Manages deposits, approvals, submissions, and claims within the escrow system.

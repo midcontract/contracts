@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "forge-std/Test.sol";
+import { Test, console2 } from "forge-std/Test.sol";
 
-import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
-import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
-import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
-import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
-import {Enums} from "src/libs/Enums.sol";
-import {IEscrow} from "src/interfaces/IEscrow.sol";
-import {MockRegistry} from "test/mocks/MockRegistry.sol";
-import {ERC20Mock} from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
+import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
+import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
+import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
+import { Enums } from "src/libs/Enums.sol";
+import { IEscrow } from "src/interfaces/IEscrow.sol";
+import { MockRegistry } from "test/mocks/MockRegistry.sol";
+import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
 
 contract EscrowFixedPriceUnitTest is Test {
     EscrowFixedPrice escrow;

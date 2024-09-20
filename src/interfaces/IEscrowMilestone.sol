@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {IEscrow, Enums} from "./IEscrow.sol";
+import { IEscrow, Enums } from "./IEscrow.sol";
 
 /// @title EscrowMilestone Interface
 /// @notice Interface for the Escrow Milestone contract that handles deposits, withdrawals, and disputes.

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "forge-std/Script.sol";
+import { Script, console } from "forge-std/Script.sol";
 
-import {EscrowAccountRecovery} from "src/modules/EscrowAccountRecovery.sol";
-import {EscrowAdminManager} from "src/modules/EscrowAdminManager.sol";
-import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
-import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
-import {PolAmoyConfig} from "config/PolAmoyConfig.sol";
+import { EscrowAccountRecovery } from "src/modules/EscrowAccountRecovery.sol";
+import { EscrowAdminManager } from "src/modules/EscrowAdminManager.sol";
+import { EscrowRegistry } from "src/modules/EscrowRegistry.sol";
+import { EthSepoliaConfig } from "config/EthSepoliaConfig.sol";
+import { PolAmoyConfig } from "config/PolAmoyConfig.sol";
 
 contract DeployAccountRecoveryScript is Script {
     EscrowAccountRecovery accountRecovery;

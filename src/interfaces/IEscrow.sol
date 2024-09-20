@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {Enums} from "src/libs/Enums.sol";
+import { Enums } from "../libs/Enums.sol";
 
 /// @title Escrow Interface
 interface IEscrow {

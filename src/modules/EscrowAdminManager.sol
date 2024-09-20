@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {OwnedRoles} from "@solbase/auth/OwnedRoles.sol";
+import { OwnedRoles } from "@solbase/auth/OwnedRoles.sol";
 
 /// @title Escrow Admin Manager
 /// @notice Manages administrative roles and permissions for the escrow system, using a role-based access control mechanism.
 /// @dev This contract extends OwnedRoles to utilize its role management functionalities and establishes predefined roles such as Admin, Guardian, and Strategist.
+/// It includes references to unused role constants defined in the OwnedRoles library, which are part of the library's design to accommodate potential future roles. 
+/// These constants do not affect the contract's functionality or gas efficiency but are retained for compatibility and future flexibility.
 contract EscrowAdminManager is OwnedRoles {
     // Define roles bitmask
     uint256 private constant ADMIN_ROLE = 1 << 1;

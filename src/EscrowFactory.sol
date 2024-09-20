@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {LibClone} from "@solbase/utils/LibClone.sol";
-import {OwnedThreeStep} from "@solbase/auth/OwnedThreeStep.sol";
-import {Pausable} from "@openzeppelin/utils/Pausable.sol";
+import { LibClone } from "@solbase/utils/LibClone.sol";
+import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
+import { Pausable } from "@openzeppelin/utils/Pausable.sol";
 
-import {IEscrow} from "./interfaces/IEscrow.sol";
-import {IEscrowFactory} from "./interfaces/IEscrowFactory.sol";
-import {IEscrowRegistry} from "./interfaces/IEscrowRegistry.sol";
-import {Enums} from "./libs/Enums.sol";
+import { IEscrow } from "./interfaces/IEscrow.sol";
+import { IEscrowFactory } from "./interfaces/IEscrowFactory.sol";
+import { IEscrowRegistry } from "./interfaces/IEscrowRegistry.sol";
+import { Enums } from "./libs/Enums.sol";
 
 /// @title EscrowFixedPrice Factory Contract
 /// @dev This contract is used for creating new escrow contract instances using the clone factory pattern.

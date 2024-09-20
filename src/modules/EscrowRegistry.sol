@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {OwnedThreeStep} from "@solbase/auth/OwnedThreeStep.sol";
-import {IEscrowRegistry} from "../interfaces/IEscrowRegistry.sol";
+import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
+import { IEscrowRegistry } from "../interfaces/IEscrowRegistry.sol";
 
 /// @title EscrowRegistry Contract
 /// @dev This contract manages configuration settings for the escrow system including approved payment tokens.

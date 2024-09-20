@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {IEscrow, Enums} from "./IEscrow.sol";
+import { IEscrow, Enums } from "./IEscrow.sol";
 
 /// @title EscrowHourly Interface
 /// @notice Interface for the Escrow Hourly contract that handles deposits, withdrawals, and disputes.

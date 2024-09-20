@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {IEscrow, Enums} from "./IEscrow.sol";
+import { IEscrow, Enums } from "./IEscrow.sol";
 
 /// @title EscrowFixedPrice Interface
 /// @notice Interface for the EscrowFixedPrice contract that handles deposits, withdrawals, and disputes.
