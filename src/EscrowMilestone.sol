@@ -78,20 +78,21 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
     /// @notice Creates multiple milestones for a new or existing contract.
     /// @dev This function allows the initialization of multiple milestones in a single transaction,
-    ///     either by creating a new contract or adding to an existing one.
+    ///     either by creating a new contract or adding to an existing one. Limits the number of milestones to 10 to prevent gas limit issues.
     /// @param _contractId ID of the contract for which the deposits are made; if zero, a new contract is initialized.
     /// @param _paymentToken  The address of the payment token for the contractId.
     /// @param _deposits Array of details for each new milestone.
     function deposit(uint256 _contractId, address _paymentToken, Deposit[] calldata _deposits) external onlyClient {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_deposits.length == 0) revert Escrow__NoDepositsProvided();
+        if (_deposits.length > 10) revert Escrow__TooManyDeposits(); // Limit the number of deposits that can be processed at once
 
         uint256 contractId;
         if (_contractId == 0) {
-            // Create a new contract ID since _contractId is zero, indicating a new contract
+            // Create a new contract ID since `_contractId` is zero, indicating a new contract
             contractId = ++currentContractId;
         } else {
-            // Check if the provided _contractId is valid for adding new milestones
+            // Check if the provided `_contractId` is valid for adding new milestones
             if (contractMilestones[_contractId].length == 0 && _contractId > currentContractId) {
                 revert Escrow__InvalidContractId();
             }

@@ -9,6 +9,9 @@ interface IEscrowMilestone is IEscrow {
     /// @notice Error for when no deposits are provided in a function call that expects at least one.
     error Escrow__NoDepositsProvided();
 
+    /// @notice Error for when too many deposit entries are provided, exceeding the allowed limit for a single transaction.
+    error Escrow__TooManyDeposits();
+
     /// @notice Error for when an invalid contract ID is provided to a function expecting a valid existing contract ID.
     error Escrow__InvalidContractId();
 
