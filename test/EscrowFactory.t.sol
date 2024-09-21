@@ -186,7 +186,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.stopPrank();
     }
 
@@ -240,7 +240,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 3); //Enums.FeeConfig.NO_FEES
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.stopPrank();
     }
 
@@ -333,7 +333,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_deploy_and_deposit_hourly() public {
@@ -386,7 +386,7 @@ contract EscrowFactoryUnitTest is Test {
             escrowProxyHourly.contractDetails(currentContractId); //currentContractId
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
             escrowProxyHourly.contractWeeks(currentContractId, 0);
         assertEq(_contractor, contractor);

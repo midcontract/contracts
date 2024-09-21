@@ -179,7 +179,7 @@ contract EscrowFixedPriceUnitTest is Test {
 
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_deposit_reverts() public {
@@ -312,7 +312,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     // helpers
@@ -353,7 +353,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
         assertEq(_amountToWithdraw, 1 ether);
-        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
+        assertEq(uint256(_status), 8); //Status.REFUND_APPROVED
 
         (uint256 totalDepositAmount, uint256 feeAmount) =
             _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ALL);
@@ -372,7 +372,7 @@ contract EscrowFixedPriceUnitTest is Test {
             escrow.deposits(currentContractId);
         assertEq(_amountAfter, 0 ether);
         assertEq(_amountToWithdrawAfter, 0 ether);
-        assertEq(uint256(_statusAfter), 8); //Status.CANCELED
+        assertEq(uint256(_statusAfter), 9); //Status.CANCELED
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw + feeAmount)
         assertEq(paymentToken.balanceOf(address(client)), _amountToWithdraw + feeAmount); //==totalDepositAmount = _amountToWithdraw + feeAmount
         assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
@@ -386,7 +386,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToWithdraw, 1 ether);
-        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
+        assertEq(uint256(_status), 8); //Status.REFUND_APPROVED
 
         (uint256 totalDepositAmount, uint256 feeAmount) =
             _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ALL);
@@ -405,7 +405,7 @@ contract EscrowFixedPriceUnitTest is Test {
             escrow.deposits(currentContractId);
         assertEq(_amountAfter, 0 ether);
         assertEq(_amountToWithdrawAfter, 0 ether);
-        assertEq(uint256(_statusAfter), 8); //Status.CANCELED
+        assertEq(uint256(_statusAfter), 9); //Status.CANCELED
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw + feeAmount)
         assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount); //==totalDepositAmount = _amountToWithdraw + feeAmount
         assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
@@ -417,7 +417,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (,, uint256 _amount,, uint256 _amountToWithdraw,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_amount, 1 ether);
         assertEq(_amountToWithdraw, _amount);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
 
         (uint256 totalDepositAmount, uint256 feeAmount) =
             _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ALL);
@@ -436,7 +436,7 @@ contract EscrowFixedPriceUnitTest is Test {
             escrow.deposits(currentContractId);
         assertEq(_amountAfter, 0 ether);
         assertEq(_amountToWithdrawAfter, 0 ether);
-        assertEq(uint256(_statusAfter), 8); //Status.CANCELED
+        assertEq(uint256(_statusAfter), 9); //Status.CANCELED
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
@@ -450,7 +450,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0.5 ether);
         assertEq(_amountToWithdraw, 0.5 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
 
         (uint256 totalDepositAmount, uint256 feeAmount) =
             _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ALL);
@@ -469,7 +469,7 @@ contract EscrowFixedPriceUnitTest is Test {
             escrow.deposits(currentContractId);
         assertEq(_amountAfter, 0.5 ether);
         assertEq(_amountToWithdrawAfter, 0 ether);
-        assertEq(uint256(_statusAfter), 8); //Status.CANCELED
+        assertEq(uint256(_statusAfter), 9); //Status.CANCELED
         assertEq(paymentToken.balanceOf(address(escrow)), 0.5 ether);
         assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
@@ -497,20 +497,20 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0);
         uint256 currentContractId = escrow.getCurrentContractId();
         (,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(client);
         escrow.createDispute(currentContractId);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         vm.prank(owner);
         escrow.resolveDispute(currentContractId, Enums.Winner.SPLIT, 0, 0.5 ether);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NoFundsAvailableForWithdraw.selector);
         escrow.withdraw(currentContractId);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
         assertEq(paymentToken.balanceOf(address(client)), 0);
     }
 
@@ -542,7 +542,7 @@ contract EscrowFixedPriceUnitTest is Test {
             Enums.Status _status
         ) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
@@ -554,7 +554,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,, _amount, _amountToClaim,,, _feeConfig, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorDataHash);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
     function test_submit_reverts() public {
@@ -562,7 +562,7 @@ contract EscrowFixedPriceUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         contractData = bytes("contract_data_");
         salt = keccak256(abi.encodePacked(uint256(42)));
@@ -590,7 +590,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
@@ -605,7 +605,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,,,,, _contractorData, _feeConfig, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorDataHash);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
     function test_submit_reverts_UnauthorizedAccount() public {
@@ -613,7 +613,7 @@ contract EscrowFixedPriceUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
         vm.prank(address(this));
@@ -621,7 +621,7 @@ contract EscrowFixedPriceUnitTest is Test {
         escrow.submit(currentContractId, contractData, salt);
         (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_submit_reverts_InvalidStatusForSubmit() public {
@@ -630,7 +630,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,,,,, bytes32 _contractorData,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorData);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
@@ -641,7 +641,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,,,,, _contractorData,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorDataHash);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
     ////////////////////////////////////////////
@@ -656,7 +656,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         uint256 amountApprove = 1 ether;
 
@@ -667,7 +667,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
     }
 
@@ -679,7 +679,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         uint256 amountApprove = 1 ether;
 
@@ -690,7 +690,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
     }
 
@@ -702,7 +702,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         uint256 amountApprove = 1 ether;
         vm.startPrank(address(this));
@@ -711,7 +711,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
         vm.stopPrank();
     }
 
@@ -721,14 +721,14 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 amountApprove = 1 ether;
         vm.startPrank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusForApprove.selector);
         escrow.approve(currentContractId, amountApprove, contractor);
         (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.stopPrank();
     }
 
@@ -740,7 +740,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         uint256 amountApprove = 1 ether;
 
@@ -748,12 +748,12 @@ contract EscrowFixedPriceUnitTest is Test {
         vm.expectRevert(IEscrow.Escrow__UnauthorizedReceiver.selector);
         escrow.approve(currentContractId, amountApprove, address(0));
         (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         vm.expectRevert(IEscrow.Escrow__UnauthorizedReceiver.selector);
         escrow.approve(currentContractId, amountApprove, address(123));
         (_contractor,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
         vm.stopPrank();
     }
 
@@ -765,13 +765,13 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         vm.startPrank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
         escrow.approve(currentContractId, 0, contractor);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
         vm.stopPrank();
     }
 
@@ -783,7 +783,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         uint256 amountApprove = 1.01 ether;
         vm.startPrank(client);
@@ -791,7 +791,7 @@ contract EscrowFixedPriceUnitTest is Test {
         escrow.approve(currentContractId, amountApprove, contractor);
         (,,, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_amountToClaim, 0);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
         vm.stopPrank();
     }
 
@@ -816,7 +816,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.08 ether
         uint256 amountAdditional = 1 ether;
@@ -833,7 +833,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 2 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_refill_reverts() public {
@@ -853,7 +853,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_feeConfig), 0);
-        assertEq(uint256(_status), 0);
+        assertEq(uint256(_status), 1);
         (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.08 ether
         uint256 amountAdditional = 1 ether;
@@ -894,7 +894,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
 
         (uint256 totalDepositAmount, uint256 feeApplied) =
             _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
@@ -919,7 +919,7 @@ contract EscrowFixedPriceUnitTest is Test {
             escrow.deposits(currentContractId);
         assertEq(_amountAfter, _amount - _amountToClaim);
         assertEq(_amountToClaimAfter, 0 ether);
-        assertEq(uint256(_statusAfter), 3); //Status.COMPLETED
+        assertEq(uint256(_statusAfter), 4); //Status.COMPLETED
         vm.stopPrank();
     }
 
@@ -930,7 +930,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (,, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove); //0
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusToClaim.selector);
@@ -949,7 +949,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (,, _amount, _amountToClaim,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove); //0
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
 
         vm.prank(owner);
         registry.addToBlacklist(contractor);
@@ -1009,7 +1009,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
 
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
             _computeClaimableAndFeeAmount(contractor, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
@@ -1133,7 +1133,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         vm.prank(client);
         escrow.requestReturn(currentContractId);
@@ -1142,14 +1142,14 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
 
         vm.prank(contractor);
         escrow.createDispute(currentContractId);
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
         // uint256 clientAmount = _amount / 2;
         // uint256 contractorAmount = _amount / 2;
@@ -1160,7 +1160,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0.5 ether);
         assertEq(_amountToWithdraw, 0.5 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
 
         (uint256 totalDepositAmount, uint256 feeAmount) =
             _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ONLY);
@@ -1178,7 +1178,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 0.5 ether);
         assertEq(_amountToClaim, 0.5 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 8); //Status.CANCELED
+        assertEq(uint256(_status), 9); //Status.CANCELED
         assertEq(paymentToken.balanceOf(address(escrow)), 0.5 ether);
         assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount); //=0.5 ether
         assertEq(paymentToken.balanceOf(address(treasury)), initialFeeAmount - feeAmount);
@@ -1193,7 +1193,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 0 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 3); //Status.COMPLETED
+        assertEq(uint256(_status), 4); //Status.COMPLETED
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), initialFeeAmount - feeAmount + claimFeeAmount);
@@ -1242,7 +1242,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
 
         vm.prank(client);
         escrow.requestReturn(currentContractId);
@@ -1251,14 +1251,14 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
 
         vm.prank(contractor);
         escrow.createDispute(currentContractId);
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
         vm.prank(owner);
         escrow.resolveDispute(currentContractId, Enums.Winner.SPLIT, _amount / 2, 0);
@@ -1267,7 +1267,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0.5 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
 
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__NotApproved.selector);
@@ -1284,7 +1284,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnRequested(client, currentContractId);
@@ -1292,7 +1292,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_requestReturn_whenSubmitted() public {
@@ -1301,7 +1301,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnRequested(client, currentContractId);
@@ -1309,7 +1309,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_requestReturn_whenApproved() public {
@@ -1318,7 +1318,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnRequested(client, currentContractId);
@@ -1326,7 +1326,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_requestReturn_whenCompleted() public {
@@ -1335,7 +1335,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 0 ether);
-        assertEq(uint256(_status), 3); //Status.COMPLETED
+        assertEq(uint256(_status), 4); //Status.COMPLETED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnRequested(client, currentContractId);
@@ -1343,7 +1343,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 0 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_requestReturn_reverts_UnauthorizedAccount() public {
@@ -1352,14 +1352,14 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(contractor);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender);
         escrow.requestReturn(currentContractId);
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_requestReturn_reverts_ReturnNotAllowed() public {
@@ -1368,14 +1368,14 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__ReturnNotAllowed.selector);
         escrow.requestReturn(currentContractId);
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_requestReturn_reverts_submitted_UnauthorizedAccount() public {
@@ -1384,14 +1384,14 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
         vm.prank(address(this));
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender);
         escrow.requestReturn(currentContractId);
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
     function test_approveReturn_by_owner() public {
@@ -1402,7 +1402,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
         emit ReturnApproved(owner, currentContractId);
@@ -1411,7 +1411,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
         assertEq(_amountToWithdraw, 1 ether);
-        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
+        assertEq(uint256(_status), 8); //Status.REFUND_APPROVED
     }
 
     function test_approveReturn_by_contractor() public {
@@ -1422,7 +1422,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit ReturnApproved(contractor, currentContractId);
@@ -1431,7 +1431,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
         assertEq(_amountToWithdraw, 1 ether);
-        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
+        assertEq(uint256(_status), 8); //Status.REFUND_APPROVED
     }
 
     function test_approveReturn_reverts_UnauthorizedToApproveReturn() public {
@@ -1442,7 +1442,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__UnauthorizedToApproveReturn.selector);
         escrow.approveReturn(currentContractId);
@@ -1450,7 +1450,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 4); //Status.REFUND_APPROVED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_approveReturn_reverts_NoReturnRequested() public {
@@ -1458,13 +1458,13 @@ contract EscrowFixedPriceUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__NoReturnRequested.selector);
         escrow.approveReturn(currentContractId);
         (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_approveReturn_reverts_submitted_NoReturnRequested() public {
@@ -1472,27 +1472,27 @@ contract EscrowFixedPriceUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__NoReturnRequested.selector);
         escrow.approveReturn(currentContractId);
         (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
     function test_cancelReturn() public {
         test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         (,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         status = Enums.Status.ACTIVE;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnCanceled(client, currentContractId);
         escrow.cancelReturn(currentContractId, status);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_cancelReturn_submitted() public {
@@ -1500,7 +1500,7 @@ contract EscrowFixedPriceUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         status = Enums.Status.SUBMITTED;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
@@ -1508,26 +1508,26 @@ contract EscrowFixedPriceUnitTest is Test {
         escrow.cancelReturn(currentContractId, status);
         (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
     function test_cancelReturn_reverts() public {
         test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         (,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         status = Enums.Status.ACTIVE;
         vm.prank(owner);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
         escrow.cancelReturn(currentContractId, status);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         status = Enums.Status.CANCELED;
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusProvided.selector);
         escrow.cancelReturn(currentContractId, status);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_cancelReturn_reverts_submitted() public {
@@ -1536,13 +1536,13 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         status = Enums.Status.RESOLVED;
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusProvided.selector);
         escrow.cancelReturn(currentContractId, status);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_cancelReturn_reverts_submitted_NoReturnRequested() public {
@@ -1550,14 +1550,14 @@ contract EscrowFixedPriceUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
         status = Enums.Status.ACTIVE;
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NoReturnRequested.selector);
         escrow.cancelReturn(currentContractId, status);
         (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(uint256(_status), 1); //Status.SUBMITTED
+        assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
     ////////////////////////////////////////////
@@ -1571,7 +1571,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit DisputeCreated(client, currentContractId);
@@ -1579,7 +1579,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     // if contractor doesn’t want to approve “Escrow Return Request”
@@ -1590,7 +1590,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit DisputeCreated(contractor, currentContractId);
@@ -1598,7 +1598,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_createDispute_reverts_CreateDisputeNotAllowed() public {
@@ -1607,14 +1607,14 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__CreateDisputeNotAllowed.selector);
         escrow.createDispute(currentContractId);
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_createDispute_reverts_UnauthorizedToApproveDispute() public {
@@ -1623,14 +1623,14 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(address(this));
         vm.expectRevert(IEscrow.Escrow__UnauthorizedToApproveDispute.selector);
         escrow.createDispute(currentContractId);
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_resolveDispute_winnerClient() public {
@@ -1650,7 +1650,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         Enums.Winner _winner = Enums.Winner.CLIENT;
         uint256 clientAmount = _amount;
         vm.prank(owner);
@@ -1662,7 +1662,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, clientAmount);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
     }
 
     function test_resolveDispute_winnerContractor() public {
@@ -1682,7 +1682,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         Enums.Winner _winner = Enums.Winner.CONTRACTOR;
         uint256 contractorAmount = _amount;
         vm.prank(owner);
@@ -1694,7 +1694,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, contractorAmount);
         assertEq(_amountToWithdraw, 0);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
     }
 
     function test_resolveDispute_winnerSplit() public {
@@ -1714,7 +1714,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         Enums.Winner _winner = Enums.Winner.SPLIT;
         uint256 clientAmount = _amount / 2;
         uint256 contractorAmount = _amount / 2;
@@ -1727,7 +1727,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0.5 ether);
         assertEq(_amountToWithdraw, 0.5 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
     }
 
     function test_resolveDispute_winnerSplit_ZeroAllocationToEachParty() public {
@@ -1747,7 +1747,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         Enums.Winner _winner = Enums.Winner.SPLIT;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
@@ -1758,31 +1758,31 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
     }
 
     function test_resolveDispute_reverts_DisputeNotActiveForThisDeposit() public {
         test_deposit();
         uint256 currentContractId = escrow.getCurrentContractId();
         (,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__DisputeNotActiveForThisDeposit.selector);
         escrow.resolveDispute(currentContractId, Enums.Winner.CLIENT, 0, 0);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_resolveDispute_reverts_UnauthorizedToApproveDispute() public {
         test_createDispute_by_client();
         uint256 currentContractId = escrow.getCurrentContractId();
         (,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         vm.prank(address(this));
         vm.expectRevert(); //Unauthorized()
         escrow.resolveDispute(currentContractId, Enums.Winner.CONTRACTOR, 0, 0);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_resolveDispute_reverts_winnerClient_ResolutionExceedsDepositedAmount() public {
@@ -1802,7 +1802,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__ResolutionExceedsDepositedAmount.selector);
         escrow.resolveDispute(currentContractId, Enums.Winner.CLIENT, 1.1 ether, 0 ether);
@@ -1811,7 +1811,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_resolveDispute_reverts_winnerContractor_ResolutionExceedsDepositedAmount() public {
@@ -1831,7 +1831,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__ResolutionExceedsDepositedAmount.selector);
         escrow.resolveDispute(currentContractId, Enums.Winner.CONTRACTOR, 0 ether, 1.1 ether);
@@ -1840,7 +1840,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_resolveDispute_reverts_winnerSplit_ResolutionExceedsDepositedAmount() public {
@@ -1860,7 +1860,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__ResolutionExceedsDepositedAmount.selector);
         escrow.resolveDispute(currentContractId, Enums.Winner.SPLIT, 1 ether, 1 wei);
@@ -1869,7 +1869,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_resolveDispute_reverts_InvalidWinnerSpecified() public {
@@ -1889,7 +1889,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         vm.prank(owner);
         // vm.expectRevert(IEscrow.Escrow__InvalidWinnerSpecified.selector);
         vm.expectRevert(); // panic: failed to convert value into enum type (0x21)
@@ -1899,7 +1899,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     ////////////////////////////////////////////
