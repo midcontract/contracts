@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-/// @title Enumerations for Fee Configurations and Status
+/// @title Enumerations Library for Contract Configuration and State Management
+/// @notice This library defines various enums used across the contract for managing fees, statuses, escrow types, and more.
 library Enums {
     /// @notice Enumerates the different configurations of fee responsibilities.
     enum FeeConfig {
@@ -29,10 +30,10 @@ library Enums {
     /// @notice Enumerates the potential outcomes of a dispute resolution.
     /// @dev Describes who the winner of a dispute can be in various contexts, including partial resolutions.
     enum Winner {
-        NONE, // Indicates that no resolution has been made yet or the dispute is unresolved.
-        CLIENT, // Indicates the dispute was resolved in favor of the client.
-        CONTRACTOR, // Indicates the dispute was resolved in favor of the contractor.
-        SPLIT // Indicates the dispute resolution benefits both parties.
+        NONE, // No resolution has been made yet or the dispute is unresolved.
+        CLIENT, // Dispute was resolved in favor of the client.
+        CONTRACTOR, // Dispute was resolved in favor of the contractor.
+        SPLIT // Dispute resolution benefits both parties.
     }
 
     /// @notice Defines the types of escrow contracts that can be created.
@@ -41,7 +42,7 @@ library Enums {
         FIXED_PRICE, // Represents a fixed price contract where the payment is made as a lump sum.
         MILESTONE, // Represents a contract where payment is divided into milestones, each payable upon completion.
         HOURLY, // Represents a contract where payment is made based on hourly rates and actual time worked.
-        INVALID // Used as a sentinel value or error state where the escrow type is not defined or out of valid range.
+        INVALID // Sentinel value or error state where the escrow type is not defined or out of valid range.
     }
 
     /// @notice Specifies the types of refills possible within an escrow contract.
