@@ -234,6 +234,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         ContractDetails storage C = contractDetails[_contractId];
         if (!registry.paymentTokens(C.paymentToken)) revert Escrow__NotSupportedPaymentToken();
 
+        if (C.status == Enums.Status.COMPLETED) C.status = Enums.Status.APPROVED;
+
         if (_type == Enums.RefillType.PREPAYMENT) {
             Deposit storage D = contractWeeks[_contractId][_weekId];
             // Add funds to prepayment

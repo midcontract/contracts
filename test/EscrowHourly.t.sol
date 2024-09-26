@@ -1301,6 +1301,74 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
     }
 
+    function test_claim_after_autoApprove_and_refill() public {
+        test_adminApprove_prepayment_less_than_amount_to_approve();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 1);
+        (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (, uint256 _amountToClaim,,) = escrow.contractWeeks(currentContractId, --weekId);
+        assertEq(_amountToClaim, 1 ether);
+
+        // 1st claim after auto approval befor refill
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        vm.startPrank(contractor);
+        escrow.claim(currentContractId, weekId);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
+        (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        assertEq(_amountToClaim, 0 ether);
+        vm.stopPrank();
+
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 4); //Status.COMPLETED
+
+        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount - (claimAmount + feeAmount + clientFee));
+
+        // refill more funds by client
+        uint256 amountAdditional = 1 ether;
+        vm.startPrank(client);
+        paymentToken.mint(client, totalDepositAmount);
+        paymentToken.approve(address(escrow), totalDepositAmount);
+        escrow.refill(currentContractId, weekId, amountAdditional, Enums.RefillType.WEEK_PAYMENT);
+        vm.stopPrank();
+
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+
+        (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        assertEq(_amountToClaim, amountAdditional);
+
+        (uint256 claimAmount2, uint256 feeAmount2, uint256 clientFee2) =
+            _computeClaimableAndFeeAmount(contractor, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        // 2d claim that is after refill
+        vm.startPrank(contractor);
+        escrow.claim(currentContractId, weekId);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount + claimAmount2);
+        (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        assertEq(_amountToClaim, 0 ether);
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 4); //Status.COMPLETED
+        vm.stopPrank();
+
+        assertEq(
+            paymentToken.balanceOf(address(escrow)),
+            (totalDepositAmount - (claimAmount + feeAmount + clientFee))
+                - (totalDepositAmount - (claimAmount2 + feeAmount2 + clientFee2))
+        );
+        assertEq(paymentToken.balanceOf(address(escrow)), 0);
+        assertEq(paymentToken.balanceOf(address(treasury)), (feeAmount + clientFee) + (feeAmount2 + clientFee2));
+    }
+
     ///////////////////////////////////////////
     //           withdraw tests              //
     ///////////////////////////////////////////
