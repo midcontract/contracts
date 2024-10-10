@@ -36,7 +36,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @dev Indicates that the contract has been initialized.
     bool public initialized;
 
-    // Maps from contract ID to its details
+    /// @dev Maps from contract ID to its details.
     mapping(uint256 contractId => ContractDetails) public contractDetails;
 
     /// @dev Maps a contract ID to an array of `Deposit` structures representing weeks.
@@ -122,7 +122,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
                 contractor: _deposit.contractor, // Initialize with contractor assigned, could be zero address on initial stage
                 amountToClaim: _deposit.amountToClaim,
                 amountToWithdraw: _deposit.amountToWithdraw,
-                feeConfig: _deposit.feeConfig
+                feeConfig: _deposit.feeConfig,
+                weekStatus: contractStatus
             })
         );
 
@@ -131,7 +132,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     }
 
     /// @notice Approves a deposit by the client.
-    /// @dev This function allows the client or owner to approve a submitted deposit, specifying the amount to approve and any additional amount.
+    /// @dev This function allows the client to approve a specifying the amount to approve. // todo
     /// @param _contractId ID of the deposit to be approved.
     /// @param _weekId ID of the week within the contract to be approved.
     /// @param _amountApprove Amount to approve for the deposit.
@@ -158,10 +159,11 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         D.amountToClaim += _amountApprove;
 
         C.status = Enums.Status.APPROVED;
+        D.weekStatus = Enums.Status.APPROVED;
         emit Approved(msg.sender, _contractId, _weekId, _amountApprove, _receiver);
     }
 
-    /// @notice Approves an existing deposit or creates a new week for approval by the owner/admin.
+    /// @notice Approves an existing deposit or creates a new week for approval by the admin.
     /// @dev This function handles both regular approval within existing weeks and admin-triggered approvals that may need to create a new week.
     /// @param _contractId ID of the contract for which the approval is happening.
     /// @param _weekId ID of the week within the contract to be approved, or creates a new one if it does not exist.
@@ -186,7 +188,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
                     contractor: _receiver,
                     amountToClaim: 0,
                     amountToWithdraw: 0,
-                    feeConfig: lastFeeConfig // Using the feeConfig from the most recent week.
+                    feeConfig: lastFeeConfig, // Using the feeConfig from the most recent week.
+                    weekStatus: Enums.Status.APPROVED // todo NONE check
                 });
                 contractWeeks[_contractId].push(newDeposit);
             } else {
@@ -216,6 +219,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         }
 
         C.status = Enums.Status.APPROVED;
+        D.weekStatus = Enums.Status.APPROVED;
         emit Approved(msg.sender, _contractId, _weekId, _amountApprove, _receiver);
     }
 
@@ -250,6 +254,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             (uint256 totalAmountAdditional,) = _computeDepositAmountAndFee(msg.sender, _amount, D.feeConfig);
             SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
             D.amountToClaim += _amount;
+            D.weekStatus = Enums.Status.APPROVED;
             emit RefilledWeekPayment(msg.sender, _contractId, _weekId, _amount);
         }
     }
@@ -274,10 +279,11 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             _computeClaimableAmountAndFee(msg.sender, D.amountToClaim, D.feeConfig);
 
         if (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED) {
-            C.prepaymentAmount -= D.amountToClaim; // Use prepaymentAmount in case not approved by client
+            C.prepaymentAmount -= D.amountToClaim; // Use prepaymentAmount in case not approved by client directly
         }
 
-        D.amountToClaim = 0;
+        D.amountToClaim = 0; // Reset the claimable amount to prevent re-claiming
+        D.weekStatus = Enums.Status.COMPLETED; // Mark the week as completed
 
         SafeTransferLib.safeTransfer(C.paymentToken, msg.sender, claimAmount);
 
@@ -287,7 +293,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             _sendPlatformFee(C.paymentToken, feeAmount + clientFee);
         }
 
-        if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED;
+        // Check if all weeks are claimed to set the contract status to COMPLETED
+        if (_verifyIfAllWeeksCompleted(_contractId)) C.status = Enums.Status.COMPLETED;
 
         emit Claimed(msg.sender, _contractId, _weekId, claimAmount);
     }
@@ -332,6 +339,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
                     _computeClaimableAmountAndFee(msg.sender, D.amountToClaim, D.feeConfig);
 
                 D.amountToClaim = 0;
+                D.weekStatus = Enums.Status.COMPLETED;
                 totalClaimedAmount += claimAmount;
                 totalFeeAmount += feeAmount;
                 totalClientFee += clientFee;
@@ -350,14 +358,14 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             _sendPlatformFee(C.paymentToken, totalFeeAmount + totalClientFee);
         }
 
-        if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED;
+        if (_verifyIfAllWeeksCompleted(_contractId)) C.status = Enums.Status.COMPLETED;
 
         emit BulkClaimed(
             msg.sender, _contractId, _startWeekId, _endWeekId, totalClaimedAmount, totalFeeAmount, totalClientFee
         );
     }
 
-    /// @notice Withdraws funds from a deposit under specific conditions.
+    /// @notice Withdraws funds - `prepaymentAmount` from a contract under specific conditions.
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
     /// @param _weekId ID of the week within the contract to be withdrawn.
     function withdraw(uint256 _contractId, uint256 _weekId) external onlyClient {
@@ -552,6 +560,22 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         address treasury = IEscrowRegistry(registry).treasury();
         if (treasury == address(0)) revert Escrow__ZeroAddressProvided();
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
+    }
+
+    /// @dev Internal function to check if all weeks within a contract are completed.
+    /// @param _contractId The ID of the contract to check.
+    /// @return True if all weeks are completed, false otherwise.
+    function _verifyIfAllWeeksCompleted(uint256 _contractId) internal view returns (bool) {
+        uint256 length = contractWeeks[_contractId].length;
+        for (uint256 i; i < length;) {
+            if (contractWeeks[_contractId][i].weekStatus != Enums.Status.COMPLETED) {
+                return false;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+        return true;
     }
 
     /// @notice Internal function to validate the signature of the provided data.

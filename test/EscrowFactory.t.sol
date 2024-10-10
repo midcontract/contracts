@@ -368,7 +368,8 @@ contract EscrowFactoryUnitTest is Test {
             contractor: contractor,
             amountToClaim: 0,
             amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
         });
 
         uint256 currentContractId = escrowProxyHourly.getCurrentContractId();
@@ -387,12 +388,18 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
         assertEq(uint256(_status), 1); //Status.ACTIVE
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrowProxyHourly.contractWeeks(currentContractId, 0);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrowProxyHourly.contractWeeks(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         assertEq(escrowProxyHourly.getWeeksCount(currentContractId), 1);
     }
 

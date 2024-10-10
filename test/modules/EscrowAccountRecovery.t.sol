@@ -156,7 +156,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
             contractor: contractor,
             amountToClaim: 0,
             amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
         });
 
         assertFalse(escrowHourly.initialized());
@@ -763,7 +764,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertTrue(_confirmed);
         assertEq(uint256(_escrowType), 2);
 
-        (address _contractor,,,) = escrowHourly.contractWeeks(contractId, 0);
+        (address _contractor,,,,) = escrowHourly.contractWeeks(contractId, 0);
         assertEq(_contractor, contractor);
 
         vm.prank(new_contractor);
@@ -792,7 +793,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertEq(_executeAfter, 0);
         assertTrue(_executed);
 
-        (_contractor,,,) = escrowHourly.contractWeeks(contractId, 0);
+        (_contractor,,,,) = escrowHourly.contractWeeks(contractId, 0);
         assertEq(_contractor, new_contractor);
 
         vm.prank(new_contractor);

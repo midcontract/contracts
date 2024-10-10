@@ -20,23 +20,25 @@ interface IEscrowHourly is IEscrow {
 
     /// @param paymentToken The address of the payment token.
     /// @param prepaymentAmount The prepayment amount for the contract.
-    /// @param status The status of the deposit.
+    /// @param status The status of the contract.
     struct ContractDetails {
         address paymentToken;
         uint256 prepaymentAmount;
         Enums.Status status;
     }
 
-    /// @notice Represents a deposit in the escrow.
+    /// @notice Represents a deposit in the escrow for particular week.
     /// @param contractor The address of the contractor.
     /// @param amountToClaim The amount to be claimed.
     /// @param amountToWithdraw The amount to be withdrawn.
     /// @param feeConfig The fee configuration.
-    struct Deposit {
+    /// @param weekStatus The status of the deposit for particular week.
+    struct Deposit { // todo renaming struct
         address contractor;
         uint256 amountToClaim;
         uint256 amountToWithdraw;
         Enums.FeeConfig feeConfig;
+        Enums.Status weekStatus;
     }
 
     /// @notice Emitted when a deposit is made.
