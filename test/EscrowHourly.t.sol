@@ -222,6 +222,7 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(escrow.getWeeksCount(currentContractId), 1);
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
     }
 
     function test_deposit_existing_contract() public {
@@ -393,6 +394,7 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_amountToClaim, 1 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
 
         (uint256 totalDepositAmount,) =
             _computeDepositAndFeeAmount(client, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY);
@@ -1774,6 +1776,17 @@ contract EscrowHourlyUnitTest is Test {
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
         escrow.withdraw(currentContractId, 0);
+    }
+
+    function test_withdraw_reverts_InvalidStatusForWithdraw_canceled() public {
+        test_withdraw_whenRefundApprovedByOwner();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (,, Enums.Status _status) = escrow.contractDetails(currentContractId);
+        assertEq(uint256(_status), 9); //Status.CANCELED
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__InvalidStatusToWithdraw.selector);
+        escrow.withdraw(currentContractId, --weekId);
     }
 
     ////////////////////////////////////////////
