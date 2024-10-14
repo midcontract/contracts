@@ -38,8 +38,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     EscrowFixedPrice.Deposit deposit;
     EscrowAccountRecovery.RecoveryData recoveryInfo;
-    IEscrowMilestone.Deposit[] deposits;
-    IEscrowHourly.Deposit depositHourly;
+    IEscrowMilestone.Milestone[] milestones;
+    IEscrowHourly.WeeklyEntry weeklyEntry;
     IEscrowHourly.ContractDetails contractDetails;
 
     event AdminManagerUpdated(address adminManager);
@@ -123,8 +123,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
     }
 
     function initializeEscrowMilestone() public {
-        deposits.push(
-            IEscrowMilestone.Deposit({
+        milestones.push(
+            IEscrowMilestone.Milestone({
                 contractor: contractor,
                 amount: 1 ether,
                 amountToClaim: 0,
@@ -142,7 +142,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), depositAmount);
         paymentToken.approve(address(escrowMilestone), depositAmount);
-        escrowMilestone.deposit(0, address(paymentToken), deposits);
+        escrowMilestone.deposit(0, address(paymentToken), milestones);
         vm.stopPrank();
     }
 
@@ -152,7 +152,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
             prepaymentAmount: 1 ether,
             status: Enums.Status.ACTIVE
         });
-        depositHourly = IEscrowHourly.Deposit({
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
             contractor: contractor,
             amountToClaim: 0,
             amountToWithdraw: 0,
@@ -169,7 +169,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrowHourly), totalDepositAmount);
-        escrowHourly.deposit(0, address(paymentToken), depositAmount, depositHourly);
+        escrowHourly.deposit(0, address(paymentToken), depositAmount, weeklyEntry);
         vm.stopPrank();
     }
 
@@ -764,7 +764,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertTrue(_confirmed);
         assertEq(uint256(_escrowType), 2);
 
-        (address _contractor,,,,) = escrowHourly.contractWeeks(contractId, 0);
+        (address _contractor,,,,) = escrowHourly.weeklyEntries(contractId, 0);
         assertEq(_contractor, contractor);
 
         vm.prank(new_contractor);
@@ -793,7 +793,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertEq(_executeAfter, 0);
         assertTrue(_executed);
 
-        (_contractor,,,,) = escrowHourly.contractWeeks(contractId, 0);
+        (_contractor,,,,) = escrowHourly.weeklyEntries(contractId, 0);
         assertEq(_contractor, new_contractor);
 
         vm.prank(new_contractor);

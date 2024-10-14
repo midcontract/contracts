@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { Test, console2 } from "forge-std/Test.sol"; 
+import { Test, console2 } from "forge-std/Test.sol";
 
 import { EscrowMilestone, IEscrowMilestone } from "src/EscrowMilestone.sol";
 import { EscrowAccountRecovery } from "src/modules/EscrowAccountRecovery.sol";
@@ -34,9 +34,9 @@ contract EscrowMilestoneUnitTest is Test {
     Enums.FeeConfig feeConfig;
     Enums.Status status;
 
-    IEscrowMilestone.Deposit[] deposits;
+    IEscrowMilestone.Milestone[] milestones;
 
-    struct Deposit {
+    struct Milestone {
         address contractor;
         address paymentToken;
         uint256 amount;
@@ -89,6 +89,7 @@ contract EscrowMilestoneUnitTest is Test {
     );
     event RegistryUpdated(address registry);
     event AdminManagerUpdated(address adminManager);
+    event MaxMilestonesSet(uint256 maxMilestones);
     event ReturnRequested(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
     event ReturnApproved(address indexed approver, uint256 indexed contractId, uint256 indexed milestoneId);
     event ReturnCanceled(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
@@ -126,9 +127,9 @@ contract EscrowMilestoneUnitTest is Test {
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
-        // Initialize the deposits array within setUp
-        deposits.push(
-            IEscrowMilestone.Deposit({
+        // Initialize the milestones array within setUp
+        milestones.push(
+            IEscrowMilestone.Milestone({
                 contractor: address(0),
                 amount: 1 ether,
                 amountToClaim: 0,
@@ -212,7 +213,7 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
         emit Deposited(client, 1, 0, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
-        escrow.deposit(0, address(paymentToken), deposits);
+        escrow.deposit(0, address(paymentToken), milestones);
         vm.stopPrank();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 1);
@@ -238,7 +239,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_status), 1); //Status.ACTIVE
         assertEq(escrow.getMilestoneCount(currentContractId), 1);
         (address _paymentToken, uint256 _depositAmount, Enums.Winner _winner) =
-            escrow.milestoneData(currentContractId, 0);
+            escrow.milestoneDetails(currentContractId, 0);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_depositAmount, _amount);
         assertEq(uint256(_winner), 0); //Status.NONE
@@ -253,7 +254,7 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
         emit Deposited(client, 1, 1, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
-        escrow.deposit(currentContractId, address(paymentToken), deposits);
+        escrow.deposit(currentContractId, address(paymentToken), milestones);
         vm.stopPrank();
         (
             address _contractor,
@@ -272,7 +273,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 1); //Status.ACTIVE
         (address _paymentToken, uint256 _depositAmount, Enums.Winner _winner) =
-            escrow.milestoneData(currentContractId, 0);
+            escrow.milestoneDetails(currentContractId, 0);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_depositAmount, _amount);
         assertEq(uint256(_winner), 0); //Status.NONE
@@ -286,16 +287,16 @@ contract EscrowMilestoneUnitTest is Test {
     function test_deposit_reverts() public {
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
         vm.prank(client);
-        escrow.deposit(0, address(paymentToken), deposits);
+        escrow.deposit(0, address(paymentToken), milestones);
         test_initialize();
         address notClient = makeAddr("notClient");
         vm.prank(notClient);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
-        escrow.deposit(0, address(paymentToken), deposits);
+        escrow.deposit(0, address(paymentToken), milestones);
 
         ERC20Mock notPaymentToken = new ERC20Mock();
-        IEscrowMilestone.Deposit[] memory _deposits = new IEscrowMilestone.Deposit[](1);
-        _deposits[0] = IEscrowMilestone.Deposit({
+        IEscrowMilestone.Milestone[] memory _milestones = new IEscrowMilestone.Milestone[](1);
+        _milestones[0] = IEscrowMilestone.Milestone({
             contractor: address(0),
             amount: 1 ether,
             amountToClaim: 0 ether,
@@ -306,9 +307,9 @@ contract EscrowMilestoneUnitTest is Test {
         });
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NotSupportedPaymentToken.selector);
-        escrow.deposit(0, address(notPaymentToken), _deposits);
+        escrow.deposit(0, address(notPaymentToken), _milestones);
 
-        _deposits[0] = IEscrowMilestone.Deposit({
+        _milestones[0] = IEscrowMilestone.Milestone({
             contractor: address(0),
             amount: 0 ether,
             amountToClaim: 0 ether,
@@ -319,18 +320,18 @@ contract EscrowMilestoneUnitTest is Test {
         });
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__ZeroDepositAmount.selector);
-        escrow.deposit(0, address(paymentToken), _deposits);
+        escrow.deposit(0, address(paymentToken), _milestones);
 
-        _deposits = new IEscrowMilestone.Deposit[](0);
+        _milestones = new IEscrowMilestone.Milestone[](0);
         vm.prank(client);
         vm.expectRevert(IEscrowMilestone.Escrow__NoDepositsProvided.selector);
-        escrow.deposit(0, address(paymentToken), _deposits);
+        escrow.deposit(0, address(paymentToken), _milestones);
 
         vm.startPrank(address(client));
         paymentToken.mint(address(client), 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
-        _deposits = new IEscrowMilestone.Deposit[](1);
-        _deposits[0] = IEscrowMilestone.Deposit({
+        _milestones = new IEscrowMilestone.Milestone[](1);
+        _milestones[0] = IEscrowMilestone.Milestone({
             contractor: address(0),
             amount: 1 ether,
             amountToClaim: 0 ether,
@@ -340,20 +341,20 @@ contract EscrowMilestoneUnitTest is Test {
             status: Enums.Status.ACTIVE
         });
         vm.expectRevert(IEscrowMilestone.Escrow__InvalidContractId.selector);
-        escrow.deposit(1, address(paymentToken), _deposits);
+        escrow.deposit(1, address(paymentToken), _milestones);
         vm.stopPrank();
 
         vm.prank(owner);
         registry.addToBlacklist(client);
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.deposit(0, address(paymentToken), _deposits);
+        escrow.deposit(0, address(paymentToken), _milestones);
     }
 
     function test_deposit_reverts_NotSetFeeManager() public {
         // this test needs it's own setup
-        IEscrowMilestone.Deposit[] memory _deposits = new IEscrowMilestone.Deposit[](1);
-        _deposits[0] = IEscrowMilestone.Deposit({
+        IEscrowMilestone.Milestone[] memory _milestones = new IEscrowMilestone.Milestone[](1);
+        _milestones[0] = IEscrowMilestone.Milestone({
             contractor: contractor,
             amount: 1 ether,
             amountToClaim: 0 ether,
@@ -374,12 +375,12 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken2.mint(address(client), 1.08 ether);
         paymentToken2.approve(address(escrow2), 1.08 ether);
         vm.expectRevert(IEscrow.Escrow__NotSetFeeManager.selector);
-        escrow2.deposit(0, address(paymentToken2), _deposits);
+        escrow2.deposit(0, address(paymentToken2), _milestones);
         vm.stopPrank();
         vm.prank(owner);
         registry2.updateFeeManager(address(feeManager2));
         vm.prank(client);
-        escrow2.deposit(0, address(paymentToken2), _deposits);
+        escrow2.deposit(0, address(paymentToken2), _milestones);
 
         uint256 currentContractId = escrow2.getCurrentContractId();
         contractData = bytes("contract_data");
@@ -398,8 +399,8 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_deposit_severalMilestones() public {
         test_initialize();
-        IEscrowMilestone.Deposit[] memory _deposits = new IEscrowMilestone.Deposit[](3);
-        _deposits[0] = IEscrowMilestone.Deposit({
+        IEscrowMilestone.Milestone[] memory _milestones = new IEscrowMilestone.Milestone[](3);
+        _milestones[0] = IEscrowMilestone.Milestone({
             contractor: address(0),
             amount: 1 ether,
             amountToClaim: 0 ether,
@@ -410,7 +411,7 @@ contract EscrowMilestoneUnitTest is Test {
         });
         (uint256 depositAmountMilestone1,) =
             _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
-        _deposits[1] = IEscrowMilestone.Deposit({
+        _milestones[1] = IEscrowMilestone.Milestone({
             contractor: address(0),
             amount: 2 ether,
             amountToClaim: 0 ether,
@@ -421,7 +422,7 @@ contract EscrowMilestoneUnitTest is Test {
         });
         (uint256 depositAmountMilestone2,) =
             _computeDepositAndFeeAmount(client, 2 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
-        _deposits[2] = IEscrowMilestone.Deposit({
+        _milestones[2] = IEscrowMilestone.Milestone({
             contractor: address(0),
             amount: 3 ether,
             amountToClaim: 0 ether,
@@ -436,7 +437,7 @@ contract EscrowMilestoneUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrow), totalDepositAmount);
-        escrow.deposit(0, address(paymentToken), _deposits);
+        escrow.deposit(0, address(paymentToken), _milestones);
         uint256 currentContractId = escrow.getCurrentContractId();
         (
             address _contractor,
@@ -455,7 +456,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
         assertEq(uint256(_status), 1); //Status.ACTIVE
         (address _paymentToken, uint256 _depositAmount, Enums.Winner _winner) =
-            escrow.milestoneData(currentContractId, 0);
+            escrow.milestoneDetails(currentContractId, 0);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_depositAmount, _amount);
         assertEq(uint256(_winner), 0); //Status.NONE
@@ -468,7 +469,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 1); //Status.ACTIVE
-        (_paymentToken, _depositAmount, _winner) = escrow.milestoneData(currentContractId, 1);
+        (_paymentToken, _depositAmount, _winner) = escrow.milestoneDetails(currentContractId, 1);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_depositAmount, _amount);
         assertEq(uint256(_winner), 0); //Status.NONE
@@ -480,7 +481,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 1); //Status.ACTIVE
-        (_paymentToken, _depositAmount, _winner) = escrow.milestoneData(currentContractId, 2);
+        (_paymentToken, _depositAmount, _winner) = escrow.milestoneDetails(currentContractId, 2);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_depositAmount, _amount);
         assertEq(uint256(_winner), 0); //Status.NONE
@@ -495,9 +496,9 @@ contract EscrowMilestoneUnitTest is Test {
     function test_deposit_limit_number() public {
         test_initialize();
         uint256 depositAmount = 1 ether;
-        IEscrowMilestone.Deposit[] memory _deposits = new IEscrowMilestone.Deposit[](10);
-        for (uint256 i; i < _deposits.length; i++) {
-            _deposits[i] = IEscrowMilestone.Deposit({
+        IEscrowMilestone.Milestone[] memory _milestones = new IEscrowMilestone.Milestone[](10);
+        for (uint256 i; i < _milestones.length; i++) {
+            _milestones[i] = IEscrowMilestone.Milestone({
                 contractor: address(0),
                 amount: depositAmount,
                 amountToClaim: 0,
@@ -507,14 +508,14 @@ contract EscrowMilestoneUnitTest is Test {
                 status: Enums.Status.ACTIVE
             });
         }
-        uint256 totalDepositAmount = depositAmount * _deposits.length;
+        uint256 totalDepositAmount = depositAmount * _milestones.length;
         (uint256 totalDepositAmountWithFee,) =
             _computeDepositAndFeeAmount(client, totalDepositAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
 
         vm.startPrank(address(client));
         paymentToken.mint(address(client), totalDepositAmountWithFee);
         paymentToken.approve(address(escrow), totalDepositAmountWithFee);
-        escrow.deposit(0, address(paymentToken), _deposits);
+        escrow.deposit(0, address(paymentToken), _milestones);
         uint256 currentContractId = escrow.getCurrentContractId();
         (
             address _contractor,
@@ -533,7 +534,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 1); //Status.ACTIVE
         (address _paymentToken, uint256 _depositAmount, Enums.Winner _winner) =
-            escrow.milestoneData(currentContractId, 0);
+            escrow.milestoneDetails(currentContractId, 0);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_depositAmount, _amount);
         assertEq(uint256(_winner), 0); //Status.NONE
@@ -542,12 +543,12 @@ contract EscrowMilestoneUnitTest is Test {
         vm.stopPrank();
     }
 
-    function test_deposit_limit_number_reverts_TooManyDeposits() public {
+    function test_deposit_limit_number_reverts_TooManyMilestones() public {
         test_initialize();
         uint256 depositAmount = 1 ether;
-        IEscrowMilestone.Deposit[] memory _deposits = new IEscrowMilestone.Deposit[](11);
-        for (uint256 i; i < _deposits.length; i++) {
-            _deposits[i] = IEscrowMilestone.Deposit({
+        IEscrowMilestone.Milestone[] memory _milestones = new IEscrowMilestone.Milestone[](11);
+        for (uint256 i; i < _milestones.length; i++) {
+            _milestones[i] = IEscrowMilestone.Milestone({
                 contractor: address(0),
                 amount: depositAmount,
                 amountToClaim: 0,
@@ -557,23 +558,23 @@ contract EscrowMilestoneUnitTest is Test {
                 status: Enums.Status.ACTIVE
             });
         }
-        uint256 totalDepositAmount = depositAmount * _deposits.length;
+        uint256 totalDepositAmount = depositAmount * _milestones.length;
         (uint256 totalDepositAmountWithFee,) =
             _computeDepositAndFeeAmount(client, totalDepositAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
 
         vm.startPrank(address(client));
         paymentToken.mint(address(client), totalDepositAmountWithFee);
         paymentToken.approve(address(escrow), totalDepositAmountWithFee);
-        vm.expectRevert(IEscrowMilestone.Escrow__TooManyDeposits.selector);
-        escrow.deposit(0, address(paymentToken), _deposits);
+        vm.expectRevert(IEscrowMilestone.Escrow__TooManyMilestones.selector);
+        escrow.deposit(0, address(paymentToken), _milestones);
         assertEq(paymentToken.balanceOf(address(escrow)), 0);
         vm.stopPrank();
     }
 
     function test_deposit_withContractorAddress() public {
         test_initialize();
-        IEscrowMilestone.Deposit[] memory _deposits = new IEscrowMilestone.Deposit[](1);
-        _deposits[0] = IEscrowMilestone.Deposit({
+        IEscrowMilestone.Milestone[] memory _milestones = new IEscrowMilestone.Milestone[](1);
+        _milestones[0] = IEscrowMilestone.Milestone({
             contractor: contractor,
             amount: 1 ether,
             amountToClaim: 0 ether,
@@ -587,7 +588,7 @@ contract EscrowMilestoneUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), depositAmountMilestone1);
         paymentToken.approve(address(escrow), depositAmountMilestone1);
-        escrow.deposit(0, address(paymentToken), _deposits);
+        escrow.deposit(0, address(paymentToken), _milestones);
         uint256 currentContractId = escrow.getCurrentContractId();
         (
             address _contractor,
@@ -609,7 +610,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         (address _paymentToken, uint256 _depositAmount, Enums.Winner _winner) =
-            escrow.milestoneData(currentContractId, 0);
+            escrow.milestoneDetails(currentContractId, 0);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_depositAmount, _amount);
         assertEq(uint256(_winner), 0); //Status.NONE
@@ -736,6 +737,25 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorDataHash);
         assertEq(uint256(_status), 1); //Status.ACTIVE
+    }
+
+    function test_submit_reverts_InvalidMilestoneId() public {
+        test_deposit_withContractorAddress();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        (address _contractor,,,, bytes32 _contractorData,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+
+        uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
+        assertEq(milestoneId, 1);
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        vm.prank(contractor);
+        vm.expectRevert(IEscrowMilestone.Escrow__InvalidMilestoneId.selector);
+        escrow.submit(currentContractId, ++milestoneId, contractData, salt);
     }
 
     ////////////////////////////////////////////
@@ -2736,6 +2756,29 @@ contract EscrowMilestoneUnitTest is Test {
         emit AdminManagerUpdated(address(newAdminManager));
         escrow.updateAdminManager(address(newAdminManager));
         assertEq(address(escrow.adminManager()), address(newAdminManager));
+        vm.stopPrank();
+    }
+
+    function test_setMaxMilestonesPerTransaction() public {
+        test_initialize();
+        assertEq(escrow.maxMilestonesPerTransaction(), 10);
+        address notOwner = makeAddr("notOwner");
+        bytes memory expectedRevertData =
+            abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(notOwner));
+        vm.prank(notOwner);
+        vm.expectRevert(expectedRevertData);
+        escrow.setMaxMilestonesPerTransaction(100);
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowMilestone.Escrow__InvalidMilestoneLimit.selector);
+        escrow.setMaxMilestonesPerTransaction(0);
+        assertEq(escrow.maxMilestonesPerTransaction(), 10);
+        vm.expectRevert(IEscrowMilestone.Escrow__InvalidMilestoneLimit.selector);
+        escrow.setMaxMilestonesPerTransaction(21);
+        assertEq(escrow.maxMilestonesPerTransaction(), 10);
+        vm.expectEmit(true, false, false, true);
+        emit MaxMilestonesSet(15);
+        escrow.setMaxMilestonesPerTransaction(15);
+        assertEq(escrow.maxMilestonesPerTransaction(), 15);
         vm.stopPrank();
     }
 }

@@ -32,7 +32,7 @@ contract EscrowFactoryUnitTest is Test {
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
-    IEscrowHourly.Deposit depositHourly;
+    IEscrowHourly.WeeklyEntry weeklyEntry;
     IEscrowHourly.ContractDetails contractDetails;
 
     bytes32 contractorData;
@@ -296,8 +296,8 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken.approve(address(escrowProxy), totalDepositMilestoneAmount);
 
         // 3. deposit
-        IEscrowMilestone.Deposit[] memory deposits = new IEscrowMilestone.Deposit[](1);
-        deposits[0] = IEscrowMilestone.Deposit({
+        IEscrowMilestone.Milestone[] memory milestones = new IEscrowMilestone.Milestone[](1);
+        milestones[0] = IEscrowMilestone.Milestone({
             contractor: contractor,
             amount: 1 ether,
             amountToClaim: 0 ether,
@@ -309,7 +309,7 @@ contract EscrowFactoryUnitTest is Test {
 
         uint256 currentContractId = escrowProxy.getCurrentContractId();
         assertEq(currentContractId, 0);
-        escrowProxy.deposit(currentContractId, address(paymentToken), deposits);
+        escrowProxy.deposit(currentContractId, address(paymentToken), milestones);
         assertEq(paymentToken.balanceOf(address(escrowProxy)), totalDepositMilestoneAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
@@ -364,7 +364,7 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken.approve(address(escrowProxyHourly), totalDepositHourlyAmount);
 
         // 3. deposit
-        depositHourly = IEscrowHourly.Deposit({
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
             contractor: contractor,
             amountToClaim: 0,
             amountToWithdraw: 0,
@@ -375,7 +375,7 @@ contract EscrowFactoryUnitTest is Test {
         uint256 currentContractId = escrowProxyHourly.getCurrentContractId();
         assertEq(currentContractId, 0);
 
-        escrowProxyHourly.deposit(currentContractId, address(paymentToken), depositHourlyAmount, depositHourly);
+        escrowProxyHourly.deposit(currentContractId, address(paymentToken), depositHourlyAmount, weeklyEntry);
         assertEq(paymentToken.balanceOf(address(escrowProxyHourly)), totalDepositHourlyAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
@@ -394,7 +394,7 @@ contract EscrowFactoryUnitTest is Test {
             uint256 _amountToWithdraw,
             Enums.FeeConfig _feeConfig,
             Enums.Status _weekStatus
-        ) = escrowProxyHourly.contractWeeks(currentContractId, 0);
+        ) = escrowProxyHourly.weeklyEntries(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
