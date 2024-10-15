@@ -759,6 +759,21 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.stopPrank();
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
+
+        assertFalse(registry.blacklist(address(client)));
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        assertTrue(registry.blacklist(address(client)));
+
+        vm.startPrank(client);
+        paymentToken.mint(address(client), amountApprove);
+        paymentToken.approve(address(escrow), amountApprove);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.approve(currentContractId, weekId, amountApprove, contractor);
+        vm.stopPrank();
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_approve_reverts_InvalidStatusForApprove() public {

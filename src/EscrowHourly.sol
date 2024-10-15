@@ -140,7 +140,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         external
         onlyClient
     {
-        if (_amountApprove == 0) revert Escrow__InvalidAmount();
+        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount(); // Check if the client is blacklisted.
+        if (_amountApprove == 0) revert Escrow__InvalidAmount(); // Ensure a valid amount is being added.
         if (_weekId >= weeklyEntries[_contractId].length) revert Escrow__InvalidWeekId();
 
         ContractDetails storage C = contractDetails[_contractId];
@@ -168,7 +169,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     }
 
     /// @notice Approves an existing deposit or creates a new week for approval by the admin.
-    /// @dev This function handles both regular approval within existing weeks and admin-triggered approvals that may need to create a new week.
+    /// @dev This function handles both regular approval within existing weeks and admin-triggered approvals that may
+    /// need to create a new week.
     /// @param _contractId ID of the contract for which the approval is happening.
     /// @param _weekId ID of the week within the contract to be approved, or creates a new one if it does not exist.
     /// @param _amountApprove Amount to approve or initialize the week with.
@@ -337,7 +339,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         for (uint256 i = _startWeekId; i <= _endWeekId;) {
             WeeklyEntry storage W = weeklyEntries[_contractId][i];
 
-            if (W.contractor != msg.sender || W.amountToClaim == 0) continue; // Skip if not contractor or nothing to claim.
+            if (W.contractor != msg.sender || W.amountToClaim == 0) continue; // Skip if not contractor or nothing to
+                // claim.
 
             if (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED) {
                 C.prepaymentAmount -= W.amountToClaim; // Use prepaymentAmount in case not approved by client.
@@ -373,6 +376,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     }
 
     /// @notice Withdraws funds from a contract under specific conditions.
+    /// @dev Withdraws from the contract's prepayment amount when certain conditions about the contract's 
+    /// overall status are met.
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
     /// @param _weekId ID of the week within the contract to be withdrawn.
     function withdraw(uint256 _contractId, uint256 _weekId) external onlyClient {
@@ -441,7 +446,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status.
-    /// @dev This function allows a client to cancel a return request, setting the deposit status back to either ACTIVE or APPROVED or COMPLETED.
+    /// @dev This function allows a client to cancel a return request, setting the deposit status back to either ACTIVE
+    /// or APPROVED or COMPLETED.
     /// @param _contractId The unique identifier of the deposit for which the return is cancelled.
     /// @param _weekId ID of the deposit for which the return is cancelled.
     /// @param _status The new status to set for the deposit, must be either ACTIVE or APPROVED or COMPLETED.
@@ -517,7 +523,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Computes the total deposit amount and the applied fee.
-    /// @dev This internal function calculates the total deposit amount and the fee applied based on the client, deposit amount, and fee configuration.
+    /// @dev This internal function calculates the total deposit amount and the fee applied based on the client, deposit
+    /// amount, and fee configuration.
     /// @param _client Address of the client making the deposit.
     /// @param _depositAmount Amount of the deposit.
     /// @param _feeConfig Fee configuration for the deposit.
@@ -538,7 +545,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     }
 
     /// @notice Computes the claimable amount and the fee deducted from the claimed amount.
-    /// @dev This internal function calculates the claimable amount for the contractor and the fees deducted from the claimed amount based on the contractor, claimed amount, and fee configuration.
+    /// @dev This internal function calculates the claimable amount for the contractor and the fees deducted from the
+    /// claimed amount based on the contractor, claimed amount, and fee configuration.
     /// @param _contractor Address of the contractor claiming the amount.
     /// @param _claimedAmount Amount claimed by the contractor.
     /// @param _feeConfig Fee configuration for the deposit.
@@ -587,7 +595,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     }
 
     /// @notice Internal function to validate the signature of the provided data.
-    /// @dev Verifies if the signature is from the msg.sender, which can be an externally owned account (EOA) or a contract implementing ERC-1271.
+    /// @dev Verifies if the signature is from the msg.sender, which can be an externally owned account (EOA) or a
+    /// contract implementing ERC-1271.
     /// @param _hash The hash of the data that was signed.
     /// @param _signature The signature byte array associated with the hash.
     /// @return True if the signature is valid, false otherwise.
@@ -647,7 +656,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
 
-        WeeklyEntry storage W = weeklyEntries[_contractId][0]; // The initial contractor set in this deposit is the sole contractor for this contractId.
+        WeeklyEntry storage W = weeklyEntries[_contractId][0]; // The initial contractor set in this deposit is the sole
+            // contractor for this contractId.
 
         // Emit the ownership transfer event before changing the state to reflect the previous state.
         emit ContractorOwnershipTransferred(_contractId, W.contractor, _newAccount);
