@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "forge-std/Test.sol";
+import { Test, console2 } from "forge-std/Test.sol";
 
-import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
+import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
 
 contract EscrowAdminManagerUnitTest is Test {
     EscrowAdminManager adminManager;

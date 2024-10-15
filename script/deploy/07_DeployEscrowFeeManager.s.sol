@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "forge-std/Script.sol";
+import { Script, console } from "forge-std/Script.sol";
 
-import {EscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
-import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
-import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
-import {PolAmoyConfig} from "config/PolAmoyConfig.sol";
+import { EscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
+import { EscrowRegistry } from "src/modules/EscrowRegistry.sol";
+import { EthSepoliaConfig } from "config/EthSepoliaConfig.sol";
+import { PolAmoyConfig } from "config/PolAmoyConfig.sol";
 
 contract DeployEscrowFeeManagerScript is Script {
     EscrowFeeManager feeManager;

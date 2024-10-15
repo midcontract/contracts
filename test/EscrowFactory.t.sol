@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "forge-std/Test.sol";
+import { Test, console2 } from "forge-std/Test.sol";
 
-import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
-import {EscrowFactory, IEscrowFactory, OwnedThreeStep, Pausable} from "src/EscrowFactory.sol";
-import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
-import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
-import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
-import {EscrowHourly, IEscrowHourly} from "src/EscrowHourly.sol";
-import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
-import {Enums} from "src/libs/Enums.sol";
-import {ERC20Mock} from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
+import { EscrowFactory, IEscrowFactory, OwnedThreeStep, Pausable } from "src/EscrowFactory.sol";
+import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
+import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
+import { EscrowMilestone, IEscrowMilestone } from "src/EscrowMilestone.sol";
+import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
+import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
+import { Enums } from "src/libs/Enums.sol";
+import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
 
 contract EscrowFactoryUnitTest is Test {
     EscrowFactory factory;
@@ -32,7 +32,7 @@ contract EscrowFactoryUnitTest is Test {
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
-    IEscrowHourly.Deposit depositHourly;
+    IEscrowHourly.WeeklyEntry weeklyEntry;
     IEscrowHourly.ContractDetails contractDetails;
 
     bytes32 contractorData;
@@ -186,7 +186,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.stopPrank();
     }
 
@@ -240,7 +240,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 3); //Enums.FeeConfig.NO_FEES
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.stopPrank();
     }
 
@@ -296,8 +296,8 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken.approve(address(escrowProxy), totalDepositMilestoneAmount);
 
         // 3. deposit
-        IEscrowMilestone.Deposit[] memory deposits = new IEscrowMilestone.Deposit[](1);
-        deposits[0] = IEscrowMilestone.Deposit({
+        IEscrowMilestone.Milestone[] memory milestones = new IEscrowMilestone.Milestone[](1);
+        milestones[0] = IEscrowMilestone.Milestone({
             contractor: contractor,
             amount: 1 ether,
             amountToClaim: 0 ether,
@@ -309,7 +309,7 @@ contract EscrowFactoryUnitTest is Test {
 
         uint256 currentContractId = escrowProxy.getCurrentContractId();
         assertEq(currentContractId, 0);
-        escrowProxy.deposit(currentContractId, address(paymentToken), deposits);
+        escrowProxy.deposit(currentContractId, address(paymentToken), milestones);
         assertEq(paymentToken.balanceOf(address(escrowProxy)), totalDepositMilestoneAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
@@ -333,7 +333,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_deploy_and_deposit_hourly() public {
@@ -364,17 +364,18 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken.approve(address(escrowProxyHourly), totalDepositHourlyAmount);
 
         // 3. deposit
-        depositHourly = IEscrowHourly.Deposit({
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
             contractor: contractor,
             amountToClaim: 0,
             amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
         });
 
         uint256 currentContractId = escrowProxyHourly.getCurrentContractId();
         assertEq(currentContractId, 0);
 
-        escrowProxyHourly.deposit(currentContractId, address(paymentToken), depositHourlyAmount, depositHourly);
+        escrowProxyHourly.deposit(currentContractId, address(paymentToken), depositHourlyAmount, weeklyEntry);
         assertEq(paymentToken.balanceOf(address(escrowProxyHourly)), totalDepositHourlyAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
@@ -386,13 +387,19 @@ contract EscrowFactoryUnitTest is Test {
             escrowProxyHourly.contractDetails(currentContractId); //currentContractId
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrowProxyHourly.contractWeeks(currentContractId, 0);
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrowProxyHourly.weeklyEntries(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         assertEq(escrowProxyHourly.getWeeksCount(currentContractId), 1);
     }
 

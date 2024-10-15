@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "forge-std/Test.sol";
+import { Test, console2 } from "forge-std/Test.sol";
 
-import {EscrowHourly, IEscrowHourly} from "src/EscrowHourly.sol";
-import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
-import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
-import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
-import {Enums} from "src/libs/Enums.sol";
-import {IEscrow} from "src/interfaces/IEscrow.sol";
-import {MockRegistry} from "test/mocks/MockRegistry.sol";
-import {ERC20Mock} from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
+import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
+import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
+import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
+import { Enums } from "src/libs/Enums.sol";
+import { IEscrow } from "src/interfaces/IEscrow.sol";
+import { MockRegistry } from "test/mocks/MockRegistry.sol";
+import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
 
 contract EscrowHourlyUnitTest is Test {
     EscrowHourly escrow;
@@ -32,7 +32,7 @@ contract EscrowHourlyUnitTest is Test {
     Enums.FeeConfig feeConfig;
     Enums.Status status;
 
-    IEscrowHourly.Deposit deposit;
+    IEscrowHourly.WeeklyEntry weeklyEntry;
     IEscrowHourly.ContractDetails contractDetails;
 
     struct ContractDetails {
@@ -41,7 +41,7 @@ contract EscrowHourlyUnitTest is Test {
         Enums.Status status;
     }
 
-    struct Deposit {
+    struct WeeklyEntry {
         address contractor;
         uint256 amountToClaim;
         uint256 amountToWithdraw;
@@ -114,11 +114,12 @@ contract EscrowHourlyUnitTest is Test {
             status: Enums.Status.ACTIVE
         });
 
-        deposit = IEscrowHourly.Deposit({
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
             contractor: contractor,
             amountToClaim: 0,
             amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
         });
     }
 
@@ -196,7 +197,7 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
         emit Deposited(client, 1, 0, address(paymentToken), 1.03 ether);
-        escrow.deposit(currentContractId, address(paymentToken), 1 ether, deposit);
+        escrow.deposit(currentContractId, address(paymentToken), 1 ether, weeklyEntry);
         vm.stopPrank();
         currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 1);
@@ -208,14 +209,20 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, 0);
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(escrow.getWeeksCount(currentContractId), 1);
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
     }
 
     function test_deposit_existing_contract() public {
@@ -227,21 +234,27 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
         emit Deposited(client, 1, 1, address(paymentToken), 1.03 ether);
-        escrow.deposit(currentContractId, address(paymentToken), 1 ether, deposit);
+        escrow.deposit(currentContractId, address(paymentToken), 1 ether, weeklyEntry);
         vm.stopPrank();
         // contract level
         (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         // week level
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, 1);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, 1);
         assertEq(_contractor, contractor);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
 
         (uint256 totalDepositAmount,) =
             _computeDepositAndFeeAmount(client, _prepaymentAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
@@ -254,50 +267,52 @@ contract EscrowHourlyUnitTest is Test {
     function test_deposit_reverts() public {
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
         vm.prank(client);
-        escrow.deposit(0, address(paymentToken), 1 ether, deposit);
+        escrow.deposit(0, address(paymentToken), 1 ether, weeklyEntry);
         test_initialize();
         address notClient = makeAddr("notClient");
         vm.prank(notClient);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
-        escrow.deposit(0, address(paymentToken), 1 ether, deposit);
+        escrow.deposit(0, address(paymentToken), 1 ether, weeklyEntry);
 
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
-        escrow.deposit(0, address(paymentToken), 0 ether, deposit);
+        escrow.deposit(0, address(paymentToken), 0 ether, weeklyEntry);
 
         ERC20Mock notPaymentToken = new ERC20Mock();
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NotSupportedPaymentToken.selector);
-        escrow.deposit(0, address(notPaymentToken), 1 ether, deposit);
+        escrow.deposit(0, address(notPaymentToken), 1 ether, weeklyEntry);
 
-        deposit = IEscrowHourly.Deposit({
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
             contractor: address(0),
             amountToClaim: 0,
             amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
         });
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.deposit(0, address(paymentToken), 1 ether, deposit);
+        escrow.deposit(0, address(paymentToken), 1 ether, weeklyEntry);
 
         vm.startPrank(address(client));
         paymentToken.mint(address(client), 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
-        deposit = IEscrowHourly.Deposit({
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
             contractor: contractor,
             amountToClaim: 0,
             amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
         });
         vm.expectRevert(IEscrowHourly.Escrow__InvalidContractId.selector);
-        escrow.deposit(1, address(paymentToken), 1 ether, deposit);
+        escrow.deposit(1, address(paymentToken), 1 ether, weeklyEntry);
         vm.stopPrank();
 
         vm.prank(owner);
         registry.addToBlacklist(client);
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.deposit(0, address(paymentToken), 1 ether, deposit);
+        escrow.deposit(0, address(paymentToken), 1 ether, weeklyEntry);
     }
 
     function test_deposit_reverts_NotSetFeeManager() public {
@@ -312,24 +327,25 @@ contract EscrowHourlyUnitTest is Test {
 
         uint256 depositAmount = 1 ether;
         uint256 totalDepositAmount = 1.03 ether;
-        deposit = IEscrowHourly.Deposit({
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
             contractor: contractor,
             amountToClaim: depositAmount,
             amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
         });
 
         vm.startPrank(address(client));
         paymentToken2.mint(address(client), totalDepositAmount);
         paymentToken2.approve(address(escrow2), totalDepositAmount);
         vm.expectRevert(IEscrow.Escrow__NotSetFeeManager.selector);
-        escrow2.deposit(0, address(paymentToken2), 0, deposit);
+        escrow2.deposit(0, address(paymentToken2), 0, weeklyEntry);
         vm.stopPrank();
 
         vm.prank(owner);
         registry2.updateFeeManager(address(feeManager2));
         vm.startPrank(client);
-        escrow2.deposit(0, address(paymentToken2), 0, deposit);
+        escrow2.deposit(0, address(paymentToken2), 0, weeklyEntry);
         vm.stopPrank();
 
         vm.prank(owner);
@@ -344,18 +360,19 @@ contract EscrowHourlyUnitTest is Test {
         test_initialize();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 0);
-        deposit = IEscrowHourly.Deposit({
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
             contractor: contractor,
             amountToClaim: 1 ether,
             amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
         });
         vm.startPrank(client);
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
         emit Deposited(client, 1, 0, address(paymentToken), 1.03 ether);
-        escrow.deposit(0, address(paymentToken), 0 ether, deposit);
+        escrow.deposit(0, address(paymentToken), 0 ether, weeklyEntry);
         vm.stopPrank();
         currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 1);
@@ -364,14 +381,20 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         // week level
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, 0);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_amountToClaim, 1 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
 
         (uint256 totalDepositAmount,) =
             _computeDepositAndFeeAmount(client, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY);
@@ -398,14 +421,15 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim,, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim,, Enums.FeeConfig _feeConfig, Enums.Status _weekStatus) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         assertEq(escrow.getWeeksCount(currentContractId), 1);
 
         uint256 amountToMint = 1.03 ether;
@@ -416,12 +440,13 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Approved(client, currentContractId, weekId, amountApprove, contractor);
         escrow.approve(currentContractId, weekId, amountApprove, contractor);
-        (_contractor, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         // assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + totalDepositAmount); //amountApprove+fee
     }
@@ -439,15 +464,21 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         assertEq(escrow.getWeeksCount(currentContractId), 1);
 
         uint256 amountApprove = 1 ether;
@@ -461,11 +492,12 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Approved(owner, currentContractId, weekId, amountApprove, contractor);
         escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, false);
-        (_contractor, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, amountApprove);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether - amountApprove); //0
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee
     }
@@ -483,15 +515,21 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         assertEq(escrow.getWeeksCount(currentContractId), 1);
 
         uint256 amountApprove = 0.5 ether;
@@ -499,11 +537,12 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Approved(owner, currentContractId, weekId, amountApprove, contractor);
         escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, false);
-        (_contractor, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, amountApprove);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0.5 ether); //_prepaymentAmount - amountApprove
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee
     }
@@ -521,15 +560,21 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         assertEq(escrow.getWeeksCount(currentContractId), 1);
 
         uint256 amountApprove = 1.5 ether;
@@ -537,11 +582,12 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Approved(owner, currentContractId, weekId, amountApprove, contractor);
         escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, false);
-        (_contractor, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, _prepaymentAmount);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0 ether); //0
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee
     }
@@ -559,15 +605,21 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         assertEq(escrow.getWeeksCount(currentContractId), 1);
 
         uint256 amountApprove = 0.5 ether;
@@ -575,14 +627,16 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Approved(owner, currentContractId, weekId, amountApprove, contractor);
         escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, true);
-        (_contractor, _amountToClaim, _amountToWithdraw, _feeConfig) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim, _amountToWithdraw, _feeConfig, _weekStatus) =
+            escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, amountApprove);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
         assertEq(escrow.getWeeksCount(currentContractId), 1);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0.5 ether); //_prepaymentAmount - amountApprove
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee
     }
@@ -600,15 +654,21 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         assertEq(escrow.getWeeksCount(currentContractId), 1);
 
         uint256 amountApprove = 0.5 ether;
@@ -621,14 +681,16 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Approved(owner, currentContractId, weekId, amountApprove, contractor);
         escrow.adminApprove(currentContractId, weekId, amountApprove, contractor, true);
-        (_contractor, _amountToClaim, _amountToWithdraw, _feeConfig) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim, _amountToWithdraw, _feeConfig, _weekStatus) =
+            escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, amountApprove);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
         assertEq(escrow.getWeeksCount(currentContractId), 2);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0.5 ether); //_prepaymentAmount - amountApprove
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //prepaymentAmount+fee
     }
@@ -640,7 +702,7 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
 
         uint256 amountApprove = 1.03 ether;
         vm.startPrank(owner);
@@ -650,7 +712,7 @@ contract EscrowHourlyUnitTest is Test {
         escrow.adminApprove(currentContractId, --weekId, amountApprove, contractor, true);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.stopPrank();
     }
 
@@ -666,14 +728,20 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         assertEq(escrow.getWeeksCount(currentContractId), 1);
 
         uint256 amountApprove = 1.03 ether;
@@ -682,14 +750,30 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.approve(address(escrow), amountApprove);
         vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
         escrow.approve(currentContractId, weekId, amountApprove, contractor);
-        (_contractor, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim, _amountToWithdraw,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         // assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.stopPrank();
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
+
+        assertFalse(registry.blacklist(address(client)));
+        vm.prank(owner);
+        registry.addToBlacklist(client);
+        assertTrue(registry.blacklist(address(client)));
+
+        vm.startPrank(client);
+        paymentToken.mint(address(client), amountApprove);
+        paymentToken.approve(address(escrow), amountApprove);
+        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
+        escrow.approve(currentContractId, weekId, amountApprove, contractor);
+        vm.stopPrank();
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_approve_reverts_InvalidStatusForApprove() public {
@@ -700,9 +784,9 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim,,) = escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim,,,) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 1 ether);
 
@@ -712,11 +796,11 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.approve(address(escrow), amountApprove);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusForApprove.selector);
         escrow.approve(currentContractId, weekId, amountApprove, contractor);
-        (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        (, _amountToClaim,,,) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, 1 ether);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
     }
 
@@ -733,11 +817,11 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor,, uint256 _amountToClaim, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor,, uint256 _amountToClaim, Enums.FeeConfig _feeConfig,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
@@ -751,7 +835,7 @@ contract EscrowHourlyUnitTest is Test {
         escrow.approve(currentContractId, weekId, amountApprove, address(this));
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.stopPrank();
     }
 
@@ -768,11 +852,11 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor,, uint256 _amountToClaim, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor,, uint256 _amountToClaim, Enums.FeeConfig _feeConfig,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
@@ -784,7 +868,7 @@ contract EscrowHourlyUnitTest is Test {
         escrow.approve(currentContractId, weekId, amountApprove, contractor);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.stopPrank();
     }
 
@@ -801,11 +885,11 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor,, uint256 _amountToClaim, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor,, uint256 _amountToClaim, Enums.FeeConfig _feeConfig,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
@@ -819,7 +903,7 @@ contract EscrowHourlyUnitTest is Test {
         escrow.approve(currentContractId, ++weekId, amountApprove, contractor);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.stopPrank();
     }
 
@@ -835,16 +919,22 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         // week level
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_amountToClaim, 1 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
 
         (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.03 ether
@@ -861,10 +951,11 @@ contract EscrowHourlyUnitTest is Test {
         vm.stopPrank();
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, amountAdditional);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
 
-        (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, 1 ether);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + totalDepositAmount); //2.06 ether
     }
 
@@ -876,16 +967,22 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         // week level
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_amountToClaim, 1 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
 
         (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.03 ether
@@ -902,10 +999,11 @@ contract EscrowHourlyUnitTest is Test {
         vm.stopPrank();
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
 
-        (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, 1 ether + amountAdditional);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + totalDepositAmount); //2.06 ether
     }
 
@@ -917,16 +1015,22 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         // week level
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(_amountToClaim, 1 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
 
         (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.03 ether
@@ -947,8 +1051,9 @@ contract EscrowHourlyUnitTest is Test {
         escrow.refill(currentContractId, invalidWeekId, 1 ether, Enums.RefillType.WEEK_PAYMENT);
         vm.stopPrank();
 
-        (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, 1 ether);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
 
         vm.prank(owner);
@@ -980,14 +1085,15 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim,, Enums.FeeConfig _feeConfig) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim,, Enums.FeeConfig _feeConfig, Enums.Status _weekStatus) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 1 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
         assertEq(escrow.getWeeksCount(currentContractId), 1);
 
         (uint256 totalDepositAmount, uint256 feeApplied) =
@@ -1012,10 +1118,11 @@ contract EscrowHourlyUnitTest is Test {
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED //3); //Status.COMPLETED
+        assertEq(uint256(_status), 4); //Status.COMPLETED
 
-        (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
         vm.stopPrank();
     }
 
@@ -1025,13 +1132,14 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
 
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,, Enums.Status _weekStatus) =
+            escrow.weeklyEntries(currentContractId, --weekId); // todo _weekStatus
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0.5 ether);
         assertEq(_amountToWithdraw, 0.5 ether);
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
 
         (uint256 totalDepositAmount, uint256 feeAmount) =
             _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ONLY);
@@ -1048,12 +1156,13 @@ contract EscrowHourlyUnitTest is Test {
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0.5 ether);
-        assertEq(uint256(_status), 8); //Status.CANCELED
+        assertEq(uint256(_status), 9); //Status.CANCELED
 
-        (, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (, _amountToClaim, _amountToWithdraw,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0.5 ether);
         assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
 
         assertEq(paymentToken.balanceOf(address(escrow)), 0.5 ether);
         assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount);
@@ -1068,10 +1177,11 @@ contract EscrowHourlyUnitTest is Test {
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 3); //Status.COMPLETED
+        assertEq(uint256(_status), 4); //Status.COMPLETED
 
-        (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, weekId);
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
         vm.stopPrank();
 
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
@@ -1086,10 +1196,10 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
@@ -1110,11 +1220,11 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
 
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
 
@@ -1130,22 +1240,22 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit Approved(client, currentContractId, weekId, amountApprove, contractor);
         escrow.approve(currentContractId, weekId, amountApprove, contractor);
-        (_contractor, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim, _amountToWithdraw,,) = escrow.weeklyEntries(currentContractId, weekId);
         // assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
 
         vm.prank(address(this));
         vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
         escrow.claim(currentContractId, weekId);
-        (_contractor, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim, _amountToWithdraw,,) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_amountToClaim, amountApprove);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
 
         vm.prank(owner);
         registry.addToBlacklist(contractor);
@@ -1183,7 +1293,7 @@ contract EscrowHourlyUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), amountToMint);
         paymentToken.approve(address(escrow), amountToMint);
-        escrow.deposit(currentContractId, address(paymentToken), amountApprove, deposit);
+        escrow.deposit(currentContractId, address(paymentToken), amountApprove, weeklyEntry);
 
         currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 1);
@@ -1209,7 +1319,7 @@ contract EscrowHourlyUnitTest is Test {
         escrow.approve(currentContractId, 1, amountApprove, contractor);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, amountApprove);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.stopPrank();
 
         assertEq(paymentToken.balanceOf(address(escrow)), amountToMint * 4);
@@ -1246,13 +1356,14 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
 
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,, Enums.Status _weekStatus) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0.5 ether);
         assertEq(_amountToWithdraw, 0.5 ether);
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
 
         (uint256 totalDepositAmount, uint256 feeAmount) =
             _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ONLY);
@@ -1269,12 +1380,13 @@ contract EscrowHourlyUnitTest is Test {
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0.5 ether);
-        assertEq(uint256(_status), 8); //Status.CANCELED
+        assertEq(uint256(_status), 9); //Status.CANCELED
 
-        (, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (, _amountToClaim, _amountToWithdraw,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0.5 ether);
         assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
 
         assertEq(paymentToken.balanceOf(address(escrow)), 0.5 ether);
         assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount);
@@ -1289,16 +1401,170 @@ contract EscrowHourlyUnitTest is Test {
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 3); //Status.COMPLETED
+        assertEq(uint256(_status), 4); //Status.COMPLETED
 
-        (, _amountToClaim,,) = escrow.contractWeeks(currentContractId, 0);
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, 0);
         assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
         vm.stopPrank();
 
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), platformFee + feeAmount);
         assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
+    }
+
+    function test_claim_after_autoApprove_and_refill() public {
+        test_adminApprove_prepayment_less_than_amount_to_approve();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 1);
+        (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (, uint256 _amountToClaim,,, Enums.Status _weekStatus) = escrow.weeklyEntries(currentContractId, --weekId);
+        assertEq(_amountToClaim, 1 ether);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        // 1st claim after auto approval befor refill
+        (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        vm.startPrank(contractor);
+        escrow.claim(currentContractId, weekId);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        vm.stopPrank();
+
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 4); //Status.COMPLETED
+
+        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount - (claimAmount + feeAmount + clientFee));
+
+        // refill more funds by client
+        uint256 amountAdditional = 1 ether;
+        vm.startPrank(client);
+        paymentToken.mint(client, totalDepositAmount);
+        paymentToken.approve(address(escrow), totalDepositAmount);
+        escrow.refill(currentContractId, weekId, amountAdditional, Enums.RefillType.WEEK_PAYMENT);
+        vm.stopPrank();
+
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
+        assertEq(_amountToClaim, amountAdditional);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        (uint256 claimAmount2, uint256 feeAmount2, uint256 clientFee2) =
+            _computeClaimableAndFeeAmount(contractor, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        // 2d claim that is after refill
+        vm.startPrank(contractor);
+        escrow.claim(currentContractId, weekId);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount + claimAmount2);
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 4); //Status.COMPLETED
+        vm.stopPrank();
+
+        assertEq(
+            paymentToken.balanceOf(address(escrow)),
+            (totalDepositAmount - (claimAmount + feeAmount + clientFee))
+                - (totalDepositAmount - (claimAmount2 + feeAmount2 + clientFee2))
+        );
+        assertEq(paymentToken.balanceOf(address(escrow)), 0);
+        assertEq(paymentToken.balanceOf(address(treasury)), (feeAmount + clientFee) + (feeAmount2 + clientFee2));
+    }
+
+    function test_claim_after_previous_claim() public {
+        test_initialize();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 0);
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
+            contractor: contractor,
+            amountToClaim: 1 ether,
+            amountToWithdraw: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
+        });
+        vm.startPrank(client);
+        paymentToken.mint(client, 2.06 ether);
+        paymentToken.approve(address(escrow), 2.06 ether);
+        vm.expectEmit(true, true, true, true);
+        emit Deposited(client, 1, 0, address(paymentToken), 1.03 ether);
+        // 1st deposit
+        escrow.deposit(0, address(paymentToken), 0 ether, weeklyEntry);
+        currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 1);
+        assertEq(escrow.getWeeksCount(currentContractId), 1);
+        uint256 weeksCount = escrow.getWeeksCount(currentContractId);
+        uint256 weekId1 = --weeksCount;
+        // 2d deposit to the created contractId on previous step
+        escrow.deposit(currentContractId, address(paymentToken), 0 ether, weeklyEntry);
+        assertEq(escrow.getWeeksCount(currentContractId), 2);
+        vm.stopPrank();
+
+        weeksCount = escrow.getWeeksCount(currentContractId);
+        uint256 weekId2 = --weeksCount;
+
+        // contract level
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrow.contractDetails(currentContractId);
+        assertEq(address(_paymentToken), address(paymentToken));
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+        (
+            address _contractor,
+            uint256 _amountToClaim,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _weekStatus
+        ) = escrow.weeklyEntries(currentContractId, weekId1);
+        assertEq(_contractor, contractor);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(_amountToClaim, 1 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        (uint256 totalDepositAmount,) =
+            _computeDepositAndFeeAmount(client, _amountToClaim, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount + totalDepositAmount); //2.06 ether
+        assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
+        assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        assertEq(escrow.getWeeksCount(currentContractId), 2);
+
+        (_contractor, _amountToClaim, _amountToWithdraw, _feeConfig, _weekStatus) =
+            escrow.weeklyEntries(currentContractId, weekId2);
+        assertEq(_contractor, contractor);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(_amountToClaim, 1 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        vm.startPrank(contractor);
+        escrow.claim(currentContractId, 0);
+        (,, _status) = escrow.contractDetails(currentContractId);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId1);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+
+        escrow.claim(currentContractId, 1);
+        (,, _status) = escrow.contractDetails(currentContractId);
+        assertEq(uint256(_status), 4); //Status.COMPLETED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId2);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
     }
 
     ///////////////////////////////////////////
@@ -1312,12 +1578,13 @@ contract EscrowHourlyUnitTest is Test {
         // weekId--;
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, 0);
+        assertEq(uint256(_status), 8); //Status.REFUND_APPROVED
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,, Enums.Status _weekStatus) =
+            escrow.weeklyEntries(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 1 ether);
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
 
         (uint256 totalDepositAmount, uint256 feeAmount) =
             _computeDepositAndFeeAmount(client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ONLY);
@@ -1336,11 +1603,13 @@ contract EscrowHourlyUnitTest is Test {
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 8); //Status.CANCELED
+        assertEq(uint256(_status), 9); //Status.CANCELED
 
-        (, uint256 _amountAfter, uint256 _amountToWithdrawAfter,) = escrow.contractWeeks(currentContractId, 0);
+        (, uint256 _amountAfter, uint256 _amountToWithdrawAfter,, Enums.Status _weekStatusAfter) =
+            escrow.weeklyEntries(currentContractId, 0);
         assertEq(_amountAfter, 0 ether);
         assertEq(_amountToWithdrawAfter, 0 ether);
+        assertEq(uint256(_weekStatusAfter), 1); //Status.ACTIVE
 
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw + feeAmount)
         assertEq(paymentToken.balanceOf(address(client)), _amountToWithdraw + feeAmount); //==totalDepositAmount = _amountToWithdraw + feeAmount
@@ -1352,9 +1621,9 @@ contract EscrowHourlyUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, 0);
+        assertEq(uint256(_status), 8); //Status.REFUND_APPROVED
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 1 ether);
@@ -1376,9 +1645,9 @@ contract EscrowHourlyUnitTest is Test {
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 8); //Status.CANCELED
+        assertEq(uint256(_status), 9); //Status.CANCELED
 
-        (, uint256 _amountAfter, uint256 _amountToWithdrawAfter,) = escrow.contractWeeks(currentContractId, 0);
+        (, uint256 _amountAfter, uint256 _amountToWithdrawAfter,,) = escrow.weeklyEntries(currentContractId, 0);
         assertEq(_amountAfter, 0 ether);
         assertEq(_amountToWithdrawAfter, 0 ether);
 
@@ -1393,10 +1662,10 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
 
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, _prepaymentAmount);
@@ -1418,9 +1687,9 @@ contract EscrowHourlyUnitTest is Test {
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0 ether);
-        assertEq(uint256(_status), 8); //Status.CANCELED
+        assertEq(uint256(_status), 9); //Status.CANCELED
 
-        (, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (, _amountToClaim, _amountToWithdraw,,) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
@@ -1436,10 +1705,10 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
 
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, _prepaymentAmount / 2);
         assertEq(_amountToWithdraw, _prepaymentAmount / 2);
@@ -1461,9 +1730,9 @@ contract EscrowHourlyUnitTest is Test {
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 0.5 ether);
-        assertEq(uint256(_status), 8); //Status.CANCELED
+        assertEq(uint256(_status), 9); //Status.CANCELED
 
-        (, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (, _amountToClaim, _amountToWithdraw,,) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0.5 ether);
         assertEq(_amountToWithdraw, 0 ether);
@@ -1497,20 +1766,20 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0);
         uint256 currentContractId = escrow.getCurrentContractId();
         (,, Enums.Status _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(client);
         escrow.createDispute(currentContractId, 0);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         vm.prank(owner);
         escrow.resolveDispute(currentContractId, 0, Enums.Winner.SPLIT, 0, 0.5 ether);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NoFundsAvailableForWithdraw.selector);
         escrow.withdraw(currentContractId, 0);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
         assertEq(paymentToken.balanceOf(address(client)), 0);
     }
 
@@ -1524,6 +1793,17 @@ contract EscrowHourlyUnitTest is Test {
         escrow.withdraw(currentContractId, 0);
     }
 
+    function test_withdraw_reverts_InvalidStatusForWithdraw_canceled() public {
+        test_withdraw_whenRefundApprovedByOwner();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (,, Enums.Status _status) = escrow.contractDetails(currentContractId);
+        assertEq(uint256(_status), 9); //Status.CANCELED
+        vm.prank(client);
+        vm.expectRevert(IEscrow.Escrow__InvalidStatusToWithdraw.selector);
+        escrow.withdraw(currentContractId, --weekId);
+    }
+
     ////////////////////////////////////////////
     //          return request tests          //
     ////////////////////////////////////////////
@@ -1535,14 +1815,14 @@ contract EscrowHourlyUnitTest is Test {
         (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
             escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnRequested(client, currentContractId, weekId);
         escrow.requestReturn(currentContractId, weekId);
         (_paymentToken, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_requestReturn_whenApproved() public {
@@ -1552,14 +1832,14 @@ contract EscrowHourlyUnitTest is Test {
         (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
             escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnRequested(client, currentContractId, weekId);
         escrow.requestReturn(currentContractId, weekId);
         (_paymentToken, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     // claim::if (C.prepaymentAmount == 0) C.status = Enums.Status.COMPLETED;
@@ -1570,48 +1850,48 @@ contract EscrowHourlyUnitTest is Test {
         (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
             escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 4); //Status.COMPLETED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnRequested(client, currentContractId, weekId);
         escrow.requestReturn(currentContractId, weekId);
         (_paymentToken, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_requestReturn_reverts_UnauthorizedAccount() public {
         test_deposit_prepayment();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor,,,) = escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor,,,,) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(contractor);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender);
         escrow.requestReturn(currentContractId, weekId);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_requestReturn_reverts_ReturnNotAllowed() public {
         test_requestReturn_whenActive();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor,,,) = escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor,,,,) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__ReturnNotAllowed.selector);
         escrow.requestReturn(currentContractId, weekId);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_approveReturn_by_owner() public {
@@ -1621,19 +1901,19 @@ contract EscrowHourlyUnitTest is Test {
         weekId--;
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
         emit ReturnApproved(owner, currentContractId, weekId);
         escrow.approveReturn(currentContractId, weekId);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 1 ether);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
+        assertEq(uint256(_status), 8); //Status.REFUND_APPROVED
     }
 
     function test_approveReturn_by_contractor() public {
@@ -1643,19 +1923,19 @@ contract EscrowHourlyUnitTest is Test {
         weekId--;
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit ReturnApproved(contractor, currentContractId, weekId);
         escrow.approveReturn(currentContractId, weekId);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 1 ether);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 7); //Status.REFUND_APPROVED
+        assertEq(uint256(_status), 8); //Status.REFUND_APPROVED
     }
 
     function test_approveReturn_reverts_UnauthorizedToApproveReturn() public {
@@ -1665,30 +1945,30 @@ contract EscrowHourlyUnitTest is Test {
         weekId--;
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(address(this));
         vm.expectRevert(IEscrow.Escrow__UnauthorizedToApproveReturn.selector);
         escrow.approveReturn(currentContractId, weekId);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_approveReturn_reverts_NoReturnRequested() public {
         test_deposit_prepayment();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor,,,) = escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor,,,,) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__NoReturnRequested.selector);
         escrow.approveReturn(currentContractId, weekId);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_cancelReturn() public {
@@ -1698,7 +1978,7 @@ contract EscrowHourlyUnitTest is Test {
         weekId--;
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         status = Enums.Status.ACTIVE;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
@@ -1706,7 +1986,7 @@ contract EscrowHourlyUnitTest is Test {
         escrow.cancelReturn(currentContractId, weekId, status);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_cancelReturn_reverts() public {
@@ -1716,35 +1996,35 @@ contract EscrowHourlyUnitTest is Test {
         weekId--;
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(owner);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
         escrow.cancelReturn(currentContractId, weekId, status);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         status = Enums.Status.CANCELED;
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusProvided.selector);
         escrow.cancelReturn(currentContractId, weekId, status);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_cancelReturn_reverts_NoReturnRequested() public {
         test_deposit_prepayment();
         uint256 currentContractId = escrow.getCurrentContractId();
         uint256 weekId = escrow.getWeeksCount(currentContractId);
-        (address _contractor,,,) = escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor,,,,) = escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NoReturnRequested.selector);
         escrow.cancelReturn(currentContractId, weekId, status);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     ////////////////////////////////////////////
@@ -1758,14 +2038,14 @@ contract EscrowHourlyUnitTest is Test {
         (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
             escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit DisputeCreated(client, currentContractId, --weekId);
         escrow.createDispute(currentContractId, weekId);
         (_paymentToken, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_createDispute_by_contractor() public {
@@ -1775,16 +2055,16 @@ contract EscrowHourlyUnitTest is Test {
         (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
             escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit DisputeCreated(contractor, currentContractId, --weekId);
         escrow.createDispute(currentContractId, weekId);
-        (address _contractor,,,) = escrow.contractWeeks(currentContractId, 0);
+        (address _contractor,,,,) = escrow.weeklyEntries(currentContractId, 0);
         assertEq(_contractor, contractor);
         (_paymentToken, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_createDispute_reverts_CreateDisputeNotAllowed() public {
@@ -1794,13 +2074,13 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__CreateDisputeNotAllowed.selector);
         escrow.createDispute(currentContractId, 0);
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_createDispute_reverts_UnauthorizedToApproveDispute() public {
@@ -1810,13 +2090,13 @@ contract EscrowHourlyUnitTest is Test {
         (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
             escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(address(this));
         vm.expectRevert(IEscrow.Escrow__UnauthorizedToApproveDispute.selector);
         escrow.createDispute(currentContractId, --weekId);
         (_paymentToken, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 4); //Status.RETURN_REQUESTED
+        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
     }
 
     function test_resolveDispute_winnerClient() public {
@@ -1825,10 +2105,10 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
@@ -1839,14 +2119,14 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit DisputeResolved(owner, currentContractId, weekId, _winner, clientAmount, 0);
         escrow.resolveDispute(currentContractId, weekId, _winner, clientAmount, 0);
-        (_contractor, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim, _amountToWithdraw,,) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, clientAmount);
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
     }
 
     function test_resolveDispute_winnerContractor() public {
@@ -1855,10 +2135,10 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
@@ -1869,14 +2149,14 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit DisputeResolved(owner, currentContractId, weekId, _winner, 0, contractorAmount);
         escrow.resolveDispute(currentContractId, weekId, _winner, 0, contractorAmount);
-        (_contractor, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim, _amountToWithdraw,,) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, _prepaymentAmount);
         assertEq(_amountToWithdraw, 0 ether);
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 2); //Status.APPROVED
+        assertEq(uint256(_status), 3); //Status.APPROVED
     }
 
     function test_resolveDispute_winnerSplit() public {
@@ -1885,10 +2165,10 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
@@ -1900,14 +2180,14 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit DisputeResolved(owner, currentContractId, weekId, _winner, clientAmount, contractorAmount);
         escrow.resolveDispute(currentContractId, weekId, _winner, clientAmount, contractorAmount);
-        (_contractor, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim, _amountToWithdraw,,) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, clientAmount);
         assertEq(_amountToWithdraw, contractorAmount);
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
     }
 
     function test_resolveDispute_winnerSplit_ZeroAllocationToEachParty() public {
@@ -1916,10 +2196,10 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, --weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
@@ -1929,14 +2209,14 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit DisputeResolved(owner, currentContractId, weekId, _winner, 0, 0);
         escrow.resolveDispute(currentContractId, weekId, _winner, 0, 0);
-        (_contractor, _amountToClaim, _amountToWithdraw,) = escrow.contractWeeks(currentContractId, weekId);
+        (_contractor, _amountToClaim, _amountToWithdraw,,) = escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 6); //Status.RESOLVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
     }
 
     function test_resolveDispute_reverts_DisputeNotActiveForThisDeposit() public {
@@ -1947,12 +2227,12 @@ contract EscrowHourlyUnitTest is Test {
             escrow.contractDetails(currentContractId);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__DisputeNotActiveForThisDeposit.selector);
         escrow.resolveDispute(currentContractId, --weekId, Enums.Winner.CLIENT, 0, 0);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 0); //Status.ACTIVE
+        assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
     function test_resolveDispute_reverts_UnauthorizedToApproveDispute() public {
@@ -1961,12 +2241,12 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
         vm.prank(address(this));
         vm.expectRevert(); //Unauthorized()
         escrow.resolveDispute(currentContractId, weekId, Enums.Winner.CONTRACTOR, 0, 0);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_resolveDispute_reverts_winnerClient_ResolutionExceedsDepositedAmount() public {
@@ -1975,18 +2255,18 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__ResolutionExceedsDepositedAmount.selector);
         escrow.resolveDispute(currentContractId, --weekId, Enums.Winner.CLIENT, 1.1 ether, 0 ether);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_resolveDispute_reverts_winnerContractor_ResolutionExceedsDepositedAmount() public {
@@ -1995,18 +2275,18 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__ResolutionExceedsDepositedAmount.selector);
         escrow.resolveDispute(currentContractId, --weekId, Enums.Winner.CONTRACTOR, 0 ether, 1.1 ether);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_resolveDispute_reverts_winnerSplit_ResolutionExceedsDepositedAmount() public {
@@ -2015,18 +2295,18 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
         vm.prank(owner);
         vm.expectRevert(IEscrow.Escrow__ResolutionExceedsDepositedAmount.selector);
         escrow.resolveDispute(currentContractId, --weekId, Enums.Winner.SPLIT, 1 ether, 1 wei);
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     function test_resolveDispute_reverts_InvalidWinnerSpecified() public {
@@ -2035,19 +2315,19 @@ contract EscrowHourlyUnitTest is Test {
         uint256 weekId = escrow.getWeeksCount(currentContractId);
         (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
 
         vm.prank(owner);
         // vm.expectRevert(IEscrow.Escrow__InvalidWinnerSpecified.selector);
         vm.expectRevert(); // panic: failed to convert value into enum type (0x21)
         escrow.resolveDispute(currentContractId, --weekId, Enums.Winner(uint256(4)), 1 ether, 0); // Invalid enum value for Winner
-        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,) =
-            escrow.contractWeeks(currentContractId, weekId);
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);
         assertEq(_amountToClaim, 0 ether);
         assertEq(_amountToWithdraw, 0 ether);
         (,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 5); //Status.DISPUTED
+        assertEq(uint256(_status), 6); //Status.DISPUTED
     }
 
     ////////////////////////////////////////////

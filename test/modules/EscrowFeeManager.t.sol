@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "forge-std/Test.sol";
+import { Test, console2 } from "forge-std/Test.sol";
 
-import {EscrowFeeManager, IEscrowFeeManager, OwnedThreeStep} from "src/modules/EscrowFeeManager.sol";
-import {Enums} from "src/libs/Enums.sol";
+import { EscrowFeeManager, IEscrowFeeManager, OwnedThreeStep } from "src/modules/EscrowFeeManager.sol";
+import { Enums } from "src/libs/Enums.sol";
 
 contract EscrowFeeManagerUnitTest is Test {
     EscrowFeeManager feeManager;

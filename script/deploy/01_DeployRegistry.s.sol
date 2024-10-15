@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {Script, console} from "forge-std/Script.sol";
+import { Script, console } from "forge-std/Script.sol";
 
-import {EscrowRegistry} from "src/modules/EscrowRegistry.sol";
-import {MockDAI} from "test/mocks/MockDAI.sol";
-import {MockUSDT} from "test/mocks/MockUSDT.sol";
-import {EthSepoliaConfig} from "config/EthSepoliaConfig.sol";
-import {PolAmoyConfig} from "config/PolAmoyConfig.sol";
+import { EscrowRegistry } from "src/modules/EscrowRegistry.sol";
+import { MockDAI } from "test/mocks/MockDAI.sol";
+import { MockUSDT } from "test/mocks/MockUSDT.sol";
+import { EthSepoliaConfig } from "config/EthSepoliaConfig.sol";
+import { PolAmoyConfig } from "config/PolAmoyConfig.sol";
 
 contract DeployRegistryScript is Script {
     EscrowRegistry registry;

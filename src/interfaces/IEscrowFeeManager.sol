@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {Enums} from "src/libs/Enums.sol";
+import { Enums } from "../libs/Enums.sol";
 
 /// @title Interface for Escrow Fee Manager
 /// @notice Defines the standard functions and events for an escrow fee management system.

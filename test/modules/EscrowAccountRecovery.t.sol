@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import "forge-std/Test.sol";
+import { Test, console2 } from "forge-std/Test.sol";
 
-import {EscrowAccountRecovery} from "src/modules/EscrowAccountRecovery.sol";
-import {EscrowAdminManager, OwnedRoles} from "src/modules/EscrowAdminManager.sol";
-import {EscrowFixedPrice, IEscrowFixedPrice} from "src/EscrowFixedPrice.sol";
-import {EscrowMilestone, IEscrowMilestone} from "src/EscrowMilestone.sol";
-import {EscrowHourly, IEscrowHourly} from "src/EscrowHourly.sol";
-import {EscrowFeeManager, IEscrowFeeManager} from "src/modules/EscrowFeeManager.sol";
-import {EscrowRegistry, IEscrowRegistry} from "src/modules/EscrowRegistry.sol";
-import {IEscrow} from "src/interfaces/IEscrow.sol";
-import {Enums} from "src/libs/Enums.sol";
-import {ERC20Mock} from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { EscrowAccountRecovery } from "src/modules/EscrowAccountRecovery.sol";
+import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
+import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
+import { EscrowMilestone, IEscrowMilestone } from "src/EscrowMilestone.sol";
+import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
+import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
+import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
+import { IEscrow } from "src/interfaces/IEscrow.sol";
+import { Enums } from "src/libs/Enums.sol";
+import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
 
 contract EscrowAccountRecoveryUnitTest is Test {
     EscrowAccountRecovery recovery;
@@ -38,8 +38,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     EscrowFixedPrice.Deposit deposit;
     EscrowAccountRecovery.RecoveryData recoveryInfo;
-    IEscrowMilestone.Deposit[] deposits;
-    IEscrowHourly.Deposit depositHourly;
+    IEscrowMilestone.Milestone[] milestones;
+    IEscrowHourly.WeeklyEntry weeklyEntry;
     IEscrowHourly.ContractDetails contractDetails;
 
     event AdminManagerUpdated(address adminManager);
@@ -123,8 +123,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
     }
 
     function initializeEscrowMilestone() public {
-        deposits.push(
-            IEscrowMilestone.Deposit({
+        milestones.push(
+            IEscrowMilestone.Milestone({
                 contractor: contractor,
                 amount: 1 ether,
                 amountToClaim: 0,
@@ -142,7 +142,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), depositAmount);
         paymentToken.approve(address(escrowMilestone), depositAmount);
-        escrowMilestone.deposit(0, address(paymentToken), deposits);
+        escrowMilestone.deposit(0, address(paymentToken), milestones);
         vm.stopPrank();
     }
 
@@ -152,11 +152,12 @@ contract EscrowAccountRecoveryUnitTest is Test {
             prepaymentAmount: 1 ether,
             status: Enums.Status.ACTIVE
         });
-        depositHourly = IEscrowHourly.Deposit({
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
             contractor: contractor,
             amountToClaim: 0,
             amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
         });
 
         assertFalse(escrowHourly.initialized());
@@ -168,7 +169,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrowHourly), totalDepositAmount);
-        escrowHourly.deposit(0, address(paymentToken), depositAmount, depositHourly);
+        escrowHourly.deposit(0, address(paymentToken), depositAmount, weeklyEntry);
         vm.stopPrank();
     }
 
@@ -303,6 +304,15 @@ contract EscrowAccountRecoveryUnitTest is Test {
         recovery.executeRecovery(accountType, address(escrow), client);
     }
 
+    function test_executeRecovery_fixed_price_client_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_fixed_price_client();
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.transferClientOwnership(address(0));
+    }
+
     function test_initiateRecovery_fixed_price_contractor() public {
         initializeEscrowFixedPrice();
         uint256 contractId = escrow.getCurrentContractId();
@@ -396,6 +406,16 @@ contract EscrowAccountRecoveryUnitTest is Test {
         recovery.executeRecovery(accountType, address(escrow), contractor);
     }
 
+    function test_executeRecovery_fixed_price_contractor_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_fixed_price_contractor();
+        uint256 contractId = escrow.getCurrentContractId();
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.transferContractorOwnership(contractId, address(0));
+    }
+
     function test_initiateRecovery_milestone_client() public {
         initializeEscrowMilestone();
         uint256 contractId = escrowMilestone.getCurrentContractId();
@@ -481,6 +501,15 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
         recovery.executeRecovery(accountType, address(escrowMilestone), client);
+    }
+
+    function test_executeRecovery_milestone_client_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_milestone_client();
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrowMilestone.transferClientOwnership(address(0));
     }
 
     function test_initiateRecovery_milestone_contractor() public {
@@ -575,6 +604,17 @@ contract EscrowAccountRecoveryUnitTest is Test {
         recovery.executeRecovery(accountType, address(escrowMilestone), contractor);
     }
 
+    function test_executeRecovery_milestone_contractor_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_milestone_contractor();
+        uint256 contractId = escrowMilestone.getCurrentContractId();
+        uint256 milestoneId = escrowMilestone.getMilestoneCount(contractId);
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrowMilestone.transferContractorOwnership(contractId, --milestoneId, address(0));
+    }
+
     function test_initiateRecovery_hourly_client() public {
         initializeEscrowHourly();
         uint256 contractId = escrowHourly.getCurrentContractId();
@@ -661,6 +701,15 @@ contract EscrowAccountRecoveryUnitTest is Test {
         recovery.executeRecovery(accountType, address(escrowHourly), client);
     }
 
+    function test_executeRecovery_hourly_client_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_hourly_client();
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrowHourly.transferClientOwnership(address(0));
+    }
+
     function test_initiateRecovery_hourly_contractor() public {
         initializeEscrowHourly();
         uint256 contractId = escrowHourly.getCurrentContractId();
@@ -715,7 +764,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertTrue(_confirmed);
         assertEq(uint256(_escrowType), 2);
 
-        (address _contractor,,,) = escrowHourly.contractWeeks(contractId, 0);
+        (address _contractor,,,,) = escrowHourly.weeklyEntries(contractId, 0);
         assertEq(_contractor, contractor);
 
         vm.prank(new_contractor);
@@ -744,12 +793,22 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertEq(_executeAfter, 0);
         assertTrue(_executed);
 
-        (_contractor,,,) = escrowHourly.contractWeeks(contractId, 0);
+        (_contractor,,,,) = escrowHourly.weeklyEntries(contractId, 0);
         assertEq(_contractor, new_contractor);
 
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
         recovery.executeRecovery(accountType, address(escrowHourly), contractor);
+    }
+
+    function test_executeRecovery_hourly_contractor_reverts_ZeroAddressProvided() public {
+        test_initiateRecovery_hourly_contractor();
+        uint256 contractId = escrowHourly.getCurrentContractId();
+        vm.prank(owner);
+        registry.setAccountRecovery(address(recovery));
+        vm.prank(address(recovery));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrowHourly.transferContractorOwnership(contractId, address(0));
     }
 
     function test_updateRecoveryPeriod() public {

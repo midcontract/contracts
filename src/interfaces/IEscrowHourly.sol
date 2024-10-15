@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {IEscrow, Enums} from "./IEscrow.sol";
+import { IEscrow, Enums } from "./IEscrow.sol";
 
-/// @title EscrowHourly Interface
+/// @title Hourly Management Interface for Escrow Systems
 /// @notice Interface for the Escrow Hourly contract that handles deposits, withdrawals, and disputes.
 interface IEscrowHourly is IEscrow {
     /// @notice Thrown when no deposits are provided in a function call that expects at least one.
@@ -20,23 +20,25 @@ interface IEscrowHourly is IEscrow {
 
     /// @param paymentToken The address of the payment token.
     /// @param prepaymentAmount The prepayment amount for the contract.
-    /// @param status The status of the deposit.
+    /// @param status The status of the contract.
     struct ContractDetails {
         address paymentToken;
         uint256 prepaymentAmount;
         Enums.Status status;
     }
 
-    /// @notice Represents a deposit in the escrow.
+    /// @notice Represents a weekly billing cycle in the escrow.
     /// @param contractor The address of the contractor.
     /// @param amountToClaim The amount to be claimed.
     /// @param amountToWithdraw The amount to be withdrawn.
     /// @param feeConfig The fee configuration.
-    struct Deposit {
+    /// @param weekStatus The status of the week.
+    struct WeeklyEntry {
         address contractor;
         uint256 amountToClaim;
         uint256 amountToWithdraw;
         Enums.FeeConfig feeConfig;
+        Enums.Status weekStatus;
     }
 
     /// @notice Emitted when a deposit is made.
@@ -109,7 +111,7 @@ interface IEscrowHourly is IEscrow {
     event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 weekId, uint256 amount);
 
     /// @notice Emitted when a return is requested.
-    /// @dev Currently focuses on the return of prepayment amounts but includes a `weekId` for potential future use 
+    /// @dev Currently focuses on the return of prepayment amounts but includes a `weekId` for potential future use
     /// where returns might be processed on a week-by-week basis.
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.

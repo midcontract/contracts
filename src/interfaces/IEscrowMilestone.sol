@@ -1,16 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {IEscrow, Enums} from "./IEscrow.sol";
+import { IEscrow, Enums } from "./IEscrow.sol";
 
-/// @title EscrowMilestone Interface
-/// @notice Interface for the Escrow Milestone contract that handles deposits, withdrawals, and disputes.
+/// @title Milestone Management Interface for Escrow Systems
+/// @notice Interface defining the operations for milestone-based escrow agreements.
 interface IEscrowMilestone is IEscrow {
     /// @notice Error for when no deposits are provided in a function call that expects at least one.
     error Escrow__NoDepositsProvided();
 
+    /// @notice Error for when too many deposit entries are provided, exceeding the allowed limit for a single transaction.
+    error Escrow__TooManyMilestones();
+
     /// @notice Error for when an invalid contract ID is provided to a function expecting a valid existing contract ID.
     error Escrow__InvalidContractId();
+
+    /// @notice Error for when an invalid milestone ID is provided to a function expecting a valid existing milestone ID.
+    error Escrow__InvalidMilestoneId();
+
+    /// @notice Error for when the provided milestone limit is zero or exceeds the maximum allowed.
+    error Escrow__InvalidMilestoneLimit();
 
     /// @notice This struct stores details about individual milestones within an escrow contract.
     /// @param paymentToken The address of the token to be used for payments.
@@ -22,15 +31,15 @@ interface IEscrowMilestone is IEscrow {
         Enums.Winner winner;
     }
 
-    /// @notice Represents a deposit in the escrow.
-    /// @param contractor The address of the contractor.
-    /// @param amount The amount deposited.
-    /// @param amountToClaim The amount to be claimed.
-    /// @param amountToWithdraw The amount to be withdrawn.
-    /// @param contractorData The contractor's data hash.
-    /// @param feeConfig The fee configuration.
-    /// @param status The status of the deposit.
-    struct Deposit {
+    /// @notice Represents a milestone within an escrow contract.
+    /// @param contractor The address of the contractor responsible for completing the milestone.
+    /// @param amount The total amount allocated to the milestone.
+    /// @param amountToClaim The amount available to the contractor upon completion of the milestone.
+    /// @param amountToWithdraw The amount available for withdrawal if certain conditions are met.
+    /// @param contractorData Data hash containing specific information about the contractor's obligations.
+    /// @param feeConfig Configuration for any applicable fees associated with the milestone.
+    /// @param status Current status of the milestone, tracking its lifecycle from creation to completion.
+    struct Milestone {
         address contractor;
         uint256 amount;
         uint256 amountToClaim;
@@ -167,6 +176,10 @@ interface IEscrowMilestone is IEscrow {
     event ContractorOwnershipTransferred(
         uint256 indexed contractId, uint256 indexed milestoneId, address previousOwner, address indexed newOwner
     );
+
+    /// @notice Emitted when the maximum number of milestones per transaction is updated.
+    /// @param maxMilestones The new maximum number of milestones that can be processed in a single transaction.
+    event MaxMilestonesSet(uint256 maxMilestones);
 
     /// @notice Interface declaration for transferring contractor ownership.
     /// @param contractId The identifier of the contract for which contractor ownership is being transferred.

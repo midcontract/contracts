@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {ECDSA} from "@solbase/utils/ECDSA.sol";
+import { ECDSA } from "@solbase/utils/ECDSA.sol";
 
 /// @title ERC1271
 /// @dev Abstract contract for validating signatures as per ERC-1271 standard.

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {OwnedThreeStep} from "@solbase/auth/OwnedThreeStep.sol";
-import {IEscrowRegistry} from "../interfaces/IEscrowRegistry.sol";
+import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
+import { IEscrowRegistry } from "../interfaces/IEscrowRegistry.sol";
 
 /// @title EscrowRegistry Contract
 /// @dev This contract manages configuration settings for the escrow system including approved payment tokens.
@@ -34,8 +34,9 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Address of the account recovery module contract.
     address public accountRecovery;
 
-    /// @notice Mapping of ERC20 token addresses that are enabled as payment options.
-    /// @dev Includes the ability to enable the native chain token for payments.
+    /// @notice Mapping of token addresses allowed for use as payment in escrows.
+    /// @dev Initially includes ERC20 stablecoins and optionally wrapped native tokens.
+    /// This setting can be updated to reflect changes in allowed payment methods, adhering to security and usability standards.
     mapping(address token => bool enabled) public paymentTokens;
 
     /// @notice Checks if an address is blacklisted.
