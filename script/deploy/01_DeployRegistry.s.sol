@@ -17,7 +17,8 @@ contract DeployRegistryScript is Script {
     uint256 ownerPrivateKey;
     address deployerPublicKey;
     uint256 deployerPrivateKey;
-    address paymentToken;
+    address paymentToken1;
+    address paymentToken2;
     // address registry;
 
     function setUp() public {
@@ -25,7 +26,8 @@ contract DeployRegistryScript is Script {
         ownerPrivateKey = vm.envUint("OWNER_PRIVATE_KEY");
         deployerPublicKey = vm.envAddress("DEPLOYER_PUBLIC_KEY");
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        paymentToken = EthSepoliaConfig.MOCK_USDT;
+        paymentToken1 = PolAmoyConfig.MOCK_USDT;
+        paymentToken2 = PolAmoyConfig.MOCK_DAI;
         // registry = PolAmoyConfig.REGISTRY;
     }
 
@@ -44,7 +46,8 @@ contract DeployRegistryScript is Script {
 
         vm.startBroadcast(ownerPrivateKey);
         // EscrowRegistry(registry).setTreasury(ownerPublicKey);
-        EscrowRegistry(registry).addPaymentToken(paymentToken);
+        EscrowRegistry(registry).addPaymentToken(paymentToken1);
+        EscrowRegistry(registry).addPaymentToken(paymentToken2);
         // EscrowRegistry(registry).updateEscrowFixedPrice(0xD8038Fae596CDC13cC9b3681A6Eb44cC1984D670);
         // EscrowRegistry(registry).updateEscrowMilestone(0x2dc075B51ef3b4f0AD868b0cc342951682019E62);
         // EscrowRegistry(registry).updateEscrowHourly(0x2b8660f1c512dBc74967d35BC23A6186a5CDE90a);
