@@ -112,7 +112,7 @@ contract EscrowMilestoneUnitTest is Test {
         escrow = new EscrowMilestone();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(3_00, 5_00, owner);
+        feeManager = new EscrowFeeManager(300, 500, owner);
         adminManager = new EscrowAdminManager(owner);
         recovery = new EscrowAccountRecovery(address(adminManager));
 
@@ -367,7 +367,7 @@ contract EscrowMilestoneUnitTest is Test {
         EscrowMilestone escrow2 = new EscrowMilestone();
         MockRegistry registry2 = new MockRegistry(owner);
         ERC20Mock paymentToken2 = new ERC20Mock();
-        EscrowFeeManager feeManager2 = new EscrowFeeManager(3_00, 5_00, owner);
+        EscrowFeeManager feeManager2 = new EscrowFeeManager(300, 500, owner);
         vm.prank(owner);
         registry2.addPaymentToken(address(paymentToken2));
         escrow2.initialize(client, owner, address(registry2));
@@ -1884,8 +1884,10 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amountAfter, 0 ether);
         assertEq(_amountToWithdrawAfter, 0 ether);
         assertEq(uint256(_statusAfter), 9); //Status.CANCELED
-        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw + feeAmount)
-        assertEq(paymentToken.balanceOf(address(client)), _amountToWithdraw + feeAmount); //==totalDepositAmount = _amountToWithdraw + feeAmount
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw +
+            // feeAmount)
+        assertEq(paymentToken.balanceOf(address(client)), _amountToWithdraw + feeAmount); //==totalDepositAmount =
+            // _amountToWithdraw + feeAmount
         assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
     }
 
@@ -1918,8 +1920,10 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amountAfter, 0 ether);
         assertEq(_amountToWithdrawAfter, 0 ether);
         assertEq(uint256(_statusAfter), 9); //Status.CANCELED
-        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw + feeAmount)
-        assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount); //==totalDepositAmount = _amountToWithdraw + feeAmount
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw +
+            // feeAmount)
+        assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount); //==totalDepositAmount =
+            // _amountToWithdraw + feeAmount
         assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
     }
 
@@ -2701,7 +2705,8 @@ contract EscrowMilestoneUnitTest is Test {
         vm.prank(owner);
         // vm.expectRevert(IEscrow.Escrow__InvalidWinnerSpecified.selector);
         vm.expectRevert(); // panic: failed to convert value into enum type (0x21)
-        escrow.resolveDispute(currentContractId, milestoneId, Enums.Winner(uint256(4)), _amount, 0); // Invalid enum value for Winner
+        escrow.resolveDispute(currentContractId, milestoneId, Enums.Winner(uint256(4)), _amount, 0); // Invalid enum
+            // value for Winner
         (_contractor, _amount, _amountToClaim, _amountToWithdraw,,, _status) =
             escrow.contractMilestones(currentContractId, milestoneId);
         assertEq(_contractor, contractor);
@@ -2759,26 +2764,26 @@ contract EscrowMilestoneUnitTest is Test {
         vm.stopPrank();
     }
 
-    function test_setMaxMilestonesPerTransaction() public {
+    function test_setMaxMilestones() public {
         test_initialize();
-        assertEq(escrow.maxMilestonesPerTransaction(), 10);
+        assertEq(escrow.maxMilestones(), 10);
         address notOwner = makeAddr("notOwner");
         bytes memory expectedRevertData =
             abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(notOwner));
         vm.prank(notOwner);
         vm.expectRevert(expectedRevertData);
-        escrow.setMaxMilestonesPerTransaction(100);
+        escrow.setMaxMilestones(100);
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowMilestone.Escrow__InvalidMilestoneLimit.selector);
-        escrow.setMaxMilestonesPerTransaction(0);
-        assertEq(escrow.maxMilestonesPerTransaction(), 10);
+        escrow.setMaxMilestones(0);
+        assertEq(escrow.maxMilestones(), 10);
         vm.expectRevert(IEscrowMilestone.Escrow__InvalidMilestoneLimit.selector);
-        escrow.setMaxMilestonesPerTransaction(21);
-        assertEq(escrow.maxMilestonesPerTransaction(), 10);
+        escrow.setMaxMilestones(21);
+        assertEq(escrow.maxMilestones(), 10);
         vm.expectEmit(true, false, false, true);
         emit MaxMilestonesSet(15);
-        escrow.setMaxMilestonesPerTransaction(15);
-        assertEq(escrow.maxMilestonesPerTransaction(), 15);
+        escrow.setMaxMilestones(15);
+        assertEq(escrow.maxMilestones(), 15);
         vm.stopPrank();
     }
 }

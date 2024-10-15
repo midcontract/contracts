@@ -13,7 +13,6 @@ import { Enums } from "./libs/Enums.sol";
 
 /// @title Weekly Billing and Payment Management for Escrow Hourly
 /// @notice Manages the creation and addition of multiple weekly beels to escrow contracts.
-/// @dev Handles both the creation of a new escrow contract and the addition of weekly beels to existing contracts.
 contract EscrowHourly is IEscrowHourly, ERC1271 {
     using ECDSA for bytes32;
 
@@ -339,8 +338,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         for (uint256 i = _startWeekId; i <= _endWeekId;) {
             WeeklyEntry storage W = weeklyEntries[_contractId][i];
 
-            if (W.contractor != msg.sender || W.amountToClaim == 0) continue; // Skip if not contractor or nothing to
-                // claim.
+            // Skip if not contractor or nothing to claim.
+            if (W.contractor != msg.sender || W.amountToClaim == 0) continue;
 
             if (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED) {
                 C.prepaymentAmount -= W.amountToClaim; // Use prepaymentAmount in case not approved by client.
@@ -402,7 +401,10 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         SafeTransferLib.safeTransfer(C.paymentToken, msg.sender, withdrawAmount);
 
-        uint256 platformFee = initialFeeAmount - feeAmount;
+        // Calculate any platform fee differential due to fee adjustments during the process.
+        uint256 platformFee = initialFeeAmount > feeAmount ? initialFeeAmount - feeAmount : 0;
+
+        // Transfer the platform fee to the designated fee collector if applicable.
         if (platformFee > 0) {
             _sendPlatformFee(C.paymentToken, platformFee);
         }
@@ -414,7 +416,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
                 ESCROW RETURN REQUEST & DISPUTE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Requests the return of funds by the client.
+    /// @notice Requests the return of funds by the client for a specific contract.
+    /// @dev The contract must be in an eligible state to request a return (not in disputed or already returned status).
     /// @param _contractId ID of the deposit for which the return is requested.
     /// @param _weekId ID of the week for which the return is requested.
     function requestReturn(uint256 _contractId, uint256 _weekId) external onlyClient {
@@ -428,7 +431,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         emit ReturnRequested(msg.sender, _contractId, _weekId);
     }
 
-    /// @notice Approves the return of funds, callable by contractor or platform owner/admin.
+    /// @notice Approves the return of funds, which can be called by the contractor or platform admin.
+    /// @dev This changes the status of the deposit to allow the client to withdraw their funds.
     /// @param _contractId ID of the deposit for which the return is approved.
     /// @param _weekId ID of the deposit for which the return is approved.
     function approveReturn(uint256 _contractId, uint256 _weekId) external {
@@ -445,12 +449,11 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         emit ReturnApproved(msg.sender, _contractId, _weekId);
     }
 
-    /// @notice Cancels a previously requested return and resets the deposit's status.
-    /// @dev This function allows a client to cancel a return request, setting the deposit status back to either ACTIVE
-    /// or APPROVED or COMPLETED.
-    /// @param _contractId The unique identifier of the deposit for which the return is cancelled.
-    /// @param _weekId ID of the deposit for which the return is cancelled.
-    /// @param _status The new status to set for the deposit, must be either ACTIVE or APPROVED or COMPLETED.
+    /// @notice Cancels a previously requested return and resets the contract's status.
+    /// @dev Allows reverting the contract status from RETURN_REQUESTED to an active state.
+    /// @param _contractId The unique identifier of the contract for which the return is cancelled.
+    /// @param _weekId ID of the contract for which the return is cancelled.
+    /// @param _status The new status to set for the contract, must be either ACTIVE or APPROVED or COMPLETED.
     function cancelReturn(uint256 _contractId, uint256 _weekId, Enums.Status _status) external onlyClient {
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
@@ -462,9 +465,12 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         emit ReturnCanceled(msg.sender, _contractId, _weekId);
     }
 
-    /// @notice Creates a dispute over a specific deposit.
-    /// @param _contractId ID of the deposit where the dispute occurred.
-    /// @param _weekId ID of the deposit where the dispute occurred.
+    /// @notice Creates a dispute over a specific contract.
+    /// @dev Initiates a dispute status for a contract that can be activated by the client or contractor
+    /// when they disagree on the previously submitted work.
+    /// @param _contractId ID of the contract where the dispute occurred.
+    /// @param _weekId ID of the contract where the dispute occurred.
+    /// This function can only be called if the contract status is either RETURN_REQUESTED or SUBMITTED.
     function createDispute(uint256 _contractId, uint256 _weekId) external {
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.RETURN_REQUESTED && C.status != Enums.Status.APPROVED) {
@@ -477,12 +483,16 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         emit DisputeCreated(msg.sender, _contractId, _weekId);
     }
 
-    /// @notice Resolves a dispute over a specific deposit.
-    /// @param _contractId ID of the deposit where the dispute occurred.
-    /// @param _weekId ID of the deposit where the dispute occurred.
+    /// @notice Resolves a dispute over a specific contract.
+    /// @dev Handles the resolution of disputes by assigning the funds according to the outcome of the dispute.
+    /// Admin intervention is required to resolve disputes to ensure fairness.
+    /// @param _contractId ID of the contract where the dispute occurred.
+    /// @param _weekId ID of the contract where the dispute occurred.
     /// @param _winner Specifies who the winner is: Client, Contractor, or Split.
     /// @param _clientAmount Amount to be allocated to the client if Split or Client wins.
     /// @param _contractorAmount Amount to be allocated to the contractor if Split or Contractor wins.
+    /// This function ensures that the total resolution amounts do not exceed the deposited amount and adjusts the
+    /// status of the contract based on the dispute outcome.
     function resolveDispute(
         uint256 _contractId,
         uint256 _weekId,
