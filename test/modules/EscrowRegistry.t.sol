@@ -20,6 +20,7 @@ contract EscrowRegistryUnitTest is Test {
     address owner;
     address treasury;
     address accountRecovery;
+    address adminManager;
 
     event PaymentTokenAdded(address token);
     event PaymentTokenRemoved(address token);
@@ -30,6 +31,7 @@ contract EscrowRegistryUnitTest is Test {
     event FeeManagerUpdated(address feeManager);
     event TreasurySet(address treasury);
     event AccountRecoverySet(address accountRecovery);
+    event AdminManagerSet(address adminManager);
     event Blacklisted(address indexed user);
     event Whitelisted(address indexed user);
 
@@ -37,6 +39,7 @@ contract EscrowRegistryUnitTest is Test {
         owner = makeAddr("owner");
         treasury = makeAddr("treasury");
         accountRecovery = makeAddr("accountRecovery");
+        adminManager = makeAddr("adminManager");
         escrow = new EscrowFixedPrice();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
@@ -261,6 +264,23 @@ contract EscrowRegistryUnitTest is Test {
         emit AccountRecoverySet(accountRecovery);
         registry.setAccountRecovery(address(accountRecovery));
         assertEq(registry.accountRecovery(), address(accountRecovery));
+        vm.stopPrank();
+    }
+
+    function test_setAdminManager() public {
+        assertEq(registry.adminManager(), address(0));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        registry.setAdminManager(address(adminManager));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        registry.setAdminManager(address(0));
+        assertEq(registry.adminManager(), address(0));
+        vm.expectEmit(true, false, false, true);
+        emit AdminManagerSet(adminManager);
+        registry.setAdminManager(address(adminManager));
+        assertEq(registry.adminManager(), address(adminManager));
         vm.stopPrank();
     }
 

@@ -22,4 +22,9 @@ interface IEscrowAdminManager {
     /// @param account The address to query for strategist status.
     /// @return True if the specified account is a strategist, false otherwise.
     function isStrategist(address account) external view returns (bool);
+
+    /// @notice Determines if a given account is assigned the dao role.
+    /// @param account The address to query for dao status.
+    /// @return True if the specified account is a dao, false otherwise.
+    function isDao(address account) external view returns (bool);
 }

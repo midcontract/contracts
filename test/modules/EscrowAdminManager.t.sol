@@ -121,6 +121,34 @@ contract EscrowAdminManagerUnitTest is Test {
         assertFalse(adminManager.isStrategist(newAdmin));
     }
 
+   function test_addDaoAccount() public {
+        assertFalse(adminManager.isDao(notOwner));
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedRoles.Unauthorized.selector);
+        adminManager.addDaoAccount(notOwner);
+        assertFalse(adminManager.isDao(notOwner));
+        assertFalse(adminManager.isDao(newAdmin));
+        vm.prank(initialOwner);
+        vm.expectEmit(true, true, true, true);
+        emit RolesUpdated(newAdmin, 16);
+        adminManager.addDaoAccount(newAdmin);
+        assertTrue(adminManager.isDao(newAdmin));
+    }
+
+    function test_removeDaoAccount() public {
+        test_addDaoAccount();
+        assertTrue(adminManager.isDao(newAdmin));
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedRoles.Unauthorized.selector);
+        adminManager.removeStrategist(newAdmin);
+        assertTrue(adminManager.isDao(newAdmin));
+        vm.prank(initialOwner);
+        vm.expectEmit(true, true, true, true);
+        emit RolesUpdated(newAdmin, 0);
+        adminManager.removeDaoAccount(newAdmin);
+        assertFalse(adminManager.isDao(newAdmin));
+    }
+
     function test_transferOwnership() public {
         address newOwner = makeAddr("newOwner");
         assertNotEq(adminManager.owner(), newOwner);

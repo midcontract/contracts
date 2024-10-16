@@ -41,6 +41,10 @@ interface IEscrowRegistry {
     /// @param accountRecovery The new account recovery contract address.
     event AccountRecoverySet(address accountRecovery);
 
+    /// @notice Emitted when the admin manager address is updated in the registry.
+    /// @param adminManager The new admin manager contract address.
+    event AdminManagerSet(address adminManager);
+
     /// @notice Emitted when an address is added to the blacklist.
     /// @param user The address that has been blacklisted.
     event Blacklisted(address indexed user);
@@ -81,6 +85,10 @@ interface IEscrowRegistry {
     /// @notice Retrieves the current account recovery address stored in the registry.
     /// @return The address of the account recovery contract.
     function accountRecovery() external view returns (address);
+
+    /// @notice Retrieves the current admin manager address stored in the registry.
+    /// @return The address of the admin manager contract.
+    function adminManager() external view returns (address);
 
     /// @notice Checks if an address is blacklisted.
     /// @param user The address to check against the blacklist.

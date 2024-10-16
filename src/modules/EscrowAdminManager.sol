@@ -9,10 +9,11 @@ import { OwnedRoles } from "@solbase/auth/OwnedRoles.sol";
 /// It includes references to unused role constants defined in the OwnedRoles library, which are part of the library's design to accommodate potential future roles. 
 /// These constants do not affect the contract's functionality or gas efficiency but are retained for compatibility and future flexibility.
 contract EscrowAdminManager is OwnedRoles {
-    // Define roles bitmask
+    // Define roles bitmask.
     uint256 private constant ADMIN_ROLE = 1 << 1;
     uint256 private constant GUARDIAN_ROLE = 1 << 2;
     uint256 private constant STRATEGIST_ROLE = 1 << 3;
+    uint256 private constant DAO_ROLE = 1 << 4;
 
     /// @dev Initializes the contract by setting the initial owner and granting them the Admin role.
     /// @param _initialOwner Address of the initial owner of the contract.
@@ -57,6 +58,18 @@ contract EscrowAdminManager is OwnedRoles {
         _removeRoles(_strategist, STRATEGIST_ROLE);
     }
 
+    /// @notice Grants the Dao role to a specified address.
+    /// @param _daoAccount Address to which the Dao role will be granted.
+    function addDaoAccount(address _daoAccount) external onlyOwner {
+        _grantRoles(_daoAccount, DAO_ROLE);
+    }
+
+    /// @notice Revokes the Dao role from a specified address.
+    /// @param _daoAccount Address from which the Dao role will be revoked.
+    function removeDaoAccount(address _daoAccount) external onlyOwner {
+        _removeRoles(_daoAccount, DAO_ROLE);
+    }
+
     /// @notice Checks if a specified address has the Admin role.
     /// @param _account Address to check for the Admin role.
     /// @return True if the address has the Admin role, otherwise false.
@@ -76,5 +89,12 @@ contract EscrowAdminManager is OwnedRoles {
     /// @return True if the address has the Strategist role, otherwise false.
     function isStrategist(address _account) public view returns (bool) {
         return hasAnyRole(_account, STRATEGIST_ROLE);
+    }
+
+    /// @notice Checks if a specified address has the Dao role.
+    /// @param _account Address to check for the Dao role.
+    /// @return True if the address has the Dao role, otherwise false.
+    function isDao(address _account) public view returns (bool) {
+        return hasAnyRole(_account, DAO_ROLE);
     }
 }

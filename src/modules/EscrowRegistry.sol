@@ -34,6 +34,9 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Address of the account recovery module contract.
     address public accountRecovery;
 
+    /// @notice Address of the admin manager contract.
+    address public adminManager;
+
     /// @notice Mapping of token addresses allowed for use as payment in escrows.
     /// @dev Initially includes ERC20 stablecoins and optionally wrapped native tokens.
     /// This setting can be updated to reflect changes in allowed payment methods, adhering to security and usability standards.
@@ -120,6 +123,14 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
         if (_accountRecovery == address(0)) revert Registry__ZeroAddressProvided();
         accountRecovery = _accountRecovery;
         emit AccountRecoverySet(_accountRecovery);
+    }
+
+    /// @notice Updates the address of the admin manager contract.
+    /// @param _adminManager The new address of the AdminManager contract to be used.
+    function setAdminManager(address _adminManager) external onlyOwner {
+        if (_adminManager == address(0)) revert Registry__ZeroAddressProvided();
+        adminManager = _adminManager;
+        emit AdminManagerSet(_adminManager);
     }
 
     /// @notice Adds an address to the blacklist.

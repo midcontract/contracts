@@ -34,6 +34,9 @@ contract MockRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Address of the account recovery module contract.
     address public accountRecovery;
 
+    /// @notice Address of the admin manager contract.
+    address public adminManager;
+
     /// @notice Mapping of ERC20 token addresses that are enabled as payment options.
     /// @dev Includes the ability to enable the native chain token for payments.
     mapping(address token => bool enabled) public paymentTokens;
@@ -117,6 +120,14 @@ contract MockRegistry is IEscrowRegistry, OwnedThreeStep {
         // if (_accountRecovery == address(0)) revert Registry__ZeroAddressProvided();
         accountRecovery = _accountRecovery;
         emit AccountRecoverySet(_accountRecovery);
+    }
+
+    /// @notice Updates the address of the admin manager contract.
+    /// @param _adminManager The new address of the AdminManager contract to be used.
+    function setAdminManager(address _adminManager) external onlyOwner {
+        // if (_adminManager == address(0)) revert Registry__ZeroAddressProvided();
+        adminManager = _adminManager;
+        emit AdminManagerSet(_adminManager);
     }
 
     /// @notice Adds an address to the blacklist.
