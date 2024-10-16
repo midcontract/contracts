@@ -3,8 +3,9 @@ pragma solidity 0.8.25;
 
 import { IEscrow, Enums } from "./IEscrow.sol";
 
-/// @title Hourly Management Interface for Escrow Systems
-/// @notice Interface for the Escrow Hourly contract that handles deposits, withdrawals, and disputes.
+/// @title Hourly Escrow Interface
+/// @notice Interface for managing hourly-based escrow agreements.
+/// Focuses on the declaration of structs, events, errors, and essential function signatures to support hourly-based operations within the escrow system.
 interface IEscrowHourly is IEscrow {
     /// @notice Thrown when no deposits are provided in a function call that expects at least one.
     error Escrow__NoDepositsProvided();

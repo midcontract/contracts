@@ -3,9 +3,9 @@ pragma solidity 0.8.25;
 
 import { IEscrow, Enums } from "./IEscrow.sol";
 
-/// @title Fixed-Price Management Interface for Escrow Systems
-/// @notice Defines the contract interface for managing fixed-price escrow agreements, facilitating operations like
-/// deposits, claims, and dispute resolutions.
+/// @title Fixed-Price Escrow Interface
+/// @notice Interface for managing fixed-price escrow agreements within the system, focusing on defining common events and errors.
+/// Defines only the essential components such as errors, events, struct and key function signatures related to fixed-price escrow operations.
 interface IEscrowFixedPrice is IEscrow {
     /// @notice Represents a deposit in the escrow.
     /// @param contractor The address of the contractor.

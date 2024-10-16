@@ -3,8 +3,9 @@ pragma solidity 0.8.25;
 
 import { IEscrow, Enums } from "./IEscrow.sol";
 
-/// @title Milestone Management Interface for Escrow Systems
-/// @notice Interface defining the operations for milestone-based escrow agreements.
+/// @title Milestone Escrow Interface
+/// @notice Defines the contract interface necessary for managing milestone-based escrow agreements.
+/// Focuses on the declaration of structs, events, errors, and essential function signatures to support milestone operations within the escrow system.
 interface IEscrowMilestone is IEscrow {
     /// @notice Error for when no deposits are provided in a function call that expects at least one.
     error Escrow__NoDepositsProvided();
