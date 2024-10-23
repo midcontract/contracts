@@ -10,6 +10,7 @@ import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol"
 import { Enums } from "src/libs/Enums.sol";
 import { IEscrow } from "src/interfaces/IEscrow.sol";
 import { MockRegistry } from "test/mocks/MockRegistry.sol";
+import { MockUSDT } from "test/mocks/MockUSDT.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
 
 contract EscrowHourlyUnitTest is Test {
@@ -95,7 +96,7 @@ contract EscrowHourlyUnitTest is Test {
         escrow = new EscrowHourly();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(3_00, 5_00, owner);
+        feeManager = new EscrowFeeManager(300, 500, owner);
         adminManager = new EscrowAdminManager(owner);
 
         vm.startPrank(owner);
@@ -319,7 +320,7 @@ contract EscrowHourlyUnitTest is Test {
         EscrowHourly escrow2 = new EscrowHourly();
         MockRegistry registry2 = new MockRegistry(owner);
         ERC20Mock paymentToken2 = new ERC20Mock();
-        EscrowFeeManager feeManager2 = new EscrowFeeManager(3_00, 5_00, owner);
+        EscrowFeeManager feeManager2 = new EscrowFeeManager(300, 500, owner);
 
         vm.prank(owner);
         registry2.addPaymentToken(address(paymentToken2));
@@ -1126,6 +1127,105 @@ contract EscrowHourlyUnitTest is Test {
         vm.stopPrank();
     }
 
+    function test_claim_clientCoversAll() public {
+        MockUSDT usdt = new MockUSDT();
+        vm.prank(owner);
+        registry.addPaymentToken(address(usdt));
+        uint256 depositAmount = 1e6;
+        uint256 depositAmountAndFee = 1.08e6;
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
+            contractor: contractor,
+            amountToClaim: depositAmount,
+            amountToWithdraw: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            weekStatus: Enums.Status.NONE
+        });
+        test_initialize();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        vm.startPrank(client);
+        usdt.mint(client, depositAmountAndFee);
+        usdt.approve(address(escrow), depositAmountAndFee);
+        escrow.deposit(currentContractId, address(usdt), 0, weeklyEntry);
+        vm.stopPrank();
+        currentContractId = escrow.getCurrentContractId();
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (, uint256 _amountToClaim,, Enums.FeeConfig _feeConfig, Enums.Status _weekStatus) =
+            escrow.weeklyEntries(currentContractId, --weekId);
+        assertEq(_amountToClaim, depositAmount);
+        assertEq(uint256(_feeConfig), 0); //Enums.Enums.FeeConfig.CLIENT_COVERS_ALL
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        assertEq(currentContractId, 1);
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrow.contractDetails(currentContractId);
+        assertEq(address(_paymentToken), address(usdt));
+        assertEq(_prepaymentAmount, 0);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee);
+        assertEq(usdt.balanceOf(address(treasury)), 0);
+        assertEq(usdt.balanceOf(address(client)), 0);
+        assertEq(usdt.balanceOf(address(contractor)), 0);
+
+        (uint256 claimAmount, uint256 contractorFee, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, depositAmount, Enums.FeeConfig.CLIENT_COVERS_ALL);
+
+        vm.prank(contractor);
+        escrow.claim(currentContractId, weekId);
+
+        assertEq(usdt.balanceOf(address(escrow)), 0);
+        assertEq(usdt.balanceOf(address(treasury)), contractorFee + clientFee);
+        assertEq(usdt.balanceOf(address(client)), 0);
+        assertEq(usdt.balanceOf(address(contractor)), claimAmount);
+
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        (,, _status) = escrow.contractDetails(currentContractId);
+        assertEq(uint256(_status), 4); //Status.COMPLETED
+    }
+
+    function test_claim_whenResolveDispute_winnerContractor() public {
+        test_resolveDispute_winnerContractor();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 weekId = escrow.getWeeksCount(currentContractId);
+        (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 7); //Status.RESOLVED
+        (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
+            escrow.weeklyEntries(currentContractId, --weekId);
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, 1 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+
+        uint256 depositAmount = 1 ether;
+        uint256 depositAmountAndFee = 1.03 ether;
+
+        assertEq(paymentToken.balanceOf(address(escrow)), depositAmountAndFee);
+        assertEq(paymentToken.balanceOf(address(treasury)), 0);
+        assertEq(paymentToken.balanceOf(address(contractor)), 0);
+        assertEq(paymentToken.balanceOf(address(client)), 0);
+
+        vm.prank(client);
+        vm.expectRevert();
+        escrow.withdraw(currentContractId, weekId);
+
+        (uint256 claimAmount, uint256 contractorFee, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, depositAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        vm.prank(contractor);
+        escrow.claim(currentContractId, weekId);
+
+        assertEq(paymentToken.balanceOf(address(escrow)), depositAmountAndFee - (claimAmount + contractorFee + clientFee));
+        assertEq(paymentToken.balanceOf(address(treasury)), contractorFee + clientFee);
+        assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
+        assertEq(paymentToken.balanceOf(address(client)), 0);
+
+        (,  _prepaymentAmount,  _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 4); //Status.COMPLETED
+    }
+
     function test_claim_whenResolveDispute_winnerSplit() public {
         test_resolveDispute_winnerSplit();
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -1282,7 +1382,7 @@ contract EscrowHourlyUnitTest is Test {
         uint256 amountToMint = 1.03 ether;
         uint256 amountApprove = 1 ether;
 
-        assertEq(paymentToken.balanceOf(address(escrow)), amountToMint + amountToMint); //prepaymentAmount+amountToMint=2.06 ether
+        assertEq(paymentToken.balanceOf(address(escrow)), amountToMint + amountToMint); //prepaymentAmount+amountToMint=2.06
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
 
@@ -1294,7 +1394,7 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.mint(address(client), amountToMint);
         paymentToken.approve(address(escrow), amountToMint);
         escrow.deposit(currentContractId, address(paymentToken), amountApprove, weeklyEntry);
-
+        assertEq(paymentToken.balanceOf(address(escrow)), amountToMint * 3);
         currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 1);
         weekId = escrow.getWeeksCount(currentContractId);
@@ -1329,6 +1429,7 @@ contract EscrowHourlyUnitTest is Test {
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
             _computeClaimableAndFeeAmount(contractor, amountApprove, Enums.FeeConfig.CLIENT_COVERS_ONLY);
 
+        assertEq(escrow.getWeeksCount(currentContractId), 2);
         uint256 startWeekId = 0;
         uint256 endWeekId = 1;
         vm.startPrank(contractor);
@@ -1343,11 +1444,391 @@ contract EscrowHourlyUnitTest is Test {
         escrow.claimAll(currentContractId, startWeekId, endWeekId);
         vm.stopPrank();
 
+        assertEq(paymentToken.balanceOf(address(escrow)), amountToMint * 2);
         assertEq(
             paymentToken.balanceOf(address(escrow)), (1.03 ether * 4) - claimAmount * 2 - feeAmount * 2 - clientFee * 2
         );
         assertEq(paymentToken.balanceOf(address(contractor)), claimAmount * 2);
         assertEq(paymentToken.balanceOf(address(treasury)), feeAmount * 2 + clientFee * 2);
+    }
+
+    function test_claimAll_full_amount() public {
+        MockUSDT usdt = new MockUSDT();
+        vm.prank(owner);
+        registry.addPaymentToken(address(usdt));
+        uint256 depositAmount = 1e6;
+        uint256 depositAmountAndFee = 1.03e6;
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
+            contractor: contractor,
+            amountToClaim: depositAmount,
+            amountToWithdraw: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
+        });
+        test_initialize();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        // make a deposit with prepaymentAmount == 0
+        vm.startPrank(client);
+        usdt.mint(client, depositAmountAndFee);
+        usdt.approve(address(escrow), depositAmountAndFee);
+        escrow.deposit(currentContractId, address(usdt), 0, weeklyEntry);
+        vm.stopPrank();
+        currentContractId = escrow.getCurrentContractId();
+        // uint256 weekId1 = escrow.getWeeksCount(currentContractId);
+        assertEq(currentContractId, 1);
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrow.contractDetails(currentContractId);
+        assertEq(address(_paymentToken), address(usdt));
+        assertEq(_prepaymentAmount, 0);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+
+        (address _contractor, uint256 _amountToClaim,, Enums.FeeConfig _feeConfig, Enums.Status _weekStatus) =
+            escrow.weeklyEntries(currentContractId, 0); //--weekId1
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, depositAmount);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(escrow.getWeeksCount(currentContractId), 1);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee); //1.03e6
+        assertEq(usdt.balanceOf(address(treasury)), 0 ether);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 0 ether);
+
+        // 2d deposit
+        vm.startPrank(client);
+        usdt.mint(client, depositAmountAndFee);
+        usdt.approve(address(escrow), depositAmountAndFee);
+        escrow.deposit(currentContractId, address(usdt), 0, weeklyEntry);
+        vm.stopPrank();
+
+        // uint256 weekId2 = escrow.getWeeksCount(currentContractId);
+        (_contractor, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, 1); //--weekId2
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, depositAmount);
+        assertEq(escrow.getWeeksCount(currentContractId), 2);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee * 2); //2.06e6
+        assertEq(usdt.balanceOf(address(treasury)), 0 ether);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 0 ether);
+
+        // 3rd deposit
+        vm.startPrank(client);
+        usdt.mint(client, depositAmountAndFee);
+        usdt.approve(address(escrow), depositAmountAndFee);
+        escrow.deposit(currentContractId, address(usdt), 0, weeklyEntry);
+        vm.stopPrank();
+
+        // uint256 weekId3 = escrow.getWeeksCount(currentContractId);
+        (_contractor, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, 2); //--weekId3
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, depositAmount);
+        assertEq(escrow.getWeeksCount(currentContractId), 3);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee * 3); //3.09e6
+        assertEq(usdt.balanceOf(address(treasury)), 0 ether);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 0 ether);
+
+        (uint256 claimAmount, uint256 contractorFee, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 1e6, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        (claimAmount);
+
+        // uint256 startWeekId = 0;
+        // uint256 endWeekId = 2;
+        vm.prank(contractor);
+        escrow.claimAll(1, 0, 2); //currentContractId, startWeekId, endWeekId
+
+        assertEq(usdt.balanceOf(address(escrow)), 0);
+        assertEq(usdt.balanceOf(address(treasury)), contractorFee * 3 + clientFee * 3);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 1e6 * 3 - contractorFee * 3);
+
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 0);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 1);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 2);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+
+        (,, _status) = escrow.contractDetails(currentContractId);
+        assertEq(uint256(_status), 4); //Status.COMPLETED
+    }
+
+    function test_claimAll_twoOfTree_already_claimed() public {
+        MockUSDT usdt = new MockUSDT();
+        vm.prank(owner);
+        registry.addPaymentToken(address(usdt));
+        uint256 depositAmount = 1e6;
+        uint256 depositAmountAndFee = 1.03e6;
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
+            contractor: contractor,
+            amountToClaim: depositAmount,
+            amountToWithdraw: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
+        });
+        test_initialize();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        // make a deposit with prepaymentAmount == 0
+        vm.startPrank(client);
+        usdt.mint(client, depositAmountAndFee);
+        usdt.approve(address(escrow), depositAmountAndFee);
+        escrow.deposit(currentContractId, address(usdt), 0, weeklyEntry);
+        vm.stopPrank();
+        currentContractId = escrow.getCurrentContractId();
+        // uint256 weekId1 = escrow.getWeeksCount(currentContractId);
+        assertEq(currentContractId, 1);
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrow.contractDetails(currentContractId);
+        assertEq(address(_paymentToken), address(usdt));
+        assertEq(_prepaymentAmount, 0);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+
+        (address _contractor, uint256 _amountToClaim,, Enums.FeeConfig _feeConfig, Enums.Status _weekStatus) =
+            escrow.weeklyEntries(currentContractId, 0); //--weekId1
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, depositAmount);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(escrow.getWeeksCount(currentContractId), 1);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee); //1.03e6
+        assertEq(usdt.balanceOf(address(treasury)), 0 ether);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 0 ether);
+
+        // 2d deposit
+        vm.startPrank(client);
+        usdt.mint(client, depositAmountAndFee);
+        usdt.approve(address(escrow), depositAmountAndFee);
+        escrow.deposit(currentContractId, address(usdt), 0, weeklyEntry);
+        vm.stopPrank();
+
+        // uint256 weekId2 = escrow.getWeeksCount(currentContractId);
+        (_contractor, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, 1); //--weekId2
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, depositAmount);
+        assertEq(escrow.getWeeksCount(currentContractId), 2);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee * 2); //2.06e6
+        assertEq(usdt.balanceOf(address(treasury)), 0 ether);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 0 ether);
+
+        // 3rd deposit
+        vm.startPrank(client);
+        usdt.mint(client, depositAmountAndFee);
+        usdt.approve(address(escrow), depositAmountAndFee);
+        escrow.deposit(currentContractId, address(usdt), 0, weeklyEntry);
+        vm.stopPrank();
+
+        // uint256 weekId3 = escrow.getWeeksCount(currentContractId);
+        (_contractor, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, 2); //--weekId3
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, depositAmount);
+        assertEq(escrow.getWeeksCount(currentContractId), 3);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee * 3); //3.09e6
+        assertEq(usdt.balanceOf(address(treasury)), 0 ether);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 0 ether);
+
+        (uint256 claimAmount, uint256 contractorFee, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 1e6, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        vm.prank(contractor);
+        escrow.claim(1, 1); //currentContractId, weekId2
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee * 3 - 1.03e6); //3.09e6
+        assertEq(usdt.balanceOf(address(treasury)), contractorFee + clientFee);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), claimAmount);
+
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 0);
+        assertEq(_amountToClaim, 1e6);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 1);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 2);
+        assertEq(_amountToClaim, 1e6);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        (claimAmount, contractorFee, clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 1e6, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        // uint256 startWeekId = 0;
+        // uint256 endWeekId = 2;
+        vm.prank(contractor);
+        escrow.claimAll(1, 0, 2); //currentContractId, startWeekId, endWeekId
+
+        assertEq(usdt.balanceOf(address(escrow)), 0);
+        assertEq(usdt.balanceOf(address(treasury)), (contractorFee + clientFee) * 3);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), claimAmount * 3);
+
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 0);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 1);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 2);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+    }
+
+    function test_claimAll_twoOfTree_another_contractor() public {
+        MockUSDT usdt = new MockUSDT();
+        vm.prank(owner);
+        registry.addPaymentToken(address(usdt));
+        uint256 depositAmount = 1e6;
+        uint256 depositAmountAndFee = 1.03e6;
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
+            contractor: contractor,
+            amountToClaim: depositAmount,
+            amountToWithdraw: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
+        });
+        test_initialize();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        // make a deposit with prepaymentAmount == 0
+        vm.startPrank(client);
+        usdt.mint(client, depositAmountAndFee);
+        usdt.approve(address(escrow), depositAmountAndFee);
+        escrow.deposit(currentContractId, address(usdt), 0, weeklyEntry);
+        vm.stopPrank();
+        currentContractId = escrow.getCurrentContractId();
+        // uint256 weekId1 = escrow.getWeeksCount(currentContractId);
+        assertEq(currentContractId, 1);
+        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
+            escrow.contractDetails(currentContractId);
+        assertEq(address(_paymentToken), address(usdt));
+        assertEq(_prepaymentAmount, 0);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+
+        (address _contractor, uint256 _amountToClaim,, Enums.FeeConfig _feeConfig, Enums.Status _weekStatus) =
+            escrow.weeklyEntries(currentContractId, 0); //--weekId1
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, depositAmount);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(escrow.getWeeksCount(currentContractId), 1);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee); //1.03e6
+        assertEq(usdt.balanceOf(address(treasury)), 0 ether);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 0 ether);
+
+        // 2d deposit
+        address new_contractor = makeAddr("new_contractor");
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
+            contractor: new_contractor,
+            amountToClaim: depositAmount,
+            amountToWithdraw: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
+        });
+        vm.startPrank(client);
+        usdt.mint(client, depositAmountAndFee);
+        usdt.approve(address(escrow), depositAmountAndFee);
+        escrow.deposit(currentContractId, address(usdt), 0, weeklyEntry);
+        vm.stopPrank();
+
+        // uint256 weekId2 = escrow.getWeeksCount(currentContractId);
+        (_contractor, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, 1); //--weekId2
+        assertEq(_contractor, new_contractor);
+        assertEq(_amountToClaim, depositAmount);
+        assertEq(escrow.getWeeksCount(currentContractId), 2);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee * 2); //2.06e6
+        assertEq(usdt.balanceOf(address(treasury)), 0 ether);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 0 ether);
+        assertEq(usdt.balanceOf(address(new_contractor)), 0 ether);
+
+        // 3rd deposit
+        weeklyEntry = IEscrowHourly.WeeklyEntry({
+            contractor: contractor,
+            amountToClaim: depositAmount,
+            amountToWithdraw: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            weekStatus: Enums.Status.NONE
+        });
+        vm.startPrank(client);
+        usdt.mint(client, depositAmountAndFee);
+        usdt.approve(address(escrow), depositAmountAndFee);
+        escrow.deposit(currentContractId, address(usdt), 0, weeklyEntry);
+        vm.stopPrank();
+
+        // uint256 weekId3 = escrow.getWeeksCount(currentContractId);
+        (_contractor, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, 2); //--weekId3
+        assertEq(_contractor, contractor);
+        assertEq(_amountToClaim, depositAmount);
+        assertEq(escrow.getWeeksCount(currentContractId), 3);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        assertEq(usdt.balanceOf(address(escrow)), depositAmountAndFee * 3); //3.09e6
+        assertEq(usdt.balanceOf(address(treasury)), 0 ether);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 0 ether);
+
+        (uint256 claimAmount, uint256 contractorFee, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(new_contractor, 1e6, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        vm.prank(new_contractor);
+        escrow.claim(1, 1); //currentContractId, weekId2
+
+        assertEq(usdt.balanceOf(address(escrow)), 1.03e6 * 3 - 1.03e6); //3.09e6
+        assertEq(usdt.balanceOf(address(treasury)), contractorFee + clientFee);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), 0);
+        assertEq(usdt.balanceOf(address(new_contractor)), claimAmount);
+
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 0);
+        assertEq(_amountToClaim, 1e6);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 1);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 2);
+        assertEq(_amountToClaim, 1e6);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        (claimAmount, contractorFee, clientFee) =
+            _computeClaimableAndFeeAmount(contractor, 1e6, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        // uint256 startWeekId = 0;
+        // uint256 endWeekId = 2;
+        vm.prank(contractor);
+        escrow.claimAll(1, 0, 2); //currentContractId, startWeekId, endWeekId
+
+        assertEq(usdt.balanceOf(address(escrow)), 0);
+        assertEq(usdt.balanceOf(address(treasury)), (contractorFee + clientFee) * 3);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(usdt.balanceOf(address(contractor)), claimAmount * 2);
+        assertEq(usdt.balanceOf(address(new_contractor)), claimAmount);
+
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 0);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 1);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(1, 2);
+        assertEq(_amountToClaim, 0);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
     }
 
     function test_claimAll_whenResolveDispute_winnerSplit() public {
@@ -1486,6 +1967,41 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(treasury)), (feeAmount + clientFee) + (feeAmount2 + clientFee2));
     }
 
+    function test_create_new_week_after_full_claim_previous_one() public {
+        test_claim_after_autoApprove_and_refill();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 1);
+
+        (, uint256 _prepaymentAmount, Enums.Status _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 0 ether);
+        assertEq(uint256(_status), 4); //Status.COMPLETED
+
+        uint256 weekId1 = escrow.getWeeksCount(currentContractId);
+        (, uint256 _amountToClaim,,, Enums.Status _weekStatus) = escrow.weeklyEntries(currentContractId, --weekId1);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        vm.expectEmit(true, true, true, true);
+        emit Deposited(client, 1, 1, address(paymentToken), 1.03 ether);
+        escrow.deposit(currentContractId, address(paymentToken), 1 ether, weeklyEntry);
+        vm.stopPrank();
+
+        (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, weekId1);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 4); //Status.COMPLETED
+        uint256 weekId2 = escrow.getWeeksCount(currentContractId);
+        (, _amountToClaim,,, _weekStatus) = escrow.weeklyEntries(currentContractId, --weekId2);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
+        assertEq(paymentToken.balanceOf(address(escrow)), 1.03 ether);
+    }
+
     function test_claim_after_previous_claim() public {
         test_initialize();
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -1611,8 +2127,8 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(_amountToWithdrawAfter, 0 ether);
         assertEq(uint256(_weekStatusAfter), 1); //Status.ACTIVE
 
-        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw + feeAmount)
-        assertEq(paymentToken.balanceOf(address(client)), _amountToWithdraw + feeAmount); //==totalDepositAmount = _amountToWithdraw + feeAmount
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount-(_amountToWithdraw+feeAmount)
+        assertEq(paymentToken.balanceOf(address(client)), _amountToWithdraw + feeAmount); //totalDepositAmount=_amountToWithdraw+feeAmount
         assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
     }
 
@@ -1651,8 +2167,10 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(_amountAfter, 0 ether);
         assertEq(_amountToWithdrawAfter, 0 ether);
 
-        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw + feeAmount)
-        assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount); //==totalDepositAmount = _amountToWithdraw + feeAmount
+        assertEq(paymentToken.balanceOf(address(escrow)), 0 ether); //totalDepositAmount - (_amountToWithdraw +
+            // feeAmount)
+        assertEq(paymentToken.balanceOf(address(client)), totalDepositAmount); //==totalDepositAmount =
+            // _amountToWithdraw + feeAmount
         assertEq(paymentToken.balanceOf(address(treasury)), platformFee);
     }
 
@@ -2156,7 +2674,7 @@ contract EscrowHourlyUnitTest is Test {
 
         (, _prepaymentAmount, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 3); //Status.APPROVED
+        assertEq(uint256(_status), 7); //Status.RESOLVED
     }
 
     function test_resolveDispute_winnerSplit() public {
@@ -2320,7 +2838,7 @@ contract EscrowHourlyUnitTest is Test {
         vm.prank(owner);
         // vm.expectRevert(IEscrow.Escrow__InvalidWinnerSpecified.selector);
         vm.expectRevert(); // panic: failed to convert value into enum type (0x21)
-        escrow.resolveDispute(currentContractId, --weekId, Enums.Winner(uint256(4)), 1 ether, 0); // Invalid enum value for Winner
+        escrow.resolveDispute(currentContractId, --weekId, Enums.Winner(uint256(4)), 1 ether, 0); //Invalid enum value for Winner
         (address _contractor, uint256 _amountToClaim, uint256 _amountToWithdraw,,) =
             escrow.weeklyEntries(currentContractId, weekId);
         assertEq(_contractor, contractor);

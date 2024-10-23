@@ -11,6 +11,7 @@ import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol"
 import { Enums } from "src/libs/Enums.sol";
 import { IEscrow } from "src/interfaces/IEscrow.sol";
 import { MockRegistry } from "test/mocks/MockRegistry.sol";
+import { MockUSDT } from "test/mocks/MockUSDT.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
 
 contract EscrowMilestoneUnitTest is Test {
@@ -1401,11 +1402,12 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(
             paymentToken.balanceOf(address(escrow)), 6.23 ether - totalClaimAmount - (totalFeeAmount + totalClientFee)
         );
+        assertEq(paymentToken.balanceOf(address(escrow)), 0);
         assertEq(paymentToken.balanceOf(address(treasury)), totalFeeAmount + totalClientFee);
         assertEq(paymentToken.balanceOf(address(contractor)), totalClaimAmount);
     }
 
-    function test_claimAll_oneOfthree() public {
+    function test_claimAll_oneOfThree() public {
         test_deposit_severalMilestones();
         assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -1448,12 +1450,13 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
 
+        assertTrue(paymentToken.balanceOf(address(escrow)) > 0);
         assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether - claimAmount - (feeAmount + clientFee));
         assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee);
         assertEq(paymentToken.balanceOf(address(contractor)), claimAmount);
     }
 
-    function test_claimAll_twoOfthree() public {
+    function test_claimAll_twoOfThree() public {
         test_deposit_severalMilestones();
         assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -1511,6 +1514,7 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_status), 4); //Status.COMPLETED
 
+        assertTrue(paymentToken.balanceOf(address(escrow)) > 0);
         assertEq(
             paymentToken.balanceOf(address(escrow)), 6.23 ether - totalClaimAmount - (totalFeeAmount + totalClientFee)
         );
@@ -1792,6 +1796,88 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), 0);
         assertEq(paymentToken.balanceOf(address(treasury)), platformFee + totalFeeAmount + totalClientFee + feeAmount);
         assertEq(paymentToken.balanceOf(address(client)), 0.54 ether + 1.03 ether); //amountToWithdrawSplit+fee
+    }
+
+    function test_claimAll_when_diff_contractors() public {
+        MockUSDT usdt = new MockUSDT();
+        vm.prank(owner);
+        registry.addPaymentToken(address(usdt));
+        uint256 depositAmount = 1e6;
+        uint256 depositAmountAndFee = 1.03e6;
+        test_initialize();
+        IEscrowMilestone.Milestone[] memory _milestones = new IEscrowMilestone.Milestone[](3);
+        _milestones[0] = IEscrowMilestone.Milestone({
+            contractor: contractor,
+            amount: depositAmount,
+            amountToClaim: 0,
+            amountToWithdraw: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.NONE
+        });
+        address new_contractor = makeAddr("new_contractor");
+        _milestones[1] = IEscrowMilestone.Milestone({
+            contractor: new_contractor,
+            amount: depositAmount,
+            amountToClaim: 0,
+            amountToWithdraw: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.ACTIVE
+        });
+        _milestones[2] = IEscrowMilestone.Milestone({
+            contractor: contractor,
+            amount: depositAmount,
+            amountToClaim: 0,
+            amountToWithdraw: 0,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.ACTIVE
+        });
+        uint256 totalDepositAmount = depositAmountAndFee * 3;
+        vm.startPrank(address(client));
+        usdt.mint(address(client), totalDepositAmount);
+        usdt.approve(address(escrow), totalDepositAmount);
+        escrow.deposit(0, address(usdt), _milestones);
+        vm.stopPrank();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(usdt.balanceOf(address(escrow)), totalDepositAmount);
+        assertEq(usdt.balanceOf(address(treasury)), 0 ether);
+        assertEq(usdt.balanceOf(address(client)), 0 ether);
+        assertEq(escrow.getMilestoneCount(currentContractId), 3);
+
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+        vm.startPrank(contractor);
+        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 2, contractData, salt);
+        vm.stopPrank();
+        vm.prank(new_contractor);
+        escrow.submit(currentContractId, 1, contractData, salt);
+        vm.startPrank(client);
+        escrow.approve(currentContractId, 0, depositAmount, contractor);
+        escrow.approve(currentContractId, 2, depositAmount, contractor);
+        escrow.approve(currentContractId, 1, depositAmount, new_contractor);
+        vm.stopPrank();
+
+        (uint256 claimAmount, uint256 contractorFee, uint256 clientFee) =
+            _computeClaimableAndFeeAmount(contractor, depositAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+
+        vm.prank(contractor);
+        escrow.claimAll(currentContractId, 0, 2); // claim 2 of 3
+        assertEq(usdt.balanceOf(address(escrow)), totalDepositAmount - (claimAmount + (contractorFee + clientFee)) * 2);
+        assertEq(usdt.balanceOf(address(treasury)), (contractorFee + clientFee) * 2);
+        assertEq(usdt.balanceOf(address(contractor)), claimAmount * 2);
+        assertEq(usdt.balanceOf(address(new_contractor)), 0);
+        assertEq(usdt.balanceOf(address(client)), 0);
+
+        vm.prank(new_contractor);
+        escrow.claimAll(currentContractId, 0, 2); // claim 1 of 3
+        assertEq(usdt.balanceOf(address(escrow)), totalDepositAmount - (claimAmount + (contractorFee + clientFee)) * 3);
+        assertEq(usdt.balanceOf(address(treasury)), (contractorFee + clientFee) * 3);
+        assertEq(usdt.balanceOf(address(contractor)), claimAmount * 2);
+        assertEq(usdt.balanceOf(address(new_contractor)), claimAmount);
+        assertEq(usdt.balanceOf(address(client)), 0);
     }
 
     function test_claimAll_reverts_BlacklistedAccount() public {
