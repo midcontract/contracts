@@ -27,17 +27,17 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Address of the registry contract.
     IEscrowRegistry public registry;
 
-    /// @dev Address of the client initiating actions within the escrow.
+    /// @dev Address of the client who initiates the escrow contract.
     address public client;
 
-    /// @dev Current contract ID, incremented for each new deposit.
+    /// @dev Tracks the last issued contract ID, incrementing with each new contract creation.
     uint256 private currentContractId;
 
     /// @dev Indicates that the contract has been initialized.
     bool public initialized;
 
-    /// @dev Stores the total amount deposited for each contract ID.
-    mapping(uint256 contractId => Deposit depositInfo) public deposits;
+    /// @dev Maps each contract ID to its corresponding deposit details.
+    mapping(uint256 contractId => Deposit) public deposits;
 
     /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
@@ -173,7 +173,6 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @param _contractId The identifier of the deposit to be refilled.
     /// @param _amountAdditional The extra amount to be added to the deposit.
     function refill(uint256 _contractId, uint256 _amountAdditional) external onlyClient {
-        // Verify that the client is not blacklisted before proceeding.
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
 
         // Ensure a non-zero amount is specified for the refill operation.
@@ -198,7 +197,6 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Allows contractors to retrieve funds that have been approved for their work.
     /// @param _contractId Identifier of the deposit from which funds will be claimed.
     function claim(uint256 _contractId) external {
-        // Ensure the caller is not blacklisted to prevent abuse.
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
 
         Deposit storage D = deposits[_contractId];
@@ -245,7 +243,6 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Handles the withdrawal process including fee deductions and state updates.
     /// @param _contractId Identifier of the deposit from which funds will be withdrawn.
     function withdraw(uint256 _contractId) external onlyClient {
-        // Check if the caller is blacklisted to prevent unauthorized access.
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
 
         Deposit storage D = deposits[_contractId];
@@ -313,7 +310,6 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (msg.sender != D.contractor && !IEscrowAdminManager(adminManager).isAdmin(msg.sender)) {
             revert Escrow__UnauthorizedToApproveReturn();
         }
-
         D.amountToWithdraw = D.amount; // Allows full withdrawal of the initial deposit.
         D.status = Enums.Status.REFUND_APPROVED;
         emit ReturnApproved(msg.sender, _contractId);
@@ -332,7 +328,6 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         ) {
             revert Escrow__InvalidStatusProvided();
         }
-
         D.status = _status;
         emit ReturnCanceled(msg.sender, _contractId);
     }
@@ -375,18 +370,13 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (totalResolutionAmount > D.amount) revert Escrow__ResolutionExceedsDepositedAmount();
 
         // Apply resolution based on the winner.
-        if (_winner == Enums.Winner.CLIENT) {
-            D.status = Enums.Status.RESOLVED; // Client can now withdraw the full amount.
-            D.amountToWithdraw = _clientAmount; // Full amount for the client to withdraw.
-            D.amountToClaim = 0; // No claimable amount for the contractor.
-        } else if (_winner == Enums.Winner.CONTRACTOR) {
+        D.amountToClaim = (_winner == Enums.Winner.CONTRACTOR || _winner == Enums.Winner.SPLIT) ? _contractorAmount : 0;
+        if (_winner == Enums.Winner.CONTRACTOR) {
             D.status = Enums.Status.APPROVED; // Status that allows the contractor to claim.
-            D.amountToClaim = _contractorAmount; // Amount the contractor can claim.
             D.amountToWithdraw = 0; // No amount for the client to withdraw.
-        } else if (_winner == Enums.Winner.SPLIT) {
-            D.status = Enums.Status.RESOLVED; // Indicates a resolved dispute with split amounts.
-            D.amountToClaim = _contractorAmount; // Set the claimable amount for the contractor.
-            D.amountToWithdraw = _clientAmount; // Set the withdrawable amount for the client.
+        } else {
+            D.status = Enums.Status.RESOLVED; // Sets the status to resolved for both Client and Split outcomes.
+            D.amountToWithdraw = (_winner == Enums.Winner.CLIENT || _winner == Enums.Winner.SPLIT) ? _clientAmount : 0;
         }
 
         emit DisputeResolved(msg.sender, _contractId, _winner, _clientAmount, _contractorAmount);
@@ -420,8 +410,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
 
     /// @notice Computes the claimable amount and the fee deducted from the claimed amount.
     /// @dev This internal function calculates the claimable amount for the contractor and the fees deducted from the
-    /// claimed amount based on the contractor,
-    ///     claimed amount, and fee configuration.
+    /// claimed amount based on the contractor, claimed amount, and fee configuration.
     /// @param _contractor Address of the contractor claiming the amount.
     /// @param _claimedAmount Amount claimed by the contractor.
     /// @param _feeConfig Fee configuration for the deposit.
@@ -501,9 +490,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Can only be called by the account recovery module registered in the system.
     /// @param _newAccount The address to which the client ownership will be transferred.
     function transferClientOwnership(address _newAccount) external {
-        // Verify that the caller is the authorized account recovery module.
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
-
         if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
 
         // Emit the ownership transfer event before changing the state to reflect the previous state.
@@ -518,9 +505,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @param _contractId The identifier of the contract for which contractor ownership is being transferred.
     /// @param _newAccount The address to which the contractor ownership will be transferred.
     function transferContractorOwnership(uint256 _contractId, address _newAccount) external {
-        // Verify that the caller is the authorized account recovery module.
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
-
         if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
 
         Deposit storage D = deposits[_contractId];

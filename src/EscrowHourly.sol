@@ -12,7 +12,7 @@ import { ECDSA, ERC1271 } from "./libs/ERC1271.sol";
 import { Enums } from "./libs/Enums.sol";
 
 /// @title Weekly Billing and Payment Management for Escrow Hourly
-/// @notice Manages the creation and addition of multiple weekly beels to escrow contracts.
+/// @notice Manages the creation and addition of multiple weekly bills to escrow contracts.
 contract EscrowHourly is IEscrowHourly, ERC1271 {
     using ECDSA for bytes32;
 
@@ -26,16 +26,16 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @dev Address of the registry contract.
     IEscrowRegistry public registry;
 
-    /// @dev Address of the client initiating actions within the escrow.
+    /// @dev Address of the client who initiates the escrow contract.
     address public client;
 
-    /// @dev Current contract ID, incremented for each new deposit.
+    /// @dev Tracks the last issued contract ID, incrementing with each new contract creation.
     uint256 private currentContractId;
 
     /// @dev Indicates that the contract has been initialized.
     bool public initialized;
 
-    /// @dev Maps from contract ID to its overarching details.
+    /// @dev Maps from contract ID to its detailed configuration.
     mapping(uint256 contractId => ContractDetails) public contractDetails;
 
     /// @dev Maps a contract ID to an array of `WeeklyEntry` structures representing billing cycles.
@@ -158,10 +158,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         W.amountToClaim += _amountApprove;
 
-        if (C.status != Enums.Status.APPROVED) {
-            // Only update if not already approved to avoid redundant writes.
-            C.status = Enums.Status.APPROVED;
-        }
+        // Only update if not already approved to avoid redundant writes.
+        if (C.status != Enums.Status.APPROVED) C.status = Enums.Status.APPROVED;
 
         W.weekStatus = Enums.Status.APPROVED; // Update week status to approved, reflecting the change.
         emit Approved(msg.sender, _contractId, _weekId, _amountApprove, _receiver);
@@ -213,7 +211,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         }
 
         WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
-        // Calculate and transfer funds if necessary.
         if (C.prepaymentAmount < _amountApprove) {
             // If the prepayment is less than the amount to approve, use the entire prepayment for the amount to claim.
             W.amountToClaim += C.prepaymentAmount;
@@ -224,10 +221,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             W.amountToClaim += _amountApprove;
         }
 
-        if (C.status != Enums.Status.APPROVED) {
-            // Only update if not already approved to avoid redundant writes.
-            C.status = Enums.Status.APPROVED;
-        }
+        if (C.status != Enums.Status.APPROVED) C.status = Enums.Status.APPROVED;
 
         W.weekStatus = Enums.Status.APPROVED;
         emit Approved(msg.sender, _contractId, _weekId, _amountApprove, _receiver);
@@ -265,7 +259,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             C.prepaymentAmount += _amount;
             emit RefilledPrepayment(msg.sender, _contractId, _amount);
         } else if (_type == Enums.RefillType.WEEK_PAYMENT) {
-            // Add funds specifically to the week's deposit..
+            // Add funds specifically to the week's deposit.
             W.amountToClaim += _amount;
             W.weekStatus = Enums.Status.APPROVED;
             emit RefilledWeekPayment(msg.sender, _contractId, _weekId, _amount);
@@ -292,7 +286,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
             _computeClaimableAmountAndFee(msg.sender, W.amountToClaim, W.feeConfig);
 
-        // Update week status and handle prepayment deduction for resolved or canceled states.
+        // Handle prepayment deduction for resolved or canceled states.
         if (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED) {
             C.prepaymentAmount -= W.amountToClaim;
         }
@@ -335,7 +329,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         uint256 totalFeeAmount = 0;
         uint256 totalClientFee = 0;
 
-        for (uint256 i = _startWeekId; i <= _endWeekId;) {
+        for (uint256 i = _startWeekId; i <= _endWeekId; i++) {
             WeeklyEntry storage W = weeklyEntries[_contractId][i];
 
             // Skip if not contractor or nothing to claim.
@@ -353,10 +347,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             totalClaimedAmount += claimAmount;
             totalFeeAmount += feeAmount;
             totalClientFee += clientFee;
-
-            unchecked {
-                ++i;
-            }
         }
 
         // Perform transfers and fee handling after loop to optimize gas usage.
@@ -404,7 +394,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         // Calculate any platform fee differential due to fee adjustments during the process.
         uint256 platformFee = initialFeeAmount > feeAmount ? initialFeeAmount - feeAmount : 0;
 
-        // Transfer the platform fee to the designated fee collector if applicable.
+        // Transfer the platform fee if applicable.
         if (platformFee > 0) {
             _sendPlatformFee(C.paymentToken, platformFee);
         }
@@ -426,7 +416,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         {
             revert Escrow__ReturnNotAllowed();
         }
-
         C.status = Enums.Status.RETURN_REQUESTED;
         emit ReturnRequested(msg.sender, _contractId, _weekId);
     }
@@ -460,7 +449,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (_status != Enums.Status.ACTIVE && _status != Enums.Status.APPROVED && _status != Enums.Status.COMPLETED) {
             revert Escrow__InvalidStatusProvided();
         }
-
         C.status = _status;
         emit ReturnCanceled(msg.sender, _contractId, _weekId);
     }
@@ -510,20 +498,17 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (totalResolutionAmount > C.prepaymentAmount) revert Escrow__ResolutionExceedsDepositedAmount();
 
         WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
-        // Apply resolution based on the winner.
-        if (_winner == Enums.Winner.CLIENT) {
-            C.status = Enums.Status.RESOLVED; // Client can now withdraw the full amount.
-            W.amountToWithdraw = _clientAmount; // Full amount for the client to withdraw.
-            W.amountToClaim = 0; // No claimable amount for the contractor.
-        } else if (_winner == Enums.Winner.CONTRACTOR) {
-            C.status = Enums.Status.APPROVED; // Status that allows the contractor to claim.
-            W.amountToClaim = _contractorAmount; // Amount the contractor can claim.
-            W.amountToWithdraw = 0; // No amount for the client to withdraw.
-        } else if (_winner == Enums.Winner.SPLIT) {
-            C.status = Enums.Status.RESOLVED; // Indicates a resolved dispute with split amounts.
-            W.amountToClaim = _contractorAmount; // Set the claimable amount for the contractor.
-            W.amountToWithdraw = _clientAmount; // Set the withdrawable amount for the client.
+
+        // Set the amounts based on the dispute outcome.
+        W.amountToClaim = (_winner == Enums.Winner.CONTRACTOR || _winner == Enums.Winner.SPLIT) ? _contractorAmount : 0;
+        if (_winner == Enums.Winner.CONTRACTOR) {
+            // In the case of contractor winning, they can claim using the prepayment amount.
+            W.amountToWithdraw = 0; 
+        } else {
+            W.amountToWithdraw = (_winner == Enums.Winner.CLIENT || _winner == Enums.Winner.SPLIT) ? _clientAmount : 0;
         }
+
+        C.status = Enums.Status.RESOLVED; // Resolve the contract status for all cases.
 
         emit DisputeResolved(msg.sender, _contractId, _weekId, _winner, _clientAmount, _contractorAmount);
     }
@@ -547,7 +532,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     {
         address feeManagerAddress = registry.feeManager();
         if (feeManagerAddress == address(0)) revert Escrow__NotSetFeeManager();
-        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress); // Cast to the interface.
+        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
 
         (totalDepositAmount, feeApplied) = feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
 
@@ -644,9 +629,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @dev Can only be called by the account recovery module registered in the system.
     /// @param _newAccount The address to which the client ownership will be transferred.
     function transferClientOwnership(address _newAccount) external {
-        // Verify that the caller is the authorized account recovery module.
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
-
         if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
 
         // Emit the ownership transfer event before changing the state to reflect the previous state.
@@ -661,13 +644,11 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @param _contractId The identifier of the contract for which contractor ownership is being transferred.
     /// @param _newAccount The address to which the contractor ownership will be transferred.
     function transferContractorOwnership(uint256 _contractId, address _newAccount) external {
-        // Verify that the caller is the authorized account recovery module.
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
-
         if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
 
-        WeeklyEntry storage W = weeklyEntries[_contractId][0]; // The initial contractor set in this deposit is the sole
-            // contractor for this contractId.
+        // The initial contractor set in this deposit is the sole contractor for this contractId.
+        WeeklyEntry storage W = weeklyEntries[_contractId][0];
 
         // Emit the ownership transfer event before changing the state to reflect the previous state.
         emit ContractorOwnershipTransferred(_contractId, W.contractor, _newAccount);
