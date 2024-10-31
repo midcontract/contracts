@@ -97,6 +97,9 @@ interface IEscrow {
     /// @notice Thrown when the specified ID is out of the valid range for the contract.
     error Escrow__OutOfRange();
 
+    /// @notice Thrown when the specified contractor does not match the initial contractor set for a given contract ID.
+    error Escrow__ContractorMismatch();
+
     /// @notice Emitted when the registry address is updated in the escrow.
     /// @param registry The new registry address.
     event RegistryUpdated(address registry);

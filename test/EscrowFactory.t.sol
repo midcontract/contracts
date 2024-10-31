@@ -32,7 +32,7 @@ contract EscrowFactoryUnitTest is Test {
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
-    IEscrowHourly.WeeklyEntry weeklyEntry;
+    IEscrowHourly.Deposit depositHourly;
     IEscrowHourly.ContractDetails contractDetails;
 
     bytes32 contractorData;
@@ -65,7 +65,7 @@ contract EscrowFactoryUnitTest is Test {
         escrowMilestone = new EscrowMilestone();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(3_00, 5_00, owner);
+        feeManager = new EscrowFeeManager(300, 500, owner);
         adminManager = new EscrowAdminManager(owner);
         escrowHourly = new EscrowHourly();
 
@@ -364,18 +364,17 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken.approve(address(escrowProxyHourly), totalDepositHourlyAmount);
 
         // 3. deposit
-        weeklyEntry = IEscrowHourly.WeeklyEntry({
+        depositHourly = IEscrowHourly.Deposit({
             contractor: contractor,
+            paymentToken: address(paymentToken),
+            prepaymentAmount: depositHourlyAmount,
             amountToClaim: 0,
-            amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
-            weekStatus: Enums.Status.NONE
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
         });
-
         uint256 currentContractId = escrowProxyHourly.getCurrentContractId();
         assertEq(currentContractId, 0);
 
-        escrowProxyHourly.deposit(currentContractId, address(paymentToken), depositHourlyAmount, weeklyEntry);
+        escrowProxyHourly.deposit(currentContractId, depositHourly);
         assertEq(paymentToken.balanceOf(address(escrowProxyHourly)), totalDepositHourlyAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
@@ -383,22 +382,22 @@ contract EscrowFactoryUnitTest is Test {
 
         currentContractId = escrowProxyHourly.getCurrentContractId();
         assertEq(currentContractId, 1);
-        (address _paymentToken, uint256 _prepaymentAmount, Enums.Status _status) =
-            escrowProxyHourly.contractDetails(currentContractId); //currentContractId
-        assertEq(address(_paymentToken), address(paymentToken));
-        assertEq(_prepaymentAmount, 1 ether);
-        assertEq(uint256(_status), 1); //Status.ACTIVE
         (
             address _contractor,
-            uint256 _amountToClaim,
+            address _paymentToken,
+            uint256 _prepaymentAmount,
             uint256 _amountToWithdraw,
             Enums.FeeConfig _feeConfig,
-            Enums.Status _weekStatus
-        ) = escrowProxyHourly.weeklyEntries(currentContractId, 0);
+            Enums.Status _status
+        ) = escrowProxyHourly.contractDetails(currentContractId); //currentContractId
         assertEq(_contractor, contractor);
-        assertEq(_amountToClaim, 0 ether);
+        assertEq(address(_paymentToken), address(paymentToken));
+        assertEq(_prepaymentAmount, 1 ether);
         assertEq(_amountToWithdraw, 0 ether);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+        (uint256 _amountToClaim, Enums.Status _weekStatus) = escrowProxyHourly.weeklyEntries(currentContractId, 0);
+        assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
         assertEq(escrowProxyHourly.getWeeksCount(currentContractId), 1);
     }

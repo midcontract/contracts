@@ -39,7 +39,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     EscrowFixedPrice.Deposit deposit;
     EscrowAccountRecovery.RecoveryData recoveryInfo;
     IEscrowMilestone.Milestone[] milestones;
-    IEscrowHourly.WeeklyEntry weeklyEntry;
+    IEscrowHourly.Deposit depositHourly;
     IEscrowHourly.ContractDetails contractDetails;
 
     event AdminManagerUpdated(address adminManager);
@@ -70,7 +70,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         escrow = new EscrowFixedPrice();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(3_00, 5_00, owner);
+        feeManager = new EscrowFeeManager(300, 500, owner);
         escrowMilestone = new EscrowMilestone();
         escrowHourly = new EscrowHourly();
 
@@ -147,29 +147,24 @@ contract EscrowAccountRecoveryUnitTest is Test {
     }
 
     function initializeEscrowHourly() public {
-        contractDetails = IEscrowHourly.ContractDetails({
-            paymentToken: address(paymentToken),
-            prepaymentAmount: 1 ether,
-            status: Enums.Status.ACTIVE
-        });
-        weeklyEntry = IEscrowHourly.WeeklyEntry({
+        uint256 depositAmount = 1 ether;
+        depositHourly = IEscrowHourly.Deposit({
             contractor: contractor,
+            paymentToken: address(paymentToken),
+            prepaymentAmount: depositAmount,
             amountToClaim: 0,
-            amountToWithdraw: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
-            weekStatus: Enums.Status.NONE
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
         });
 
         assertFalse(escrowHourly.initialized());
         escrowHourly.initialize(client, address(adminManager), address(registry));
         assertTrue(escrowHourly.initialized());
 
-        uint256 depositAmount = 1 ether;
         uint256 totalDepositAmount = 1.03 ether;
         vm.startPrank(address(client));
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrowHourly), totalDepositAmount);
-        escrowHourly.deposit(0, address(paymentToken), depositAmount, weeklyEntry);
+        escrowHourly.deposit(0, depositHourly);
         vm.stopPrank();
     }
 
@@ -764,7 +759,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertTrue(_confirmed);
         assertEq(uint256(_escrowType), 2);
 
-        (address _contractor,,,,) = escrowHourly.weeklyEntries(contractId, 0);
+        (address _contractor,,,,,) = escrowHourly.contractDetails(contractId);
         assertEq(_contractor, contractor);
 
         vm.prank(new_contractor);
@@ -793,7 +788,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertEq(_executeAfter, 0);
         assertTrue(_executed);
 
-        (_contractor,,,,) = escrowHourly.weeklyEntries(contractId, 0);
+        (_contractor,,,,,) = escrowHourly.contractDetails(contractId);
         assertEq(_contractor, new_contractor);
 
         vm.prank(new_contractor);

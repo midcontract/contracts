@@ -57,7 +57,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @param _registry Address of the registry contract.
     function initialize(address _client, address _adminManager, address _registry) external {
         if (initialized) revert Escrow__AlreadyInitialized();
-
         if (_client == address(0) || _adminManager == address(0) || _registry == address(0)) {
             revert Escrow__ZeroAddressProvided();
         }
@@ -75,58 +74,61 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
     /// @notice Creates or updates a week's deposit for a new or existing contract.
     /// @dev This function handles the initialization or update of a week's deposit in a single transaction.
-    ///      If a new contract ID is provided, a new contract is initialized; otherwise, it adds to an existing contract.
+    ///      If a new contract ID is provided, a new contract is initialized; otherwise, it adds to an existing
+    /// contract.
     /// @param _contractId ID of the contract for which the deposit is made; if zero, a new contract is initialized.
-    /// @param _paymentToken  The address of the payment token for the contractId.
-    /// @param _prepaymentAmount The prepayment amount for the contractId.
-    /// @param _weeklyEntry Details of the week's billing cycle.
-    function deposit(
-        uint256 _contractId,
-        address _paymentToken,
-        uint256 _prepaymentAmount,
-        WeeklyEntry calldata _weeklyEntry
-    ) external onlyClient {
+    /// @param _deposit Details for deposit and initial week settings.
+    function deposit(uint256 _contractId, Deposit calldata _deposit) external onlyClient {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-        if (!registry.paymentTokens(_paymentToken)) revert Escrow__NotSupportedPaymentToken();
-        if (_prepaymentAmount == 0 && _weeklyEntry.amountToClaim == 0) revert Escrow__InvalidAmount();
-        if (_weeklyEntry.contractor == address(0)) revert Escrow__ZeroAddressProvided();
+        if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
+        if (_deposit.prepaymentAmount == 0 && _deposit.amountToClaim == 0) revert Escrow__InvalidAmount();
+        if (_deposit.contractor == address(0)) revert Escrow__ZeroAddressProvided();
 
         // Determine contract ID.
         uint256 contractId = _contractId == 0 ? ++currentContractId : _contractId;
-        if (_contractId > 0 && (weeklyEntries[_contractId].length == 0 && _contractId > currentContractId)) {
-            revert Escrow__InvalidContractId();
+        ContractDetails storage C = contractDetails[contractId];
+        if (_contractId > 0) {
+            if (weeklyEntries[_contractId].length == 0 && _contractId > currentContractId) {
+                revert Escrow__InvalidContractId();
+            }
+            // Check for contractor consistency for existing contract.
+            if (C.contractor != address(0) && _deposit.contractor != C.contractor) {
+                revert Escrow__ContractorMismatch();
+            }
         }
 
         uint256 totalDepositAmount = 0;
-        uint256 depositAmount = _prepaymentAmount > 0 ? _prepaymentAmount : _weeklyEntry.amountToClaim;
-        (totalDepositAmount,) = _computeDepositAmountAndFee(msg.sender, depositAmount, _weeklyEntry.feeConfig);
+        uint256 depositAmount = _deposit.prepaymentAmount > 0 ? _deposit.prepaymentAmount : _deposit.amountToClaim;
+        (totalDepositAmount,) = _computeDepositAmountAndFee(msg.sender, depositAmount, _deposit.feeConfig);
 
-        SafeTransferLib.safeTransferFrom(_paymentToken, msg.sender, address(this), totalDepositAmount);
+        SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), totalDepositAmount);
 
-        ContractDetails storage C = contractDetails[contractId];
-        C.paymentToken = _paymentToken;
-        C.prepaymentAmount = _prepaymentAmount;
+        // Set parameters if not already set.
+        if (C.contractor == address(0)) C.contractor = _deposit.contractor;
+        if (C.paymentToken == address(0)) C.paymentToken = _deposit.paymentToken;
+        if (_deposit.prepaymentAmount > 0) {
+            C.prepaymentAmount += _deposit.prepaymentAmount; // Update prepayment amount only when specified.
+        }
+        if (uint256(C.feeConfig) == uint256(0)) C.feeConfig = _deposit.feeConfig;
 
-        // Determine the correct status based on deposit amounts.
-        Enums.Status contractStatus = _prepaymentAmount > 0
-            ? Enums.Status.ACTIVE
-            : (_weeklyEntry.amountToClaim > 0 ? Enums.Status.APPROVED : Enums.Status.ACTIVE);
+        // Only update the contract status if it's not in a terminal or resolved state.
+        if (C.status != Enums.Status.RESOLVED && C.status != Enums.Status.CANCELED) {
+            // Determine the correct status based on deposit amounts.
+            Enums.Status newStatus = _deposit.prepaymentAmount > 0
+                ? Enums.Status.ACTIVE
+                : (_deposit.amountToClaim > 0 ? Enums.Status.APPROVED : Enums.Status.ACTIVE);
 
-        C.status = contractStatus;
+            C.status = newStatus;
+        }
 
-        // Add the new deposit as a new week.
-        weeklyEntries[contractId].push(
-            WeeklyEntry({
-                contractor: _weeklyEntry.contractor,
-                amountToClaim: _weeklyEntry.amountToClaim,
-                amountToWithdraw: _weeklyEntry.amountToWithdraw,
-                feeConfig: _weeklyEntry.feeConfig,
-                weekStatus: contractStatus
-            })
-        );
+        // Append the new week entry.
+        Enums.Status weekStatus = _deposit.amountToClaim > 0 ? Enums.Status.APPROVED : Enums.Status.ACTIVE;
+        weeklyEntries[contractId].push(WeeklyEntry({ amountToClaim: _deposit.amountToClaim, weekStatus: weekStatus }));
 
         // Emit an event for the deposit of each week.
-        emit Deposited(msg.sender, contractId, weeklyEntries[contractId].length - 1, _paymentToken, totalDepositAmount);
+        emit Deposited(
+            msg.sender, contractId, weeklyEntries[contractId].length - 1, _deposit.paymentToken, totalDepositAmount
+        );
     }
 
     /// @notice Approves a deposit by the client.
@@ -143,25 +145,19 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (_amountApprove == 0) revert Escrow__InvalidAmount(); // Ensure a valid amount is being added.
         if (_weekId >= weeklyEntries[_contractId].length) revert Escrow__InvalidWeekId();
 
-        ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.ACTIVE && C.status != Enums.Status.COMPLETED && C.status != Enums.Status.CANCELED)
-        {
-            revert Escrow__InvalidStatusForApprove();
-        }
-
         WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
-        if (W.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
+        if (W.weekStatus != Enums.Status.ACTIVE) revert Escrow__InvalidStatusForApprove();
+
+        ContractDetails storage C = contractDetails[_contractId];
+        if (C.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
         // Calculate fee and approve the total amount once, then perform the transfer.
-        (uint256 totalAmountApprove,) = _computeDepositAmountAndFee(msg.sender, _amountApprove, W.feeConfig);
+        (uint256 totalAmountApprove,) = _computeDepositAmountAndFee(msg.sender, _amountApprove, C.feeConfig);
         SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountApprove);
 
         W.amountToClaim += _amountApprove;
 
-        // Only update if not already approved to avoid redundant writes.
-        if (C.status != Enums.Status.APPROVED) C.status = Enums.Status.APPROVED;
-
-        W.weekStatus = Enums.Status.APPROVED; // Update week status to approved, reflecting the change.
+        W.weekStatus = Enums.Status.APPROVED;
         emit Approved(msg.sender, _contractId, _weekId, _amountApprove, _receiver);
     }
 
@@ -189,21 +185,15 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
                 && C.status != Enums.Status.CANCELED
         ) {
             revert Escrow__InvalidStatusForApprove();
-        }
+        } //todo return request
+
+        if (C.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
         // Adjust for array bounds and check the necessity to initialize a new week.
         if (_weekId >= weeklyEntries[_contractId].length) {
             if (_initializeNewWeek) {
                 // Initialize a new week if it does not exist and the flag is true.
-                uint256 lastIndex = weeklyEntries[_contractId].length - 1;
-                Enums.FeeConfig lastFeeConfig = weeklyEntries[_contractId][lastIndex].feeConfig;
-                WeeklyEntry memory newDeposit = WeeklyEntry({
-                    contractor: _receiver,
-                    amountToClaim: 0,
-                    amountToWithdraw: 0,
-                    feeConfig: lastFeeConfig, // Using the feeConfig from the most recent week.
-                    weekStatus: Enums.Status.NONE
-                });
+                WeeklyEntry memory newDeposit = WeeklyEntry({ amountToClaim: 0, weekStatus: Enums.Status.NONE });
                 weeklyEntries[_contractId].push(newDeposit);
             } else {
                 revert Escrow__InvalidWeekId();
@@ -220,8 +210,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             C.prepaymentAmount -= _amountApprove;
             W.amountToClaim += _amountApprove;
         }
-
-        if (C.status != Enums.Status.APPROVED) C.status = Enums.Status.APPROVED;
 
         W.weekStatus = Enums.Status.APPROVED;
         emit Approved(msg.sender, _contractId, _weekId, _amountApprove, _receiver);
@@ -240,18 +228,17 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_amount == 0) revert Escrow__InvalidAmount();
 
-        ContractDetails storage C = contractDetails[_contractId];
-        if (!registry.paymentTokens(C.paymentToken)) revert Escrow__NotSupportedPaymentToken();
-
-        if (C.status == Enums.Status.COMPLETED) C.status = Enums.Status.APPROVED;
-
         // Validate weekId for WEEK_PAYMENT type to ensure it's within valid range.
         if (_type == Enums.RefillType.WEEK_PAYMENT && _weekId >= weeklyEntries[_contractId].length) {
             revert Escrow__InvalidWeekId();
         }
 
-        WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
-        (uint256 totalAmountAdditional,) = _computeDepositAmountAndFee(msg.sender, _amount, W.feeConfig);
+        ContractDetails storage C = contractDetails[_contractId];
+        if (!registry.paymentTokens(C.paymentToken)) revert Escrow__NotSupportedPaymentToken();
+
+        if (C.status == Enums.Status.COMPLETED) C.status = Enums.Status.APPROVED;
+
+        (uint256 totalAmountAdditional,) = _computeDepositAmountAndFee(msg.sender, _amount, C.feeConfig);
         SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
 
         if (_type == Enums.RefillType.PREPAYMENT) {
@@ -259,6 +246,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             C.prepaymentAmount += _amount;
             emit RefilledPrepayment(msg.sender, _contractId, _amount);
         } else if (_type == Enums.RefillType.WEEK_PAYMENT) {
+            WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
             // Add funds specifically to the week's deposit.
             W.amountToClaim += _amount;
             W.weekStatus = Enums.Status.APPROVED;
@@ -272,22 +260,22 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @param _weekId ID of the week within the contract to be claimed.
     function claim(uint256 _contractId, uint256 _weekId) external {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
+
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.RESOLVED && C.status != Enums.Status.CANCELED)
-        {
-            revert Escrow__InvalidStatusToClaim();
-        }
+        if (C.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
 
         WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
-        if (W.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (W.weekStatus != Enums.Status.APPROVED && W.weekStatus != Enums.Status.RESOLVED) {
+            revert Escrow__InvalidStatusToClaim();
+        }
         if (W.amountToClaim == 0) revert Escrow__NotApproved();
 
         // Compute the amounts related to the claim.
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
-            _computeClaimableAmountAndFee(msg.sender, W.amountToClaim, W.feeConfig);
+            _computeClaimableAmountAndFee(msg.sender, W.amountToClaim, C.feeConfig);
 
         // Handle prepayment deduction for resolved or canceled states.
-        if (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED) {
+        if (C.prepaymentAmount > 0 && (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED)) {
             C.prepaymentAmount -= W.amountToClaim;
         }
 
@@ -320,10 +308,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (_endWeekId >= weeklyEntries[_contractId].length) revert Escrow__OutOfRange();
 
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.APPROVED && C.status != Enums.Status.RESOLVED && C.status != Enums.Status.CANCELED)
-        {
-            revert Escrow__InvalidStatusToClaim();
-        }
+        if (C.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
 
         uint256 totalClaimedAmount = 0;
         uint256 totalFeeAmount = 0;
@@ -332,15 +317,17 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         for (uint256 i = _startWeekId; i <= _endWeekId; i++) {
             WeeklyEntry storage W = weeklyEntries[_contractId][i];
 
-            // Skip if not contractor or nothing to claim.
-            if (W.contractor != msg.sender || W.amountToClaim == 0) continue;
-
-            if (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED) {
+            // Skip if not approved or nothing to claim.
+            if (W.amountToClaim == 0 && W.weekStatus != Enums.Status.APPROVED && W.weekStatus != Enums.Status.RESOLVED)
+            {
+                continue;
+            }
+            if (C.prepaymentAmount > 0 && (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED)) {
                 C.prepaymentAmount -= W.amountToClaim; // Use prepaymentAmount in case not approved by client.
             }
 
             (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
-                _computeClaimableAmountAndFee(msg.sender, W.amountToClaim, W.feeConfig);
+                _computeClaimableAmountAndFee(msg.sender, W.amountToClaim, C.feeConfig);
 
             W.amountToClaim = 0;
             W.weekStatus = Enums.Status.COMPLETED;
@@ -365,28 +352,28 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     }
 
     /// @notice Withdraws funds from a contract under specific conditions.
-    /// @dev Withdraws from the contract's prepayment amount when certain conditions about the contract's 
-    /// overall status are met.
+    /// @dev Withdraws from the contract's prepayment amount when certain conditions about the contract's
+    ///     overall status are met.
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
-    /// @param _weekId ID of the week within the contract to be withdrawn.
-    function withdraw(uint256 _contractId, uint256 _weekId) external onlyClient {
+    function withdraw(uint256 _contractId) external onlyClient {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
 
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status == Enums.Status.CANCELED) revert Escrow__InvalidStatusToWithdraw();
-        if (C.status != Enums.Status.REFUND_APPROVED && C.status != Enums.Status.RESOLVED) {
+        if (
+            C.status != Enums.Status.REFUND_APPROVED && C.status != Enums.Status.RESOLVED
+                && C.status != Enums.Status.COMPLETED
+        ) {
             revert Escrow__InvalidStatusToWithdraw();
         }
+        if (C.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
 
-        WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
-        if (W.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
+        (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, C.amountToWithdraw, C.feeConfig);
+        (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, C.prepaymentAmount, C.feeConfig);
 
-        (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, W.amountToWithdraw, W.feeConfig);
-        (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, C.prepaymentAmount, W.feeConfig);
-
-        C.prepaymentAmount -= W.amountToWithdraw;
-        uint256 withdrawAmount = W.amountToWithdraw + feeAmount;
-        W.amountToWithdraw = 0; // Prevent re-withdrawal.
+        C.prepaymentAmount -= C.amountToWithdraw;
+        uint256 withdrawAmount = C.amountToWithdraw + feeAmount;
+        C.amountToWithdraw = 0; // Prevent re-withdrawal.
         C.status = Enums.Status.CANCELED; // Mark the deposit as canceled after funds are withdrawn.
 
         SafeTransferLib.safeTransfer(C.paymentToken, msg.sender, withdrawAmount);
@@ -399,7 +386,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             _sendPlatformFee(C.paymentToken, platformFee);
         }
 
-        emit Withdrawn(msg.sender, _contractId, _weekId, withdrawAmount);
+        emit Withdrawn(msg.sender, _contractId, withdrawAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -409,53 +396,47 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @notice Requests the return of funds by the client for a specific contract.
     /// @dev The contract must be in an eligible state to request a return (not in disputed or already returned status).
     /// @param _contractId ID of the deposit for which the return is requested.
-    /// @param _weekId ID of the week for which the return is requested.
-    function requestReturn(uint256 _contractId, uint256 _weekId) external onlyClient {
+    function requestReturn(uint256 _contractId) external onlyClient {
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.ACTIVE && C.status != Enums.Status.APPROVED && C.status != Enums.Status.COMPLETED)
         {
             revert Escrow__ReturnNotAllowed();
         }
         C.status = Enums.Status.RETURN_REQUESTED;
-        emit ReturnRequested(msg.sender, _contractId, _weekId);
+        emit ReturnRequested(msg.sender, _contractId);
     }
 
     /// @notice Approves the return of funds, which can be called by the contractor or platform admin.
     /// @dev This changes the status of the deposit to allow the client to withdraw their funds.
     /// @param _contractId ID of the deposit for which the return is approved.
-    /// @param _weekId ID of the deposit for which the return is approved.
-    function approveReturn(uint256 _contractId, uint256 _weekId) external {
+    function approveReturn(uint256 _contractId) external {
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-
-        WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
-        if (msg.sender != W.contractor && !IEscrowAdminManager(adminManager).isAdmin(msg.sender)) {
+        if (msg.sender != C.contractor && !IEscrowAdminManager(adminManager).isAdmin(msg.sender)) {
             revert Escrow__UnauthorizedToApproveReturn();
         }
-
-        W.amountToWithdraw = C.prepaymentAmount;
+        C.amountToWithdraw = C.prepaymentAmount;
         C.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(msg.sender, _contractId, _weekId);
+        emit ReturnApproved(msg.sender, _contractId);
     }
 
     /// @notice Cancels a previously requested return and resets the contract's status.
     /// @dev Allows reverting the contract status from RETURN_REQUESTED to an active state.
     /// @param _contractId The unique identifier of the contract for which the return is cancelled.
-    /// @param _weekId ID of the contract for which the return is cancelled.
     /// @param _status The new status to set for the contract, must be either ACTIVE or APPROVED or COMPLETED.
-    function cancelReturn(uint256 _contractId, uint256 _weekId, Enums.Status _status) external onlyClient {
+    function cancelReturn(uint256 _contractId, Enums.Status _status) external onlyClient {
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
         if (_status != Enums.Status.ACTIVE && _status != Enums.Status.APPROVED && _status != Enums.Status.COMPLETED) {
             revert Escrow__InvalidStatusProvided();
         }
         C.status = _status;
-        emit ReturnCanceled(msg.sender, _contractId, _weekId);
+        emit ReturnCanceled(msg.sender, _contractId);
     }
 
     /// @notice Creates a dispute over a specific contract.
     /// @dev Initiates a dispute status for a contract that can be activated by the client or contractor
-    /// when they disagree on the previously submitted work.
+    ///     when they disagree on the previously submitted work.
     /// @param _contractId ID of the contract where the dispute occurred.
     /// @param _weekId ID of the contract where the dispute occurred.
     /// This function can only be called if the contract status is either RETURN_REQUESTED or SUBMITTED.
@@ -464,16 +445,16 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (C.status != Enums.Status.RETURN_REQUESTED && C.status != Enums.Status.APPROVED) {
             revert Escrow__CreateDisputeNotAllowed();
         }
-        WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
-        if (msg.sender != client && msg.sender != W.contractor) revert Escrow__UnauthorizedToApproveDispute();
+        if (msg.sender != client && msg.sender != C.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         C.status = Enums.Status.DISPUTED;
+        weeklyEntries[_contractId][_weekId].weekStatus = Enums.Status.DISPUTED;
         emit DisputeCreated(msg.sender, _contractId, _weekId);
     }
 
     /// @notice Resolves a dispute over a specific contract.
     /// @dev Handles the resolution of disputes by assigning the funds according to the outcome of the dispute.
-    /// Admin intervention is required to resolve disputes to ensure fairness.
+    ///     Admin intervention is required to resolve disputes to ensure fairness.
     /// @param _contractId ID of the contract where the dispute occurred.
     /// @param _weekId ID of the contract where the dispute occurred.
     /// @param _winner Specifies who the winner is: Client, Contractor, or Split.
@@ -491,25 +472,26 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
 
         ContractDetails storage C = contractDetails[_contractId];
-        if (C.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
+        WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
+        if (C.status != Enums.Status.DISPUTED && W.weekStatus != Enums.Status.DISPUTED) {
+            revert Escrow__DisputeNotActiveForThisDeposit();
+        }
 
         // Validate the total resolution does not exceed the available deposit amount.
         uint256 totalResolutionAmount = _clientAmount + _contractorAmount;
         if (totalResolutionAmount > C.prepaymentAmount) revert Escrow__ResolutionExceedsDepositedAmount();
 
-        WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
-
         // Set the amounts based on the dispute outcome.
         W.amountToClaim = (_winner == Enums.Winner.CONTRACTOR || _winner == Enums.Winner.SPLIT) ? _contractorAmount : 0;
         if (_winner == Enums.Winner.CONTRACTOR) {
             // In the case of contractor winning, they can claim using the prepayment amount.
-            W.amountToWithdraw = 0; 
+            C.amountToWithdraw = 0;
         } else {
-            W.amountToWithdraw = (_winner == Enums.Winner.CLIENT || _winner == Enums.Winner.SPLIT) ? _clientAmount : 0;
+            C.amountToWithdraw = (_winner == Enums.Winner.CLIENT || _winner == Enums.Winner.SPLIT) ? _clientAmount : 0;
         }
 
         C.status = Enums.Status.RESOLVED; // Resolve the contract status for all cases.
-
+        W.weekStatus = Enums.Status.RESOLVED;
         emit DisputeResolved(msg.sender, _contractId, _weekId, _winner, _clientAmount, _contractorAmount);
     }
 
@@ -519,7 +501,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
     /// @notice Computes the total deposit amount and the applied fee.
     /// @dev This internal function calculates the total deposit amount and the fee applied based on the client, deposit
-    /// amount, and fee configuration.
+    ///     amount, and fee configuration.
     /// @param _client Address of the client making the deposit.
     /// @param _depositAmount Amount of the deposit.
     /// @param _feeConfig Fee configuration for the deposit.
@@ -541,7 +523,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
     /// @notice Computes the claimable amount and the fee deducted from the claimed amount.
     /// @dev This internal function calculates the claimable amount for the contractor and the fees deducted from the
-    /// claimed amount based on the contractor, claimed amount, and fee configuration.
+    ///     claimed amount based on the contractor, claimed amount, and fee configuration.
     /// @param _contractor Address of the contractor claiming the amount.
     /// @param _claimedAmount Amount claimed by the contractor.
     /// @param _feeConfig Fee configuration for the deposit.
@@ -591,7 +573,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
     /// @notice Internal function to validate the signature of the provided data.
     /// @dev Verifies if the signature is from the msg.sender, which can be an externally owned account (EOA) or a
-    /// contract implementing ERC-1271.
+    ///     contract implementing ERC-1271.
     /// @param _hash The hash of the data that was signed.
     /// @param _signature The signature byte array associated with the hash.
     /// @return True if the signature is valid, false otherwise.
@@ -647,14 +629,13 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
         if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
 
-        // The initial contractor set in this deposit is the sole contractor for this contractId.
-        WeeklyEntry storage W = weeklyEntries[_contractId][0];
+        ContractDetails storage C = contractDetails[_contractId];
 
         // Emit the ownership transfer event before changing the state to reflect the previous state.
-        emit ContractorOwnershipTransferred(_contractId, W.contractor, _newAccount);
+        emit ContractorOwnershipTransferred(_contractId, C.contractor, _newAccount);
 
         // Update the contractor address to the new owner's address.
-        W.contractor = _newAccount;
+        C.contractor = _newAccount;
     }
 
     /// @notice Updates the registry address used for fetching escrow implementations.

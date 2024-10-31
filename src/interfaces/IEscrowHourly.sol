@@ -5,7 +5,8 @@ import { IEscrow, Enums } from "./IEscrow.sol";
 
 /// @title Hourly Escrow Interface
 /// @notice Interface for managing hourly-based escrow agreements.
-/// Focuses on the declaration of structs, events, errors, and essential function signatures to support hourly-based operations within the escrow system.
+/// Focuses on the declaration of structs, events, errors, and essential function signatures to support hourly-based
+/// operations within the escrow system.
 interface IEscrowHourly is IEscrow {
     /// @notice Thrown when no deposits are provided in a function call that expects at least one.
     error Escrow__NoDepositsProvided();
@@ -19,26 +20,41 @@ interface IEscrowHourly is IEscrow {
     /// @notice Thrown when the available prepayment amount is insufficient to cover the requested operation.
     error Escrow__InsufficientPrepayment();
 
-    /// @param paymentToken The address of the payment token.
-    /// @param prepaymentAmount The prepayment amount for the contract.
-    /// @param status The status of the contract.
-    struct ContractDetails {
+    /// @notice Represents the payload for initializing or adding to a deposit within a contract.
+    /// @param contractor The address of the contractor responsible for the work.
+    /// @param paymentToken The address of the payment token used for the deposit.
+    /// @param prepaymentAmount The amount paid upfront for the contract.
+    /// @param amountToClaim The amount that can be claimed by the contractor upon completion.
+    /// @param feeConfig Configuration setting that determines how fees are handled within the deposit.
+    struct Deposit {
+        address contractor;
         address paymentToken;
         uint256 prepaymentAmount;
+        uint256 amountToClaim;
+        Enums.FeeConfig feeConfig;
+    }
+
+    /// @notice Holds detailed information about a contract's settings and status.
+    /// @param contractor The address of the contractor assigned to the contract.
+    /// @param paymentToken The token used for financial transactions within the contract.
+    /// @param prepaymentAmount The total amount prepaid by the client, setting the financial basis for the contract.
+    /// @param amountToWithdraw The total amount available for withdrawal post-completion or approval.
+    /// @param feeConfig The fee configuration, dictating how fees are calculated and allocated.
+    /// @param status The current status of the contract, indicating its phase within the lifecycle.
+    struct ContractDetails {
+        address contractor;
+        address paymentToken;
+        uint256 prepaymentAmount;
+        uint256 amountToWithdraw;
+        Enums.FeeConfig feeConfig;
         Enums.Status status;
     }
 
-    /// @notice Represents a weekly billing cycle in the escrow.
-    /// @param contractor The address of the contractor.
-    /// @param amountToClaim The amount to be claimed.
-    /// @param amountToWithdraw The amount to be withdrawn.
-    /// @param feeConfig The fee configuration.
-    /// @param weekStatus The status of the week.
+    /// @notice Represents the claim details and status for a weekly billing cycle in an escrow contract.
+    /// @param amountToClaim Amount set for the contractor to claim upon completion of weekly tasks.
+    /// @param weekStatus Operational status of the week, indicating claim readiness or dispute status.
     struct WeeklyEntry {
-        address contractor;
         uint256 amountToClaim;
-        uint256 amountToWithdraw;
-        Enums.FeeConfig feeConfig;
         Enums.Status weekStatus;
     }
 
@@ -107,29 +123,25 @@ interface IEscrowHourly is IEscrow {
     /// @notice Emitted when a withdrawal is made.
     /// @param withdrawer The address of the withdrawer.
     /// @param contractId The ID of the contract.
-    /// @param weekId The ID of the week.
     /// @param amount The amount withdrawn.
-    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 weekId, uint256 amount);
+    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 amount);
 
     /// @notice Emitted when a return is requested.
     /// @dev Currently focuses on the return of prepayment amounts but includes a `weekId` for potential future use
     /// where returns might be processed on a week-by-week basis.
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
-    /// @param weekId The ID of the week.
-    event ReturnRequested(address indexed sender, uint256 indexed contractId, uint256 weekId);
+    event ReturnRequested(address indexed sender, uint256 indexed contractId);
 
     /// @notice Emitted when a return is approved.
     /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
-    /// @param weekId The ID of the week.
-    event ReturnApproved(address indexed approver, uint256 indexed contractId, uint256 weekId);
+    event ReturnApproved(address indexed approver, uint256 indexed contractId);
 
     /// @notice Emitted when a return is canceled.
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
-    /// @param weekId The ID of the week.
-    event ReturnCanceled(address indexed sender, uint256 indexed contractId, uint256 weekId);
+    event ReturnCanceled(address indexed sender, uint256 indexed contractId);
 
     /// @notice Emitted when a dispute is created.
     /// @param sender The address of the sender.
