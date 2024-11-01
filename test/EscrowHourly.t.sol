@@ -336,6 +336,100 @@ contract EscrowHourlyUnitTest is Test {
         escrow.deposit(0, deposit);
     }
 
+    function test_deposit_several_contracts() public {
+        test_approve();
+        uint256 currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 1);
+
+        ERC20Mock new_token = new ERC20Mock();
+        vm.prank(owner);
+        registry.addPaymentToken(address(new_token));
+        deposit = IEscrowHourly.Deposit({
+            contractor: contractor,
+            paymentToken: address(new_token),
+            prepaymentAmount: 1 ether,
+            amountToClaim: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL
+        });
+
+        // deposit to the existing contractId
+        vm.startPrank(client);
+        new_token.mint(client, 1.03 ether);
+        new_token.approve(address(escrow), 1.03 ether);
+        paymentToken.mint(client, 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        escrow.deposit(currentContractId, deposit);
+        vm.stopPrank();
+        (
+            address _contractor,
+            address _paymentToken,
+            uint256 _prepaymentAmount,
+            uint256 _amountToWithdraw,
+            Enums.FeeConfig _feeConfig,
+            Enums.Status _status
+        ) = escrow.contractDetails(1);
+        assertEq(_contractor, contractor);
+        assertEq(address(_paymentToken), address(paymentToken));
+        assertEq(_prepaymentAmount, 2 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+
+        (uint256 _amountToClaim, Enums.Status _weekStatus) = escrow.weeklyEntries(currentContractId, 0);
+        assertEq(_amountToClaim, 1 ether);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+
+        (_amountToClaim,  _weekStatus) = escrow.weeklyEntries(currentContractId, 1);
+        assertEq(_amountToClaim, 0 ether);
+        assertEq(uint256(_weekStatus), 1); //Status.ACTIVE
+        assertEq(escrow.getWeeksCount(currentContractId), 2);
+
+        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount * 3);
+
+        address new_contractor = makeAddr("new_contractor");
+        deposit = IEscrowHourly.Deposit({
+            contractor: new_contractor,
+            paymentToken: address(paymentToken),
+            prepaymentAmount: 1 ether,
+            amountToClaim: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+        });
+        // create second contract
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        escrow.deposit(0, deposit);
+        vm.stopPrank();
+        currentContractId = escrow.getCurrentContractId();
+        assertEq(currentContractId, 2);
+        assertEq(escrow.getWeeksCount(2), 1);
+
+        // deposit to the second contract
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        escrow.deposit(currentContractId, deposit);
+        vm.stopPrank();
+        (
+            _contractor,
+            _paymentToken,
+            _prepaymentAmount,
+            _amountToWithdraw,
+            _feeConfig,
+            _status
+        ) = escrow.contractDetails(2);
+        assertEq(_contractor, new_contractor);
+        assertEq(address(_paymentToken), address(paymentToken));
+        assertEq(_prepaymentAmount, 2 ether);
+        assertEq(_amountToWithdraw, 0 ether);
+        assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+        assertEq(escrow.getWeeksCount(2), 2);
+
+        assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount * 5); 
+    }
+
     function test_deposit_reverts_ContractorMismatch() public {
         test_deposit_prepayment();
         deposit = IEscrowHourly.Deposit({
