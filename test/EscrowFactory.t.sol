@@ -115,15 +115,17 @@ contract EscrowFactoryUnitTest is Test {
     }
 
     // helper
-    function _computeDepositAndFeeAmount(address _client, uint256 _depositAmount, Enums.FeeConfig _feeConfig)
-        internal
-        view
-        returns (uint256, uint256)
-    {
+    function _computeDepositAndFeeAmount(
+        address _escrow,
+        uint256 _contractId,
+        address _client,
+        uint256 _depositAmount,
+        Enums.FeeConfig _feeConfig
+    ) internal view returns (uint256, uint256) {
         address feeManagerAddress = registry.feeManager();
         IEscrowFeeManager _feeManager = IEscrowFeeManager(feeManagerAddress);
         (uint256 totalDepositAmount, uint256 feeApplied) =
-            _feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
+            _feeManager.computeDepositAmountAndFee(_escrow, _contractId, _client, _depositAmount, _feeConfig);
 
         return (totalDepositAmount, feeApplied);
     }
@@ -158,7 +160,8 @@ contract EscrowFactoryUnitTest is Test {
         assertTrue(escrowProxy.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxy)));
-        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        (uint256 totalDepositAmount,) =
+            _computeDepositAndFeeAmount(address(escrowProxy), 0, client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
         // 2. mint, approve payment token
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrowProxy), totalDepositAmount);
@@ -204,7 +207,8 @@ contract EscrowFactoryUnitTest is Test {
             status: Enums.Status.ACTIVE
         });
 
-        (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(client, 2 ether, Enums.FeeConfig.NO_FEES);
+        (uint256 totalDepositAmount,) =
+            _computeDepositAndFeeAmount(address(escrowProxy), 1, client, 2 ether, Enums.FeeConfig.NO_FEES);
 
         vm.startPrank(address(this));
         paymentToken.mint(address(this), totalDepositAmount);
@@ -290,8 +294,9 @@ contract EscrowFactoryUnitTest is Test {
 
         // 2. mint, approve payment token
         uint256 depositMilestoneAmount = 1 ether;
-        (uint256 totalDepositMilestoneAmount,) =
-            _computeDepositAndFeeAmount(client, depositMilestoneAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        (uint256 totalDepositMilestoneAmount,) = _computeDepositAndFeeAmount(
+            address(escrowProxy), 1, client, depositMilestoneAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+        );
         paymentToken.mint(address(client), totalDepositMilestoneAmount);
         paymentToken.approve(address(escrowProxy), totalDepositMilestoneAmount);
 
@@ -358,8 +363,9 @@ contract EscrowFactoryUnitTest is Test {
 
         // 2. mint, approve payment token
         uint256 depositHourlyAmount = 1 ether;
-        (uint256 totalDepositHourlyAmount,) =
-            _computeDepositAndFeeAmount(client, depositHourlyAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        (uint256 totalDepositHourlyAmount,) = _computeDepositAndFeeAmount(
+            address(escrowProxyHourly), 1, client, depositHourlyAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+        );
         paymentToken.mint(address(client), totalDepositHourlyAmount);
         paymentToken.approve(address(escrowProxyHourly), totalDepositHourlyAmount);
 

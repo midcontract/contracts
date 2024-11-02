@@ -61,16 +61,13 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _registry Address of the registry contract.
     function initialize(address _client, address _adminManager, address _registry) external {
         if (initialized) revert Escrow__AlreadyInitialized();
-
         if (_client == address(0) || _adminManager == address(0) || _registry == address(0)) {
             revert Escrow__ZeroAddressProvided();
         }
-
         client = _client;
         adminManager = IEscrowAdminManager(_adminManager);
         registry = IEscrowRegistry(_registry);
         maxMilestones = 10; // Default value.
-
         initialized = true;
     }
 
@@ -109,7 +106,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         for (uint256 i; i < milestonesLength;) {
             if (_milestones[i].amount == 0) revert Escrow__ZeroDepositAmount();
             (uint256 totalDepositAmount,) =
-                _computeDepositAmountAndFee(msg.sender, _milestones[i].amount, _milestones[i].feeConfig);
+                _computeDepositAmountAndFee(contractId, msg.sender, _milestones[i].amount, _milestones[i].feeConfig);
             totalAmountNeeded += totalDepositAmount;
             unchecked {
                 i++;
@@ -233,7 +230,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
         // Compute the total amount including any applicable fees.
         (uint256 totalAmountAdditional, uint256 feeApplied) =
-            _computeDepositAmountAndFee(msg.sender, _amountAdditional, M.feeConfig);
+            _computeDepositAmountAndFee(_contractId, msg.sender, _amountAdditional, M.feeConfig);
         (feeApplied);
 
         MilestoneDetails storage D = milestoneDetails[_contractId][_milestoneId];
@@ -265,7 +262,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
         // Calculate the claimable amount and fees.
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
-            _computeClaimableAmountAndFee(msg.sender, M.amountToClaim, M.feeConfig);
+            _computeClaimableAmountAndFee(_contractId, msg.sender, M.amountToClaim, M.feeConfig);
 
         // Update the milestone's details post-claim.
         M.amount -= M.amountToClaim;
@@ -323,7 +320,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
                 continue; // Skip processing if nothing to claim or not in a claimable state.
             }
             (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
-                _computeClaimableAmountAndFee(msg.sender, M.amountToClaim, M.feeConfig);
+                _computeClaimableAmountAndFee(_contractId, msg.sender, M.amountToClaim, M.feeConfig);
 
             M.amount -= M.amountToClaim;
             totalClaimedAmount += claimAmount;
@@ -372,20 +369,20 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         if (M.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
 
         // Calculate the fee based on the amount to be withdrawn.
-        (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, M.amountToWithdraw, M.feeConfig);
+        (, uint256 feeAmount) = _computeDepositAmountAndFee(_contractId, msg.sender, M.amountToWithdraw, M.feeConfig);
 
         MilestoneDetails storage D = milestoneDetails[_contractId][_milestoneId];
         uint256 initialFeeAmount;
         // Distinguish between fee calculations based on milestone status or dispute resolution.
         if (M.status == Enums.Status.REFUND_APPROVED) {
             // Regular fee calculation from the current amount.
-            (, initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, M.amount, M.feeConfig);
+            (, initialFeeAmount) = _computeDepositAmountAndFee(_contractId, msg.sender, M.amount, M.feeConfig);
         } else if (M.status == Enums.Status.RESOLVED && D.winner == Enums.Winner.SPLIT) {
             // Special case for split resolutions.
-            (, initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, D.depositAmount, M.feeConfig);
+            (, initialFeeAmount) = _computeDepositAmountAndFee(_contractId, msg.sender, D.depositAmount, M.feeConfig);
         } else {
             // Default case for resolved or canceled without split, using current amount.
-            (, initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, M.amount, M.feeConfig);
+            (, initialFeeAmount) = _computeDepositAmountAndFee(_contractId, msg.sender, M.amount, M.feeConfig);
         }
 
         uint256 platformFee = (initialFeeAmount > feeAmount) ? (initialFeeAmount - feeAmount) : 0;
@@ -522,22 +519,25 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
     /// @notice Computes the total deposit amount and the applied fee.
     /// @dev This internal function calculates the total deposit amount and the fee applied based on the client, deposit
-    /// amount, and fee configuration.
+    ///     amount, and fee configuration.
+    /// @param _contractId The specific contract ID within the proxy instance.
     /// @param _client Address of the client making the deposit.
     /// @param _depositAmount Amount of the deposit.
     /// @param _feeConfig Fee configuration for the deposit.
     /// @return totalDepositAmount Total deposit amount after applying the fee.
     /// @return feeApplied Fee applied to the deposit.
-    function _computeDepositAmountAndFee(address _client, uint256 _depositAmount, Enums.FeeConfig _feeConfig)
-        internal
-        view
-        returns (uint256 totalDepositAmount, uint256 feeApplied)
-    {
+    function _computeDepositAmountAndFee(
+        uint256 _contractId,
+        address _client,
+        uint256 _depositAmount,
+        Enums.FeeConfig _feeConfig
+    ) internal view returns (uint256 totalDepositAmount, uint256 feeApplied) {
         address feeManagerAddress = registry.feeManager();
         if (feeManagerAddress == address(0)) revert Escrow__NotSetFeeManager();
         IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
 
-        (totalDepositAmount, feeApplied) = feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
+        (totalDepositAmount, feeApplied) =
+            feeManager.computeDepositAmountAndFee(address(this), _contractId, _client, _depositAmount, _feeConfig);
 
         return (totalDepositAmount, feeApplied);
     }
@@ -545,23 +545,25 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @notice Computes the claimable amount and the fee deducted from the claimed amount.
     /// @dev This internal function calculates the claimable amount for the contractor and the fees deducted from the
     /// claimed amount based on the contractor, claimed amount, and fee configuration.
+    /// @param _contractId The specific contract ID within the proxy instance.
     /// @param _contractor Address of the contractor claiming the amount.
     /// @param _claimedAmount Amount claimed by the contractor.
     /// @param _feeConfig Fee configuration for the deposit.
     /// @return claimableAmount Amount claimable by the contractor.
     /// @return feeDeducted Fee deducted from the claimed amount.
     /// @return clientFee Fee to be paid by the client for covering the claim.
-    function _computeClaimableAmountAndFee(address _contractor, uint256 _claimedAmount, Enums.FeeConfig _feeConfig)
-        internal
-        view
-        returns (uint256 claimableAmount, uint256 feeDeducted, uint256 clientFee)
-    {
+    function _computeClaimableAmountAndFee(
+        uint256 _contractId,
+        address _contractor,
+        uint256 _claimedAmount,
+        Enums.FeeConfig _feeConfig
+    ) internal view returns (uint256 claimableAmount, uint256 feeDeducted, uint256 clientFee) {
         address feeManagerAddress = registry.feeManager();
         if (feeManagerAddress == address(0)) revert Escrow__NotSetFeeManager();
         IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
 
         (claimableAmount, feeDeducted, clientFee) =
-            feeManager.computeClaimableAmountAndFee(_contractor, _claimedAmount, _feeConfig);
+            feeManager.computeClaimableAmountAndFee(address(this), _contractId, _contractor, _claimedAmount, _feeConfig);
 
         return (claimableAmount, feeDeducted, clientFee);
     }
@@ -578,7 +580,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
     /// @notice Internal function to validate the signature of the provided data.
     /// @dev Verifies if the signature is from the msg.sender, which can be an externally owned account (EOA) or a
-    /// contract implementing ERC-1271.
+    ///     contract implementing ERC-1271.
     /// @param _hash The hash of the data that was signed.
     /// @param _signature The signature byte array associated with the hash.
     /// @return True if the signature is valid, false otherwise.

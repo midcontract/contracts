@@ -60,11 +60,9 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (_client == address(0) || _adminManager == address(0) || _registry == address(0)) {
             revert Escrow__ZeroAddressProvided();
         }
-
         client = _client;
         adminManager = IEscrowAdminManager(_adminManager);
         registry = IEscrowRegistry(_registry);
-
         initialized = true;
     }
 
@@ -101,13 +99,14 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             C.contractor = _deposit.contractor;
             C.paymentToken = _deposit.paymentToken;
             C.feeConfig = _deposit.feeConfig;
-        } 
+        }
         if (_deposit.prepaymentAmount > 0) {
             C.prepaymentAmount += _deposit.prepaymentAmount; // Update prepayment amount only when specified.
         }
 
-        // Only update the contract status if it's not in a active or approved state. 
-        // The contract can be reactivated with new conditions or further funding by the client following any previous settlement or cancellation.
+        // Only update the contract status if it's not in a active or approved state.
+        // The contract can be reactivated with new conditions or further funding by the client following any previous
+        // settlement or cancellation.
         if (C.status != Enums.Status.ACTIVE || C.status != Enums.Status.APPROVED) {
             // Determine the correct status based on deposit amounts.
             Enums.Status newStatus = _deposit.prepaymentAmount > 0
@@ -123,14 +122,12 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         uint256 totalDepositAmount = 0;
         uint256 depositAmount = _deposit.prepaymentAmount > 0 ? _deposit.prepaymentAmount : _deposit.amountToClaim;
-        (totalDepositAmount,) = _computeDepositAmountAndFee(msg.sender, depositAmount, C.feeConfig);
+        (totalDepositAmount,) = _computeDepositAmountAndFee(contractId, msg.sender, depositAmount, C.feeConfig);
 
         SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalDepositAmount);
 
         // Emit an event for the deposit of each week.
-        emit Deposited(
-            msg.sender, contractId, weeklyEntries[contractId].length - 1, C.paymentToken, totalDepositAmount
-        );
+        emit Deposited(msg.sender, contractId, weeklyEntries[contractId].length - 1, C.paymentToken, totalDepositAmount);
     }
 
     /// @notice Approves a deposit by the client.
@@ -154,7 +151,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (C.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
         // Calculate fee and approve the total amount once, then perform the transfer.
-        (uint256 totalAmountApprove,) = _computeDepositAmountAndFee(msg.sender, _amountApprove, C.feeConfig);
+        (uint256 totalAmountApprove,) =
+            _computeDepositAmountAndFee(_contractId, msg.sender, _amountApprove, C.feeConfig);
         SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountApprove);
 
         W.amountToClaim += _amountApprove;
@@ -236,10 +234,10 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         ContractDetails storage C = contractDetails[_contractId];
         if (!registry.paymentTokens(C.paymentToken)) revert Escrow__NotSupportedPaymentToken();
-        
+
         if (C.status == Enums.Status.COMPLETED) C.status = Enums.Status.APPROVED;
 
-        (uint256 totalAmountAdditional,) = _computeDepositAmountAndFee(msg.sender, _amount, C.feeConfig);
+        (uint256 totalAmountAdditional,) = _computeDepositAmountAndFee(_contractId, msg.sender, _amount, C.feeConfig);
         SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
 
         if (_type == Enums.RefillType.PREPAYMENT) {
@@ -273,7 +271,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         // Compute the amounts related to the claim.
         (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
-            _computeClaimableAmountAndFee(msg.sender, W.amountToClaim, C.feeConfig);
+            _computeClaimableAmountAndFee(_contractId, msg.sender, W.amountToClaim, C.feeConfig);
 
         // Handle prepayment deduction for resolved or canceled states.
         if (C.prepaymentAmount > 0 && (C.status == Enums.Status.RESOLVED || C.status == Enums.Status.CANCELED)) {
@@ -328,7 +326,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             }
 
             (uint256 claimAmount, uint256 feeAmount, uint256 clientFee) =
-                _computeClaimableAmountAndFee(msg.sender, W.amountToClaim, C.feeConfig);
+                _computeClaimableAmountAndFee(_contractId, msg.sender, W.amountToClaim, C.feeConfig);
 
             W.amountToClaim = 0;
             W.weekStatus = Enums.Status.COMPLETED;
@@ -369,8 +367,9 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         }
         if (C.amountToWithdraw == 0) revert Escrow__NoFundsAvailableForWithdraw();
 
-        (, uint256 feeAmount) = _computeDepositAmountAndFee(msg.sender, C.amountToWithdraw, C.feeConfig);
-        (, uint256 initialFeeAmount) = _computeDepositAmountAndFee(msg.sender, C.prepaymentAmount, C.feeConfig);
+        (, uint256 feeAmount) = _computeDepositAmountAndFee(_contractId, msg.sender, C.amountToWithdraw, C.feeConfig);
+        (, uint256 initialFeeAmount) =
+            _computeDepositAmountAndFee(_contractId, msg.sender, C.prepaymentAmount, C.feeConfig);
 
         C.prepaymentAmount -= C.amountToWithdraw;
         uint256 withdrawAmount = C.amountToWithdraw + feeAmount;
@@ -503,21 +502,24 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @notice Computes the total deposit amount and the applied fee.
     /// @dev This internal function calculates the total deposit amount and the fee applied based on the client, deposit
     ///     amount, and fee configuration.
+    /// @param _contractId The specific contract ID within the proxy instance.
     /// @param _client Address of the client making the deposit.
     /// @param _depositAmount Amount of the deposit.
     /// @param _feeConfig Fee configuration for the deposit.
     /// @return totalDepositAmount Total deposit amount after applying the fee.
     /// @return feeApplied Fee applied to the deposit.
-    function _computeDepositAmountAndFee(address _client, uint256 _depositAmount, Enums.FeeConfig _feeConfig)
-        internal
-        view
-        returns (uint256 totalDepositAmount, uint256 feeApplied)
-    {
+    function _computeDepositAmountAndFee(
+        uint256 _contractId,
+        address _client,
+        uint256 _depositAmount,
+        Enums.FeeConfig _feeConfig
+    ) internal view returns (uint256 totalDepositAmount, uint256 feeApplied) {
         address feeManagerAddress = registry.feeManager();
         if (feeManagerAddress == address(0)) revert Escrow__NotSetFeeManager();
         IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
 
-        (totalDepositAmount, feeApplied) = feeManager.computeDepositAmountAndFee(_client, _depositAmount, _feeConfig);
+        (totalDepositAmount, feeApplied) =
+            feeManager.computeDepositAmountAndFee(address(this), _contractId, _client, _depositAmount, _feeConfig);
 
         return (totalDepositAmount, feeApplied);
     }
@@ -525,23 +527,25 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @notice Computes the claimable amount and the fee deducted from the claimed amount.
     /// @dev This internal function calculates the claimable amount for the contractor and the fees deducted from the
     ///     claimed amount based on the contractor, claimed amount, and fee configuration.
+    /// @param _contractId The specific contract ID within the proxy instance.
     /// @param _contractor Address of the contractor claiming the amount.
     /// @param _claimedAmount Amount claimed by the contractor.
     /// @param _feeConfig Fee configuration for the deposit.
     /// @return claimableAmount Amount claimable by the contractor.
     /// @return feeDeducted Fee deducted from the claimed amount.
     /// @return clientFee Fee to be paid by the client for covering the claim.
-    function _computeClaimableAmountAndFee(address _contractor, uint256 _claimedAmount, Enums.FeeConfig _feeConfig)
-        internal
-        view
-        returns (uint256 claimableAmount, uint256 feeDeducted, uint256 clientFee)
-    {
+    function _computeClaimableAmountAndFee(
+        uint256 _contractId,
+        address _contractor,
+        uint256 _claimedAmount,
+        Enums.FeeConfig _feeConfig
+    ) internal view returns (uint256 claimableAmount, uint256 feeDeducted, uint256 clientFee) {
         address feeManagerAddress = registry.feeManager();
         if (feeManagerAddress == address(0)) revert Escrow__NotSetFeeManager();
         IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
 
         (claimableAmount, feeDeducted, clientFee) =
-            feeManager.computeClaimableAmountAndFee(_contractor, _claimedAmount, _feeConfig);
+            feeManager.computeClaimableAmountAndFee(address(this), _contractId, _contractor, _claimedAmount, _feeConfig);
 
         return (claimableAmount, feeDeducted, clientFee);
     }
