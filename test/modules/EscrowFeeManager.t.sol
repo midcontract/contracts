@@ -4,18 +4,25 @@ pragma solidity 0.8.25;
 import { Test, console2 } from "forge-std/Test.sol";
 
 import { EscrowFeeManager, IEscrowFeeManager, OwnedThreeStep } from "src/modules/EscrowFeeManager.sol";
-import { EscrowFixedPrice } from "src/EscrowFixedPrice.sol";
+import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
+import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
+import { EscrowRegistry } from "src/modules/EscrowRegistry.sol";
 import { Enums } from "src/libs/Enums.sol";
+import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
 
 contract EscrowFeeManagerUnitTest is Test {
     EscrowFeeManager feeManager;
     EscrowFixedPrice escrow;
+    EscrowRegistry registry;
+    ERC20Mock paymentToken;
     address owner;
     address client;
     address contractor;
 
     event DefaultFeesSet(uint16 coverage, uint16 claim);
     event UserSpecificFeesSet(address indexed user, uint16 coverage, uint16 claim);
+    event InstanceFeesSet(address indexed instance, uint16 coverage, uint16 claim);
+    event ContractSpecificFeesSet(address indexed instance, uint256 indexed contractId, uint16 coverage, uint16 claim);
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -23,8 +30,47 @@ contract EscrowFeeManagerUnitTest is Test {
         contractor = makeAddr("contractor");
         feeManager = new EscrowFeeManager(300, 500, owner);
         escrow = new EscrowFixedPrice();
+        registry = new EscrowRegistry(owner);
     }
 
+    ///////////////////////////////////////////
+    //               helpers                 //
+    ///////////////////////////////////////////
+
+    function initialize_escrow() public {
+        paymentToken = new ERC20Mock();
+        EscrowAdminManager adminManager = new EscrowAdminManager(owner);
+        vm.startPrank(owner);
+        registry.addPaymentToken(address(paymentToken));
+        registry.updateFeeManager(address(feeManager));
+        vm.stopPrank();
+        escrow.initialize(client, address(adminManager), address(registry));
+        assertTrue(escrow.initialized());
+    }
+
+    function create_deposit() public {
+        initialize_escrow();
+        EscrowFixedPrice.Deposit memory deposit = IEscrowFixedPrice.Deposit({
+            contractor: address(contractor),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            contractorData: keccak256(abi.encodePacked(bytes("contract_data"), keccak256(abi.encodePacked(uint256(42))))),
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.ACTIVE
+        });
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+    }
+
+    ///////////////////////////////////////////
+    //        setup & function tests         //
+    ///////////////////////////////////////////
+    
     function test_setUpState() public view {
         assertTrue(address(feeManager).code.length > 0);
         assertEq(feeManager.owner(), address(owner));
@@ -34,6 +80,10 @@ contract EscrowFeeManagerUnitTest is Test {
     }
 
     function test_setDefaultFees() public {
+        create_deposit();
+        EscrowFeeManager.FeeRates memory rates = feeManager.getApplicableFees(address(escrow), 0, client);
+        assertEq(rates.coverage, 300);
+        assertEq(rates.claim, 500);
         (uint16 coverage, uint16 claim) = feeManager.defaultFees();
         assertEq(coverage, 300);
         assertEq(claim, 500);
@@ -54,15 +104,26 @@ contract EscrowFeeManagerUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit DefaultFeesSet(200, 400);
         feeManager.setDefaultFees(200, 400);
+        vm.stopPrank();
         (coverage, claim) = feeManager.defaultFees();
         assertEq(coverage, 200);
         assertEq(claim, 400);
+        rates = feeManager.getApplicableFees(address(escrow), 0, client);
+        assertEq(rates.coverage, 200);
+        assertEq(rates.claim, 400);
+        rates = feeManager.getApplicableFees(address(escrow), 0, contractor);
+        assertEq(rates.coverage, 200);
+        assertEq(rates.claim, 400);
     }
 
     function test_setUserSpecificFees() public {
+        create_deposit();
         (uint16 coverage, uint16 claim) = feeManager.userSpecificFees(client);
         assertEq(coverage, 0);
         assertEq(claim, 0);
+        EscrowFeeManager.FeeRates memory rates = feeManager.getApplicableFees(address(escrow), 0, client);
+        assertEq(rates.coverage, 300);
+        assertEq(rates.claim, 500);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
@@ -82,9 +143,110 @@ contract EscrowFeeManagerUnitTest is Test {
         vm.expectEmit(true, true, true, true);
         emit UserSpecificFeesSet(client, 200, 350);
         feeManager.setUserSpecificFees(client, 200, 350);
+        vm.stopPrank();
         (coverage, claim) = feeManager.userSpecificFees(client);
         assertEq(coverage, 200);
         assertEq(claim, 350);
+        rates = feeManager.getApplicableFees(address(escrow), 1, client);
+        assertEq(rates.coverage, 200);
+        assertEq(rates.claim, 350);
+    }
+
+    function test_setInstanceFees() public {
+        test_setUserSpecificFees();
+        (uint16 coverage, uint16 claim) = feeManager.instanceFees(address(escrow));
+        assertEq(coverage, 0);
+        assertEq(claim, 0);
+        EscrowFeeManager.FeeRates memory rates = feeManager.getApplicableFees(address(escrow), 0, client);
+        assertEq(rates.coverage, 200);
+        assertEq(rates.claim, 350);
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        feeManager.setInstanceFees(address(escrow), 200, 350);
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        feeManager.setInstanceFees(address(escrow), 10_100, 350);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        feeManager.setInstanceFees(address(escrow), 350, 10_100);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        feeManager.setInstanceFees(address(escrow), 10_100, 10_100);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__ZeroAddressProvided.selector);
+        feeManager.setInstanceFees(address(0), 200, 350);
+        (coverage, claim) = feeManager.instanceFees(address(escrow));
+        assertEq(coverage, 0);
+        assertEq(claim, 0);
+        vm.expectEmit(true, true, true, true);
+        emit InstanceFeesSet(address(escrow), 250, 450);
+        feeManager.setInstanceFees(address(escrow), 250, 450);
+        vm.stopPrank();
+        (coverage, claim) = feeManager.userSpecificFees(client);
+        assertEq(coverage, 200);
+        assertEq(claim, 350);
+        (coverage, claim) = feeManager.instanceFees(address(escrow));
+        assertEq(coverage, 250);
+        assertEq(claim, 450);
+        rates = feeManager.getApplicableFees(address(escrow), 1, client);
+        assertEq(rates.coverage, 250);
+        assertEq(rates.claim, 450);
+    }
+
+    function test_setContractSpecificFees() public {
+        test_setInstanceFees();
+        uint256 contractId = escrow.getCurrentContractId();
+        (uint16 coverage, uint16 claim) = feeManager.instanceFees(address(escrow));
+        assertEq(coverage, 250);
+        assertEq(claim, 450);
+        (coverage, claim) = feeManager.contractSpecificFees(address(escrow), contractId);
+        assertEq(coverage, 0);
+        assertEq(claim, 0);
+        EscrowFeeManager.FeeRates memory rates = feeManager.getApplicableFees(address(escrow), contractId, client);
+        assertEq(rates.coverage, 250);
+        assertEq(rates.claim, 450);
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        feeManager.setContractSpecificFees(address(escrow), contractId, 200, 350);
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        feeManager.setContractSpecificFees(address(escrow), contractId, 10_100, 350);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        feeManager.setContractSpecificFees(address(escrow), contractId, 350, 10_100);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        feeManager.setContractSpecificFees(address(escrow), contractId, 10_100, 10_100);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__ZeroAddressProvided.selector);
+        feeManager.setContractSpecificFees(address(0), contractId, 200, 350);
+        (coverage, claim) = feeManager.contractSpecificFees(address(escrow), contractId);
+        assertEq(coverage, 0);
+        assertEq(claim, 0);
+        vm.expectEmit(true, true, true, true);
+        emit ContractSpecificFeesSet(address(escrow), contractId, 150, 500);
+        feeManager.setContractSpecificFees(address(escrow), contractId, 150, 500);
+        vm.stopPrank();
+        (coverage, claim) = feeManager.userSpecificFees(client);
+        assertEq(coverage, 200);
+        assertEq(claim, 350);
+        (coverage, claim) = feeManager.userSpecificFees(contractor);
+        assertEq(coverage, 0);
+        assertEq(claim, 0);
+        (coverage, claim) = feeManager.instanceFees(address(escrow));
+        assertEq(coverage, 250);
+        assertEq(claim, 450);
+        (coverage, claim) = feeManager.instanceFees(address(this));
+        assertEq(coverage, 0);
+        assertEq(claim, 0);
+        (coverage, claim) = feeManager.contractSpecificFees(address(escrow), contractId);
+        assertEq(coverage, 150);
+        assertEq(claim, 500);
+        (coverage, claim) = feeManager.contractSpecificFees(address(this), contractId);
+        assertEq(coverage, 0);
+        assertEq(claim, 0);
+        rates = feeManager.getApplicableFees(address(escrow), contractId, client);
+        assertEq(rates.coverage, 150);
+        assertEq(rates.claim, 500);
+        rates = feeManager.getApplicableFees(address(escrow), contractId, contractor);
+        assertEq(rates.coverage, 150);
+        assertEq(rates.claim, 500);
     }
 
     // function test_getCoverageFee() public {
