@@ -11,12 +11,6 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @notice The maximum allowable percentage in basis points (100%).
     uint256 public constant MAX_BPS = 10_000; // 100%
 
-    /// @notice Stores default fee rates for coverage and claim.
-    struct FeeRates {
-        uint16 coverage; // Coverage fee percentage.
-        uint16 claim; // Claim fee percentage.
-    }
-
     /// @notice The default fees applied if no special fees are set (4th priority).
     FeeRates public defaultFees;
 
@@ -66,8 +60,6 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
         emit InstanceFeesSet(_instance, _coverage, _claim);
     }
 
-    // todo reset high priority fees to low level
-
     /// @notice Sets specific fee rates for a particular contract ID within an instance.
     /// @param _instance The address of the instance containing the contract.
     /// @param _contractId The ID of the contract within the instance.
@@ -83,23 +75,41 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
         emit ContractSpecificFeesSet(_instance, _contractId, _coverage, _claim);
     }
 
-    /// @notice Retrieves applicable fees with the following priority:
-    /// Contract-specific > Instance-specific > User-specific > Default.
-    function _getApplicableFees(address _instance, uint256 _contractId, address _user)
-        internal
-        view
-        returns (FeeRates memory rates)
-    {
-        rates = contractSpecificFees[_instance][_contractId];
-        if (rates.coverage != 0 || rates.claim != 0) return rates; // 1st priority
+    /// @notice Resets contract-specific fees to default by removing the fee entry for a given contract ID.
+    /// @param _instance The address of the instance under which the contract falls.
+    /// @param _contractId The unique identifier for the contract whose fees are being reset.
+    function resetContractSpecificFees(address _instance, uint256 _contractId) external onlyOwner {
+        delete contractSpecificFees[_instance][_contractId];
+        emit ContractSpecificFeesReset(_instance, _contractId);
+    }
 
-        rates = instanceFees[_instance];
-        if (rates.coverage != 0 || rates.claim != 0) return rates; // 2nd priority
+    /// @notice Resets instance-specific fees to default by removing the fee entry for the given instance.
+    /// @param _instance The address of the instance for which fees are being reset.
+    function resetInstanceSpecificFees(address _instance) external onlyOwner {
+        delete instanceFees[_instance];
+        emit InstanceSpecificFeesReset(_instance);
+    }
 
-        rates = userSpecificFees[_user];
-        if (rates.coverage != 0 || rates.claim != 0) return rates; // 3rd priority
+    /// @notice Resets user-specific fees to default by removing the fee entry for the specified user.
+    /// @param _user The address of the user whose fees are being reset.
+    function resetUserSpecificFees(address _user) external onlyOwner {
+        delete userSpecificFees[_user];
+        emit UserSpecificFeesReset(_user);
+    }
 
-        return defaultFees; // 4th priority
+    /// @notice Resets all higher-priority fees (contract, instance, and user-specific fees) to default in a single
+    ///     call.
+    /// @param _instance The address of the instance containing the contract to be reset.
+    /// @param _contractId The unique identifier for the contract whose fees are being reset.
+    /// @param _user The address of the user whose fees are being reset.
+    function resetAllToDefault(address _instance, uint256 _contractId, address _user) external onlyOwner {
+        delete contractSpecificFees[_instance][_contractId];
+        delete instanceFees[_instance];
+        delete userSpecificFees[_user];
+
+        emit ContractSpecificFeesReset(_instance, _contractId);
+        emit InstanceSpecificFeesReset(_instance);
+        emit UserSpecificFeesReset(_user);
     }
 
     /// @notice Calculates the total deposit amount including any applicable fees based on the fee configuration.
@@ -144,11 +154,10 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
 
     /// @notice Calculates the claimable amount after any applicable fees based on the fee configuration.
     /// @dev This function calculates fees by prioritizing specific fee configurations in the following order:
-    ///      contract-level fees (highest priority), instance-level fees, user-specific fees, and default fees (lowest
+    ///     contract-level fees (highest priority), instance-level fees, user-specific fees, and default fees (lowest
     ///     priority).
     /// @param _instance The address of the deployed proxy instance (e.g., EscrowFixedPrice or EscrowMilestone).
-    /// @param _contractId The specific contract ID within the proxy instance, if applicable, for contract-level fee
-    ///     overrides.
+    /// @param _contractId The specific contract ID within the proxy instance.
     /// @param _contractor The address of the contractor claiming the amount.
     /// @param _claimedAmount The initial claimed amount before fees.
     /// @param _feeConfig The fee configuration to determine which fees to deduct.
@@ -191,21 +200,42 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
         return (claimableAmount, feeDeducted, clientFee);
     }
 
-    // /// @notice Retrieves the coverage fee percentage for a specific user.
-    // /// @param _user The user's address.
-    // /// @return The coverage fee percentage.
-    // function getCoverageFee(address _user) external view returns (uint16) {
-    //     return userSpecificFees[_user].coverage > 0 ? userSpecificFees[_user].coverage : defaultFees.coverage;
-    // }
+    /// @notice Retrieves the applicable fee rates based on priority for a given contract, instance, and user.
+    /// @dev This function returns the highest-priority fee rates among contract-specific, instance-specific, 
+    ///     user-specific, or default fees based on the configured hierarchy.
+    /// @param _instance The address of the instance under which the contract falls.
+    /// @param _contractId The unique identifier for the contract to which the fees apply.
+    /// @param _user The address of the user involved in the transaction.
+    /// @return The applicable `FeeRates` structure containing the coverage and claim fee rates.
+    function getApplicableFees(address _instance, uint256 _contractId, address _user)
+        external
+        view
+        returns (FeeRates memory)
+    {
+        return _getApplicableFees(_instance, _contractId, _user);
+    }
 
-    // /// @notice Retrieves the claim fee percentage for a specific user.
-    // /// @param _user The user's address.
-    // /// @return The claim fee percentage.
-    // function getClaimFee(address _user) external view returns (uint16) {
-    //     return userSpecificFees[_user].claim > 0 ? userSpecificFees[_user].claim : defaultFees.claim;
-    // }
+    /// @dev Retrieves applicable fees with the following priority:
+    /// Contract-specific > Instance-specific > User-specific > Default.
+    function _getApplicableFees(address _instance, uint256 _contractId, address _user)
+        internal
+        view
+        returns (FeeRates memory rates)
+    {
+        rates = contractSpecificFees[_instance][_contractId];
+        if (rates.coverage != 0 || rates.claim != 0) return rates; // 1st priority
 
-    /// @dev Updates the default coverage and claim fees.
+        rates = instanceFees[_instance];
+        if (rates.coverage != 0 || rates.claim != 0) return rates; // 2nd priority
+
+        rates = userSpecificFees[_user];
+        if (rates.coverage != 0 || rates.claim != 0) return rates; // 3rd priority
+
+        return defaultFees; // 4th priority
+    }
+
+    /// @dev Updates the default coverage and claim fees. 
+    ///     Fees may be set to zero initially, meaning no fees are applied for that type.
     /// @param _coverage New default coverage fee percentage.
     /// @param _claim New default claim fee percentage.
     function _setDefaultFees(uint16 _coverage, uint16 _claim) internal {
