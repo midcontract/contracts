@@ -4,8 +4,10 @@ pragma solidity 0.8.25;
 import { IEscrow, Enums } from "./IEscrow.sol";
 
 /// @title Fixed-Price Escrow Interface
-/// @notice Interface for managing fixed-price escrow agreements within the system, focusing on defining common events and errors.
-/// Defines only the essential components such as errors, events, struct and key function signatures related to fixed-price escrow operations.
+/// @notice Interface for managing fixed-price escrow agreements within the system, focusing on defining common events
+/// and errors.
+/// Defines only the essential components such as errors, events, struct and key function signatures related to
+/// fixed-price escrow operations.
 interface IEscrowFixedPrice is IEscrow {
     /// @notice Represents a deposit in the escrow.
     /// @param contractor The address of the contractor.
@@ -28,17 +30,12 @@ interface IEscrowFixedPrice is IEscrow {
     }
 
     /// @notice Emitted when a deposit is made.
-    /// @param sender The address of the sender.
+    /// @param depositor The address of the depositor.
     /// @param contractId The ID of the contract.
-    /// @param paymentToken The address of the payment token.
-    /// @param amount The amount deposited.
-    /// @param feeConfig The fee configuration.
+    /// @param totalDepositAmount The total amount deposited: principal + platform fee.
+    /// @param contractor The address of the contractor.
     event Deposited(
-        address indexed sender,
-        uint256 indexed contractId,
-        address paymentToken,
-        uint256 amount,
-        Enums.FeeConfig feeConfig
+        address indexed depositor, uint256 indexed contractId, uint256 totalDepositAmount, address indexed contractor
     );
 
     /// @notice Emitted when a submission is made.
@@ -61,19 +58,19 @@ interface IEscrowFixedPrice is IEscrow {
     /// @param amountAdditional The additional amount added.
     event Refilled(address indexed sender, uint256 indexed contractId, uint256 amountAdditional);
 
-    /// @notice Emitted when a claim is made.
-    /// @param contractor The address of the contractor.
-    /// @param contractId The ID of the contract.
-    /// @param paymentToken The address of the payment token.
-    /// @param amount The claimed amount.
-    event Claimed(address indexed contractor, uint256 indexed contractId, address paymentToken, uint256 amount);
+    /// @notice Emitted when a claim is made by the contractor.
+    /// @param contractor The address of the contractor making the claim.
+    /// @param contractId The ID of the contract associated with the claim.
+    /// @param amount The net amount claimed by the contractor, after deducting fees.
+    /// @param feeAmount The fee amount paid by the contractor for the claim.
+    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
 
-    /// @notice Emitted when a withdrawal is made.
-    /// @param withdrawer The address of the withdrawer.
-    /// @param contractId The ID of the contract.
-    /// @param paymentToken The address of the payment token.
-    /// @param amount The amount withdrawn.
-    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, address paymentToken, uint256 amount);
+    /// @notice Emitted when a withdrawal is made by a withdrawer.
+    /// @param withdrawer The address of the withdrawer executing the withdrawal.
+    /// @param contractId The ID of the contract associated with the withdrawal.
+    /// @param amount The net amount withdrawn by the withdrawer, after deducting fees.
+    /// @param feeAmount The fee amount paid by the withdrawer for the withdrawal, if applicable.
+    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
 
     /// @notice Emitted when a return is requested.
     /// @param sender The address of the sender.

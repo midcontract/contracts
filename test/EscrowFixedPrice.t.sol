@@ -46,20 +46,14 @@ contract EscrowFixedPriceUnitTest is Test {
         Enums.Status status;
     }
 
-    event Deposited(
-        address indexed sender,
-        uint256 indexed contractId,
-        address paymentToken,
-        uint256 amount,
-        Enums.FeeConfig feeConfig
-    );
-    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, address paymentToken, uint256 amount);
+    event Deposited(address indexed depositor, uint256 indexed contractId, uint256 amount, address indexed contractor);
+    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
     event Submitted(address indexed sender, uint256 indexed contractId);
     event Approved(
         address indexed approver, uint256 indexed contractId, uint256 amountApprove, address indexed receiver
     );
     event Refilled(address indexed sender, uint256 indexed contractId, uint256 amountAdditional);
-    event Claimed(address indexed contractor, uint256 indexed contractId, address paymentToken, uint256 amount);
+    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
     event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
     event RegistryUpdated(address registry);
     event AdminManagerUpdated(address adminManager);
@@ -154,7 +148,7 @@ contract EscrowFixedPriceUnitTest is Test {
         paymentToken.mint(client, 1.08 ether);
         paymentToken.approve(address(escrow), 1.08 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 1, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        emit Deposited(client, 1, 1.08 ether, address(0));
         escrow.deposit(deposit);
         vm.stopPrank();
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -294,7 +288,7 @@ contract EscrowFixedPriceUnitTest is Test {
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 1, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        emit Deposited(client, 1, 1.03 ether, contractor);
         escrow.deposit(deposit);
         vm.stopPrank();
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -377,7 +371,7 @@ contract EscrowFixedPriceUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, address(paymentToken), _amountToWithdraw + feeAmount);
+        emit Withdrawn(client, currentContractId, _amountToWithdraw + feeAmount, platformFee);
         escrow.withdraw(currentContractId);
         (,, uint256 _amountAfter,, uint256 _amountToWithdrawAfter,,, Enums.Status _statusAfter) =
             escrow.deposits(currentContractId);
@@ -414,7 +408,7 @@ contract EscrowFixedPriceUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, address(paymentToken), totalDepositAmount);
+        emit Withdrawn(client, currentContractId, totalDepositAmount, platformFee);
         escrow.withdraw(currentContractId);
         (,, uint256 _amountAfter,, uint256 _amountToWithdrawAfter,,, Enums.Status _statusAfter) =
             escrow.deposits(currentContractId);
@@ -449,7 +443,7 @@ contract EscrowFixedPriceUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, address(paymentToken), totalDepositAmount);
+        emit Withdrawn(client, currentContractId, totalDepositAmount, platformFee);
         escrow.withdraw(currentContractId);
         (,, uint256 _amountAfter,, uint256 _amountToWithdrawAfter,,, Enums.Status _statusAfter) =
             escrow.deposits(currentContractId);
@@ -484,7 +478,7 @@ contract EscrowFixedPriceUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, address(paymentToken), totalDepositAmount);
+        emit Withdrawn(client, currentContractId, totalDepositAmount, platformFee);
         escrow.withdraw(currentContractId);
         (,, uint256 _amountAfter,, uint256 _amountToWithdrawAfter,,, Enums.Status _statusAfter) =
             escrow.deposits(currentContractId);
@@ -914,7 +908,7 @@ contract EscrowFixedPriceUnitTest is Test {
     function test_claim_clientCoversAll() public {
         test_approve();
         uint256 currentContractId = escrow.getCurrentContractId();
-        (address _contractor, address _paymentToken, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
+        (address _contractor,, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_amount, 1 ether);
@@ -935,7 +929,7 @@ contract EscrowFixedPriceUnitTest is Test {
 
         vm.startPrank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit Claimed(contractor, currentContractId, _paymentToken, _amountToClaim);
+        emit Claimed(contractor, currentContractId, _amountToClaim, feeAmount);
         escrow.claim(currentContractId);
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
         assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee);
@@ -1337,7 +1331,7 @@ contract EscrowFixedPriceUnitTest is Test {
         dai.mint(client, initialTotalDepositAmount);
         dai.approve(address(escrow), initialTotalDepositAmount);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 1, address(dai), depositAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        emit Deposited(client, 1, initialTotalDepositAmount, address(0));
         escrow.deposit(deposit);
         vm.stopPrank();
 
@@ -1384,7 +1378,7 @@ contract EscrowFixedPriceUnitTest is Test {
         usdt.mint(client, initialTotalDepositAmount_usdt);
         usdt.approve(address(escrow), initialTotalDepositAmount_usdt);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 2, address(usdt), depositAmount_usdt, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        emit Deposited(client, 2, initialTotalDepositAmount_usdt, address(0));
         escrow.deposit(deposit);
         vm.stopPrank();
 
@@ -1414,7 +1408,7 @@ contract EscrowFixedPriceUnitTest is Test {
         usdt.mint(client, initialTotalDepositAmount_usdt);
         usdt.approve(address(escrow), initialTotalDepositAmount_usdt);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 3, address(usdt), depositAmount_usdt, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        emit Deposited(client, 3, initialTotalDepositAmount_usdt, address(0));
         escrow.deposit(deposit);
         vm.stopPrank();
 

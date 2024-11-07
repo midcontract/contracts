@@ -64,16 +64,18 @@ contract EscrowHourlyUnitTest is Test {
         address indexed sender,
         uint256 indexed contractId,
         uint256 weekId,
-        address paymentToken,
-        uint256 totalDepositAmount
+        uint256 totalDepositAmount,
+        address indexed contractor
     );
     event Approved(
         address indexed approver, uint256 indexed contractId, uint256 weekId, uint256 amountApprove, address receiver
     );
     event RefilledPrepayment(address indexed sender, uint256 indexed contractId, uint256 amount);
     event RefilledWeekPayment(address indexed sender, uint256 indexed contractId, uint256 weekId, uint256 amount);
-    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 weekId, uint256 amount);
-    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 amount);
+    event Claimed(
+        address indexed contractor, uint256 indexed contractId, uint256 weekId, uint256 amount, uint256 feeAmount
+    );
+    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
     event RegistryUpdated(address registry);
     event AdminManagerUpdated(address adminManager);
     event ReturnRequested(address indexed sender, uint256 indexed contractId);
@@ -209,7 +211,7 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 1, 0, address(paymentToken), 1.03 ether);
+        emit Deposited(client, 1, 0, 1.03 ether, contractor);
         escrow.deposit(currentContractId, deposit);
         vm.stopPrank();
         currentContractId = escrow.getCurrentContractId();
@@ -248,7 +250,7 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 1, 1, address(paymentToken), 1.03 ether);
+        emit Deposited(client, 1, 1, 1.03 ether, contractor);
         escrow.deposit(currentContractId, deposit);
         vm.stopPrank();
         // contract level
@@ -509,7 +511,7 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 1, 0, address(paymentToken), 1.03 ether);
+        emit Deposited(client, 1, 0, 1.03 ether, contractor);
         escrow.deposit(0, deposit);
         vm.stopPrank();
         currentContractId = escrow.getCurrentContractId();
@@ -1354,7 +1356,7 @@ contract EscrowHourlyUnitTest is Test {
 
         vm.startPrank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit Claimed(contractor, 1, weekId, claimAmount);
+        emit Claimed(contractor, 1, weekId, claimAmount, feeAmount);
         escrow.claim(1, weekId); //currentContractId
 
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount);
@@ -2271,7 +2273,7 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 1, 1, address(paymentToken), 1.03 ether);
+        emit Deposited(client, 1, 1, 1.03 ether, contractor);
         escrow.deposit(currentContractId, deposit);
         vm.stopPrank();
 
@@ -2303,7 +2305,7 @@ contract EscrowHourlyUnitTest is Test {
         paymentToken.mint(client, 2.06 ether);
         paymentToken.approve(address(escrow), 2.06 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 1, 0, address(paymentToken), 1.03 ether);
+        emit Deposited(client, 1, 0, 1.03 ether, contractor);
         // 1st deposit
         escrow.deposit(0, deposit);
         currentContractId = escrow.getCurrentContractId();
@@ -2396,7 +2398,7 @@ contract EscrowHourlyUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, _amountToWithdraw + feeAmount);
+        emit Withdrawn(client, currentContractId, _amountToWithdraw + feeAmount, platformFee);
         escrow.withdraw(currentContractId);
 
         (,, uint256 _prepaymentAmountAfter, uint256 _amountToWithdrawAfter,, Enums.Status _statusAfter) =
@@ -2440,7 +2442,7 @@ contract EscrowHourlyUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, _amountToWithdraw + feeAmount);
+        emit Withdrawn(client, currentContractId, _amountToWithdraw + feeAmount, platformFee);
         escrow.withdraw(currentContractId);
 
         (,, uint256 _prepaymentAmountAfter, uint256 _amountToWithdrawAfter,, Enums.Status _statusAfter) =
@@ -2485,7 +2487,7 @@ contract EscrowHourlyUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, totalDepositAmount);
+        emit Withdrawn(client, currentContractId, totalDepositAmount, platformFee);
         escrow.withdraw(currentContractId);
 
         (,, _prepaymentAmount, _amountToWithdraw,, _status) = escrow.contractDetails(currentContractId);
@@ -2529,7 +2531,7 @@ contract EscrowHourlyUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, totalDepositAmount);
+        emit Withdrawn(client, currentContractId, totalDepositAmount, platformFee);
         escrow.withdraw(currentContractId);
 
         (,, _prepaymentAmount, _amountToWithdraw,, _status) = escrow.contractDetails(currentContractId);

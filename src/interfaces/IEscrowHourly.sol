@@ -62,14 +62,14 @@ interface IEscrowHourly is IEscrow {
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
-    /// @param paymentToken The address of the payment token.
     /// @param totalDepositAmount The total amount deposited: principal + platform fee.
+    /// @param contractor The address of the contractor.
     event Deposited(
         address indexed sender,
         uint256 indexed contractId,
         uint256 weekId,
-        address paymentToken,
-        uint256 totalDepositAmount
+        uint256 totalDepositAmount,
+        address indexed contractor
     );
 
     /// @notice Emitted when an approval is made.
@@ -99,8 +99,11 @@ interface IEscrowHourly is IEscrow {
     /// @param contractor The address of the contractor.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
-    /// @param amount The claimed amount.
-    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 weekId, uint256 amount);
+    /// @param amount The net amount claimed by the contractor, after deducting fees.
+    /// @param feeAmount The fee amount paid by the contractor for the claim.
+    event Claimed(
+        address indexed contractor, uint256 indexed contractId, uint256 weekId, uint256 amount, uint256 feeAmount
+    );
 
     /// @notice Emitted when a contractor claims amounts from multiple weeks in one transaction.
     /// @param contractor The address of the contractor who performed the bulk claim.
@@ -123,8 +126,9 @@ interface IEscrowHourly is IEscrow {
     /// @notice Emitted when a withdrawal is made.
     /// @param withdrawer The address of the withdrawer.
     /// @param contractId The ID of the contract.
-    /// @param amount The amount withdrawn.
-    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 amount);
+    /// @param amount The net amount withdrawn, after deducting fees.
+    /// @param feeAmount The fee amount paid by the withdrawer for the withdrawal, if applicable.
+    event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
 
     /// @notice Emitted when a return is requested.
     /// @dev Currently focuses on the return of prepayment amounts but includes a `weekId` for potential future use

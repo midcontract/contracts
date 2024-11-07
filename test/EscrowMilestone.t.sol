@@ -57,12 +57,11 @@ contract EscrowMilestoneUnitTest is Test {
     }
 
     event Deposited(
-        address indexed sender,
+        address indexed depositor,
         uint256 indexed contractId,
-        uint256 indexed milestoneId,
-        address paymentToken,
+        uint256 milestoneId,
         uint256 amount,
-        Enums.FeeConfig feeConfig
+        address indexed contractor
     );
     event Submitted(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
     event Approved(
@@ -75,7 +74,13 @@ contract EscrowMilestoneUnitTest is Test {
     event Refilled(
         address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amountAdditional
     );
-    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount);
+    event Claimed(
+        address indexed contractor,
+        uint256 indexed contractId,
+        uint256 indexed milestoneId,
+        uint256 amount,
+        uint256 feeAmount
+    );
     event BulkClaimed(
         address indexed contractor,
         uint256 indexed contractId,
@@ -86,7 +91,11 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 totalClientFee
     );
     event Withdrawn(
-        address indexed withdrawer, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount
+        address indexed withdrawer,
+        uint256 indexed contractId,
+        uint256 indexed milestoneId,
+        uint256 amount,
+        uint256 feeAmount
     );
     event RegistryUpdated(address registry);
     event AdminManagerUpdated(address adminManager);
@@ -218,7 +227,7 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 1, 0, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        emit Deposited(client, 1, 0, 1 ether, address(0));
         escrow.deposit(0, address(paymentToken), milestones);
         vm.stopPrank();
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -261,7 +270,7 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 1, 1, address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY);
+        emit Deposited(client, 1, 1, 1 ether, address(0));
         escrow.deposit(currentContractId, address(paymentToken), milestones);
         vm.stopPrank();
         (
@@ -1074,7 +1083,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.startPrank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit Claimed(contractor, currentContractId, milestoneId, claimAmount);
+        emit Claimed(contractor, currentContractId, milestoneId, claimAmount, feeAmount);
         escrow.claim(currentContractId, milestoneId);
 
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
@@ -1986,7 +1995,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, milestoneId, _amountToWithdraw + feeAmount);
+        emit Withdrawn(client, currentContractId, milestoneId, _amountToWithdraw + feeAmount, platformFee);
         escrow.withdraw(currentContractId, milestoneId);
         (, uint256 _amountAfter, uint256 _amountToWithdrawAfter,,,, Enums.Status _statusAfter) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -2025,7 +2034,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, milestoneId, totalDepositAmount);
+        emit Withdrawn(client, currentContractId, milestoneId, totalDepositAmount, platformFee);
         escrow.withdraw(currentContractId, milestoneId);
         (, uint256 _amountAfter, uint256 _amountToWithdrawAfter,,,, Enums.Status _statusAfter) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -2063,7 +2072,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, milestoneId, totalDepositAmount);
+        emit Withdrawn(client, currentContractId, milestoneId, totalDepositAmount, platformFee);
         escrow.withdraw(currentContractId, milestoneId);
         (, uint256 _amountAfter, uint256 _amountToWithdrawAfter,,,, Enums.Status _statusAfter) =
             escrow.contractMilestones(currentContractId, milestoneId);
@@ -2099,7 +2108,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit Withdrawn(client, currentContractId, 0, totalDepositAmount);
+        emit Withdrawn(client, currentContractId, 0, totalDepositAmount, platformFee);
         escrow.withdraw(currentContractId, 0);
         (, uint256 _amountAfter,, uint256 _amountToWithdrawAfter,,, Enums.Status _statusAfter) =
             escrow.contractMilestones(currentContractId, 0);

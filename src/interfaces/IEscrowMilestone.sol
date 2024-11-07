@@ -5,18 +5,21 @@ import { IEscrow, Enums } from "./IEscrow.sol";
 
 /// @title Milestone Escrow Interface
 /// @notice Defines the contract interface necessary for managing milestone-based escrow agreements.
-/// Focuses on the declaration of structs, events, errors, and essential function signatures to support milestone operations within the escrow system.
+/// Focuses on the declaration of structs, events, errors, and essential function signatures to support milestone
+/// operations within the escrow system.
 interface IEscrowMilestone is IEscrow {
     /// @notice Error for when no deposits are provided in a function call that expects at least one.
     error Escrow__NoDepositsProvided();
 
-    /// @notice Error for when too many deposit entries are provided, exceeding the allowed limit for a single transaction.
+    /// @notice Error for when too many deposit entries are provided, exceeding the allowed limit for a single
+    /// transaction.
     error Escrow__TooManyMilestones();
 
     /// @notice Error for when an invalid contract ID is provided to a function expecting a valid existing contract ID.
     error Escrow__InvalidContractId();
 
-    /// @notice Error for when an invalid milestone ID is provided to a function expecting a valid existing milestone ID.
+    /// @notice Error for when an invalid milestone ID is provided to a function expecting a valid existing milestone
+    /// ID.
     error Escrow__InvalidMilestoneId();
 
     /// @notice Error for when the provided milestone limit is zero or exceeds the maximum allowed.
@@ -51,19 +54,17 @@ interface IEscrowMilestone is IEscrow {
     }
 
     /// @notice Emitted when a deposit is made.
-    /// @param sender The address of the sender.
+    /// @param depositor The address of the depositor.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    /// @param paymentToken The address of the payment token.
     /// @param amount The amount deposited.
-    /// @param feeConfig The fee configuration.
+    /// @param contractor The address of the contractor.
     event Deposited(
-        address indexed sender,
+        address indexed depositor,
         uint256 indexed contractId,
-        uint256 indexed milestoneId,
-        address paymentToken,
+        uint256 milestoneId,
         uint256 amount,
-        Enums.FeeConfig feeConfig
+        address indexed contractor
     );
 
     /// @notice Emitted when a submission is made.
@@ -99,8 +100,15 @@ interface IEscrowMilestone is IEscrow {
     /// @param contractor The address of the contractor.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    /// @param amount The claimed amount.
-    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount);
+    /// @param amount The net amount claimed by the contractor, after deducting fees.
+    /// @param feeAmount The fee amount paid by the contractor for the claim.
+    event Claimed(
+        address indexed contractor,
+        uint256 indexed contractId,
+        uint256 indexed milestoneId,
+        uint256 amount,
+        uint256 feeAmount
+    );
 
     /// @notice Emitted when a contractor claims amounts from multiple milestones in one transaction.
     /// @param contractor The address of the contractor who performed the bulk claim.
@@ -124,9 +132,14 @@ interface IEscrowMilestone is IEscrow {
     /// @param withdrawer The address of the withdrawer.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    /// @param amount The amount withdrawn.
+    /// @param amount The net amount withdrawn, after deducting fees.
+    /// @param feeAmount The fee amount paid by the withdrawer for the withdrawal, if applicable.
     event Withdrawn(
-        address indexed withdrawer, uint256 indexed contractId, uint256 indexed milestoneId, uint256 amount
+        address indexed withdrawer,
+        uint256 indexed contractId,
+        uint256 indexed milestoneId,
+        uint256 amount,
+        uint256 feeAmount
     );
 
     /// @notice Emitted when a return is requested.

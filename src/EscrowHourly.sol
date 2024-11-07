@@ -127,7 +127,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalDepositAmount);
 
         // Emit an event for the deposit of each week.
-        emit Deposited(msg.sender, contractId, weeklyEntries[contractId].length - 1, C.paymentToken, totalDepositAmount);
+        emit Deposited(msg.sender, contractId, weeklyEntries[contractId].length - 1, totalDepositAmount, C.contractor);
     }
 
     /// @notice Approves a deposit by the client.
@@ -293,7 +293,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         // Check if all weeks are completed and update the contract status if true.
         if (_verifyIfAllWeeksCompleted(_contractId)) C.status = Enums.Status.COMPLETED;
 
-        emit Claimed(msg.sender, _contractId, _weekId, claimAmount);
+        emit Claimed(msg.sender, _contractId, _weekId, claimAmount, feeAmount);
     }
 
     /// @notice Allows the contractor to claim for multiple weeks in a specified range if those weeks are approved.
@@ -386,7 +386,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             _sendPlatformFee(C.paymentToken, platformFee);
         }
 
-        emit Withdrawn(msg.sender, _contractId, withdrawAmount);
+        emit Withdrawn(msg.sender, _contractId, withdrawAmount, platformFee);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -496,6 +496,73 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     }
 
     /*//////////////////////////////////////////////////////////////
+                    MANAGER & EXTERNAL VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Transfers ownership of the client account to a new account.
+    /// @dev Can only be called by the account recovery module registered in the system.
+    /// @param _newAccount The address to which the client ownership will be transferred.
+    function transferClientOwnership(address _newAccount) external {
+        if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
+
+        // Emit the ownership transfer event before changing the state to reflect the previous state.
+        emit ClientOwnershipTransferred(client, _newAccount);
+
+        // Update the client address to the new owner's address.
+        client = _newAccount;
+    }
+
+    /// @notice Transfers ownership of the contractor account to a new account for a specified contract.
+    /// @dev Can only be called by the account recovery module registered in the system.
+    /// @param _contractId The identifier of the contract for which contractor ownership is being transferred.
+    /// @param _newAccount The address to which the contractor ownership will be transferred.
+    function transferContractorOwnership(uint256 _contractId, address _newAccount) external {
+        if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
+
+        ContractDetails storage C = contractDetails[_contractId];
+
+        // Emit the ownership transfer event before changing the state to reflect the previous state.
+        emit ContractorOwnershipTransferred(_contractId, C.contractor, _newAccount);
+
+        // Update the contractor address to the new owner's address.
+        C.contractor = _newAccount;
+    }
+
+    /// @notice Updates the registry address used for fetching escrow implementations.
+    /// @param _registry New registry address.
+    function updateRegistry(address _registry) external {
+        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
+        registry = IEscrowRegistry(_registry);
+        emit RegistryUpdated(_registry);
+    }
+
+    /// @notice Updates the address of the admin manager contract.
+    /// @dev Restricts the function to be callable only by the current owner of the admin manager.
+    /// @param _adminManager The new address of the admin manager contract.
+    function updateAdminManager(address _adminManager) external {
+        if (msg.sender != IEscrowAdminManager(adminManager).owner()) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (_adminManager == address(0)) revert Escrow__ZeroAddressProvided();
+        adminManager = IEscrowAdminManager(_adminManager);
+        emit AdminManagerUpdated(_adminManager);
+    }
+
+    /// @notice Retrieves the current contract ID.
+    /// @return The current contract ID.
+    function getCurrentContractId() external view returns (uint256) {
+        return currentContractId;
+    }
+
+    /// @notice Retrieves the number of weeks for a given contract ID.
+    /// @param _contractId The contract ID for which to retrieve the week count.
+    /// @return The number of weeks associated with the given contract ID.
+    function getWeeksCount(uint256 _contractId) external view returns (uint256) {
+        return weeklyEntries[_contractId].length;
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
@@ -593,72 +660,5 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             address recoveredSigner = ECDSA.recover(ethSignedHash, _signature);
             return recoveredSigner == msg.sender;
         }
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                    EXTERNAL VIEW & MANAGER FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Retrieves the current contract ID.
-    /// @return The current contract ID.
-    function getCurrentContractId() external view returns (uint256) {
-        return currentContractId;
-    }
-
-    /// @notice Retrieves the number of weeks for a given contract ID.
-    /// @param _contractId The contract ID for which to retrieve the week count.
-    /// @return The number of weeks associated with the given contract ID.
-    function getWeeksCount(uint256 _contractId) external view returns (uint256) {
-        return weeklyEntries[_contractId].length;
-    }
-
-    /// @notice Transfers ownership of the client account to a new account.
-    /// @dev Can only be called by the account recovery module registered in the system.
-    /// @param _newAccount The address to which the client ownership will be transferred.
-    function transferClientOwnership(address _newAccount) external {
-        if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
-        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
-
-        // Emit the ownership transfer event before changing the state to reflect the previous state.
-        emit ClientOwnershipTransferred(client, _newAccount);
-
-        // Update the client address to the new owner's address.
-        client = _newAccount;
-    }
-
-    /// @notice Transfers ownership of the contractor account to a new account for a specified contract.
-    /// @dev Can only be called by the account recovery module registered in the system.
-    /// @param _contractId The identifier of the contract for which contractor ownership is being transferred.
-    /// @param _newAccount The address to which the contractor ownership will be transferred.
-    function transferContractorOwnership(uint256 _contractId, address _newAccount) external {
-        if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
-        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
-
-        ContractDetails storage C = contractDetails[_contractId];
-
-        // Emit the ownership transfer event before changing the state to reflect the previous state.
-        emit ContractorOwnershipTransferred(_contractId, C.contractor, _newAccount);
-
-        // Update the contractor address to the new owner's address.
-        C.contractor = _newAccount;
-    }
-
-    /// @notice Updates the registry address used for fetching escrow implementations.
-    /// @param _registry New registry address.
-    function updateRegistry(address _registry) external {
-        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
-        if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
-        registry = IEscrowRegistry(_registry);
-        emit RegistryUpdated(_registry);
-    }
-
-    /// @notice Updates the address of the admin manager contract.
-    /// @dev Restricts the function to be callable only by the current owner of the admin manager.
-    /// @param _adminManager The new address of the admin manager contract.
-    function updateAdminManager(address _adminManager) external {
-        if (msg.sender != IEscrowAdminManager(adminManager).owner()) revert Escrow__UnauthorizedAccount(msg.sender);
-        if (_adminManager == address(0)) revert Escrow__ZeroAddressProvided();
-        adminManager = IEscrowAdminManager(_adminManager);
-        emit AdminManagerUpdated(_adminManager);
     }
 }

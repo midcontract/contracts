@@ -141,7 +141,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
             D.winner = Enums.Winner.NONE; // Initially set to NONE.
 
             // Emit an event to indicate a successful deposit of a milestone.
-            emit Deposited(msg.sender, contractId, milestoneId, _paymentToken, M.amount, M.feeConfig);
+            emit Deposited(msg.sender, contractId, milestoneId, M.amount, M.contractor);
 
             unchecked {
                 i++;
@@ -284,7 +284,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         if (M.amount == 0) M.status = Enums.Status.COMPLETED;
 
         // Emit an event to log the claim.
-        emit Claimed(msg.sender, _contractId, _milestoneId, claimAmount);
+        emit Claimed(msg.sender, _contractId, _milestoneId, claimAmount, feeAmount);
     }
 
     /// @notice Claims all approved amounts by the contractor for a given contract.
@@ -400,7 +400,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         M.status = Enums.Status.CANCELED; // Mark the deposit as canceled after funds are withdrawn.
 
         // Emit an event to log the withdraw.
-        emit Withdrawn(msg.sender, _contractId, _milestoneId, withdrawAmount);
+        emit Withdrawn(msg.sender, _contractId, _milestoneId, withdrawAmount, platformFee);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -514,8 +514,101 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     }
 
     /*//////////////////////////////////////////////////////////////
+                    MANAGER & EXTERNAL VIEW FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Transfers ownership of the client account to a new account.
+    /// @dev Can only be called by the account recovery module registered in the system.
+    /// @param _newAccount The address to which the client ownership will be transferred.
+    function transferClientOwnership(address _newAccount) external {
+        if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
+
+        // Emit the ownership transfer event before changing the state to reflect the previous state.
+        emit ClientOwnershipTransferred(client, _newAccount);
+
+        // Update the client address to the new owner's address.
+        client = _newAccount;
+    }
+
+    /// @notice Transfers ownership of the contractor account to a new account for a specified contract.
+    /// @dev Can only be called by the account recovery module registered in the system.
+    /// @param _contractId The identifier of the contract for which contractor ownership is being transferred.
+    /// @param _milestoneId The identifier of the milestone for which contractor ownership is being transferred.
+    /// @param _newAccount The address to which the contractor ownership will be transferred.
+    function transferContractorOwnership(uint256 _contractId, uint256 _milestoneId, address _newAccount) external {
+        if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
+
+        Milestone storage M = contractMilestones[_contractId][_milestoneId];
+
+        // Emit the ownership transfer event before changing the state to reflect the previous state.
+        emit ContractorOwnershipTransferred(_contractId, _milestoneId, M.contractor, _newAccount);
+
+        // Update the contractor address to the new owner's address.
+        M.contractor = _newAccount;
+    }
+
+    /// @notice Updates the registry address used for fetching escrow implementations.
+    /// @param _registry New registry address.
+    function updateRegistry(address _registry) external {
+        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
+        registry = IEscrowRegistry(_registry);
+        emit RegistryUpdated(_registry);
+    }
+
+    /// @notice Updates the address of the admin manager contract.
+    /// @dev Restricts the function to be callable only by the current owner of the admin manager.
+    /// @param _adminManager The new address of the admin manager contract.
+    function updateAdminManager(address _adminManager) external {
+        if (msg.sender != IEscrowAdminManager(adminManager).owner()) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (_adminManager == address(0)) revert Escrow__ZeroAddressProvided();
+        adminManager = IEscrowAdminManager(_adminManager);
+        emit AdminManagerUpdated(_adminManager);
+    }
+
+    /// @notice Sets the maximum number of milestones that can be added in a single transaction.
+    /// @dev This limit helps prevent gas limit issues during bulk operations and can be adjusted by the contract admin.
+    /// @param _maxMilestones The new maximum number of milestones.
+    function setMaxMilestones(uint256 _maxMilestones) external {
+        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
+        if (_maxMilestones == 0 || _maxMilestones > 20) revert Escrow__InvalidMilestoneLimit();
+        maxMilestones = _maxMilestones;
+        emit MaxMilestonesSet(_maxMilestones);
+    }
+
+    /// @notice Retrieves the current contract ID.
+    /// @return The current contract ID.
+    function getCurrentContractId() external view returns (uint256) {
+        return currentContractId;
+    }
+
+    /// @notice Retrieves the number of milestones for a given contract ID.
+    /// @param _contractId The contract ID for which to retrieve the milestone count.
+    /// @return The number of milestones associated with the given contract ID.
+    function getMilestoneCount(uint256 _contractId) external view returns (uint256) {
+        return contractMilestones[_contractId].length;
+    }
+
+    /// @notice Generates a hash for the contractor data.
+    /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
+    /// @param _data Contractor data.
+    /// @param _salt Salt value for generating the hash.
+    /// @return Hash value of the contractor data.
+    function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
+        return _getContractorDataHash(_data, _salt);
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice Generates a hash for the contractor data.
+    /// @dev This internal function computes the hash value for the contractor data using the provided data and salt.
+    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_data, _salt));
+    }
 
     /// @notice Computes the total deposit amount and the applied fee.
     /// @dev This internal function calculates the total deposit amount and the fee applied based on the client, deposit
@@ -595,98 +688,5 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
             address recoveredSigner = ECDSA.recover(ethSignedHash, _signature);
             return recoveredSigner == msg.sender;
         }
-    }
-
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This internal function computes the hash value for the contractor data using the provided data and salt.
-    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_data, _salt));
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                    EXTERNAL VIEW & MANAGER FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
-    /// @param _data Contractor data.
-    /// @param _salt Salt value for generating the hash.
-    /// @return Hash value of the contractor data.
-    function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
-        return _getContractorDataHash(_data, _salt);
-    }
-
-    /// @notice Retrieves the current contract ID.
-    /// @return The current contract ID.
-    function getCurrentContractId() external view returns (uint256) {
-        return currentContractId;
-    }
-
-    /// @notice Retrieves the number of milestones for a given contract ID.
-    /// @param _contractId The contract ID for which to retrieve the milestone count.
-    /// @return The number of milestones associated with the given contract ID.
-    function getMilestoneCount(uint256 _contractId) external view returns (uint256) {
-        return contractMilestones[_contractId].length;
-    }
-
-    /// @notice Transfers ownership of the client account to a new account.
-    /// @dev Can only be called by the account recovery module registered in the system.
-    /// @param _newAccount The address to which the client ownership will be transferred.
-    function transferClientOwnership(address _newAccount) external {
-        if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
-        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
-
-        // Emit the ownership transfer event before changing the state to reflect the previous state.
-        emit ClientOwnershipTransferred(client, _newAccount);
-
-        // Update the client address to the new owner's address.
-        client = _newAccount;
-    }
-
-    /// @notice Transfers ownership of the contractor account to a new account for a specified contract.
-    /// @dev Can only be called by the account recovery module registered in the system.
-    /// @param _contractId The identifier of the contract for which contractor ownership is being transferred.
-    /// @param _milestoneId The identifier of the milestone for which contractor ownership is being transferred.
-    /// @param _newAccount The address to which the contractor ownership will be transferred.
-    function transferContractorOwnership(uint256 _contractId, uint256 _milestoneId, address _newAccount) external {
-        if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
-        if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
-
-        Milestone storage M = contractMilestones[_contractId][_milestoneId];
-
-        // Emit the ownership transfer event before changing the state to reflect the previous state.
-        emit ContractorOwnershipTransferred(_contractId, _milestoneId, M.contractor, _newAccount);
-
-        // Update the contractor address to the new owner's address.
-        M.contractor = _newAccount;
-    }
-
-    /// @notice Updates the registry address used for fetching escrow implementations.
-    /// @param _registry New registry address.
-    function updateRegistry(address _registry) external {
-        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
-        if (_registry == address(0)) revert Escrow__ZeroAddressProvided();
-        registry = IEscrowRegistry(_registry);
-        emit RegistryUpdated(_registry);
-    }
-
-    /// @notice Updates the address of the admin manager contract.
-    /// @dev Restricts the function to be callable only by the current owner of the admin manager.
-    /// @param _adminManager The new address of the admin manager contract.
-    function updateAdminManager(address _adminManager) external {
-        if (msg.sender != IEscrowAdminManager(adminManager).owner()) revert Escrow__UnauthorizedAccount(msg.sender);
-        if (_adminManager == address(0)) revert Escrow__ZeroAddressProvided();
-        adminManager = IEscrowAdminManager(_adminManager);
-        emit AdminManagerUpdated(_adminManager);
-    }
-
-    /// @notice Sets the maximum number of milestones that can be added in a single transaction.
-    /// @dev This limit helps prevent gas limit issues during bulk operations and can be adjusted by the contract admin.
-    /// @param _maxMilestones The new maximum number of milestones.
-    function setMaxMilestones(uint256 _maxMilestones) external {
-        if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
-        if (_maxMilestones == 0 || _maxMilestones > 20) revert Escrow__InvalidMilestoneLimit();
-        maxMilestones = _maxMilestones;
-        emit MaxMilestonesSet(_maxMilestones);
     }
 }
