@@ -235,7 +235,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         ContractDetails storage C = contractDetails[_contractId];
         if (!registry.paymentTokens(C.paymentToken)) revert Escrow__NotSupportedPaymentToken();
 
-        if (C.status == Enums.Status.COMPLETED) C.status = Enums.Status.APPROVED;
+        if (C.status == Enums.Status.COMPLETED || C.status == Enums.Status.CANCELED) C.status = Enums.Status.APPROVED;
 
         (uint256 totalAmountAdditional,) = _computeDepositAmountAndFee(_contractId, msg.sender, _amount, C.feeConfig);
         SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalAmountAdditional);
