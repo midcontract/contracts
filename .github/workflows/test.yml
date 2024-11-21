@@ -1,6 +1,10 @@
 name: test
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main # Trigger on pushes to the main branch
 
 env:
   FOUNDRY_PROFILE: ci
