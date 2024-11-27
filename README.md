@@ -1,6 +1,9 @@
-# <h1 align="center"> Midcontract </h1>
+<h1> Midcontract </h1>
 
 <br>
+
+[![Tests](https://github.com/midcontract/contracts/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/midcontract/contracts/actions/workflows/test.yml) ![Foundry](https://img.shields.io/badge/Built%20with-Foundry-FFDB1C.svg) ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+
 
 ## Overview
 This repository contains the Smart Contract Project for a comprehensive escrow system designed to handle various types of agreements, including fixed-price, hourly, and milestone-based contracts. The system is structured to facilitate secure and transparent transactions between parties, ensuring compliance and trust through programmable escrow logic.
@@ -88,4 +91,4 @@ open out/coverage/index.html
 
 ## Licensing
 
-The primary license for the Midcontract platform is MIT, see [`LICENSE`](LICENSE)
+The primary license for the Midcontract project is MIT, see [`LICENSE`](LICENSE)
