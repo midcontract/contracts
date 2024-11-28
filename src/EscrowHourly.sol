@@ -313,7 +313,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         uint256 totalFeeAmount = 0;
         uint256 totalClientFee = 0;
 
-        for (uint256 i = _startWeekId; i <= _endWeekId; i++) {
+        for (uint256 i = _startWeekId; i <= _endWeekId; ++i) {
             WeeklyEntry storage W = weeklyEntries[_contractId][i];
 
             // Skip if not approved or nothing to claim.

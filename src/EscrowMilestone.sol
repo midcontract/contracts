@@ -109,7 +109,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
                 _computeDepositAmountAndFee(contractId, msg.sender, _milestones[i].amount, _milestones[i].feeConfig);
             totalAmountNeeded += totalDepositAmount;
             unchecked {
-                i++;
+                ++i;
             }
         }
 
@@ -144,8 +144,8 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
             emit Deposited(msg.sender, contractId, milestoneId, M.amount, M.contractor);
 
             unchecked {
-                i++;
-                milestoneId++;
+                ++i;
+                ++milestoneId;
             }
         }
     }
@@ -305,7 +305,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         Milestone[] storage milestones = contractMilestones[_contractId];
         MilestoneDetails storage D = milestoneDetails[_contractId][0]; // Assume same payment token for all milestones.
 
-        for (uint256 i = _startMilestoneId; i <= _endMilestoneId; i++) {
+        for (uint256 i = _startMilestoneId; i <= _endMilestoneId; ++i) {
             Milestone storage M = milestones[i];
 
             if (M.contractor != msg.sender) continue; // Only process milestones for the calling contractor.
