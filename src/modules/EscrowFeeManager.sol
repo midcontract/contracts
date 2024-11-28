@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
 import { IEscrowFeeManager } from "../interfaces/IEscrowFeeManager.sol";
-import { Enums } from "../libs/Enums.sol";
+import { Enums } from "../common/Enums.sol";
 
 /// @title Escrow Fee Manager
 /// @notice Manages fee rates and calculations for escrow transactions.
@@ -201,7 +201,7 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     }
 
     /// @notice Retrieves the applicable fee rates based on priority for a given contract, instance, and user.
-    /// @dev This function returns the highest-priority fee rates among contract-specific, instance-specific, 
+    /// @dev This function returns the highest-priority fee rates among contract-specific, instance-specific,
     ///     user-specific, or default fees based on the configured hierarchy.
     /// @param _instance The address of the instance under which the contract falls.
     /// @param _contractId The unique identifier for the contract to which the fees apply.
@@ -234,7 +234,7 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
         return defaultFees; // 4th priority
     }
 
-    /// @dev Updates the default coverage and claim fees. 
+    /// @dev Updates the default coverage and claim fees.
     ///     Fees may be set to zero initially, meaning no fees are applied for that type.
     /// @param _coverage New default coverage fee percentage.
     /// @param _claim New default claim fee percentage.

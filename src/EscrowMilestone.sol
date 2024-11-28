@@ -8,8 +8,8 @@ import { IEscrowAdminManager } from "./interfaces/IEscrowAdminManager.sol";
 import { IEscrowMilestone, IEscrow } from "./interfaces/IEscrowMilestone.sol";
 import { IEscrowFeeManager } from "./interfaces/IEscrowFeeManager.sol";
 import { IEscrowRegistry } from "./interfaces/IEscrowRegistry.sol";
-import { ECDSA, ERC1271 } from "./libs/ERC1271.sol";
-import { Enums } from "./libs/Enums.sol";
+import { ECDSA, ERC1271 } from "./common/ERC1271.sol";
+import { Enums } from "./common/Enums.sol";
 
 /// @title Milestone Management for Escrow Agreements
 /// @notice Facilitates the management of milestones within escrow contracts, including the creation, modification, and

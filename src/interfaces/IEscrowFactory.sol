@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { Enums } from "../libs/Enums.sol";
+import { Enums } from "../common/Enums.sol";
 
 /// @title Interface for the Escrow Factory
 /// @dev Interface defining the functionality for an escrow factory, responsible for deploying new escrow contracts.

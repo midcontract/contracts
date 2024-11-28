@@ -11,7 +11,7 @@ import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
 import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
 import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
 import { IEscrow } from "src/interfaces/IEscrow.sol";
-import { Enums } from "src/libs/Enums.sol";
+import { Enums } from "src/common/Enums.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
 
 contract EscrowAccountRecoveryUnitTest is Test {

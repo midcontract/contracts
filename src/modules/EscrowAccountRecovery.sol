@@ -6,7 +6,7 @@ import { IEscrowAdminManager } from "../interfaces/IEscrowAdminManager.sol";
 import { IEscrowFixedPrice } from "../interfaces/IEscrowFixedPrice.sol";
 import { IEscrowHourly } from "../interfaces/IEscrowHourly.sol";
 import { IEscrowMilestone } from "../interfaces/IEscrowMilestone.sol";
-import { Enums } from "../libs/Enums.sol";
+import { Enums } from "../common/Enums.sol";
 
 /// @title Escrow Account Recovery
 /// @notice Provides mechanisms for recovering access to the client or contractor accounts
@@ -115,7 +115,8 @@ contract EscrowAccountRecovery {
     /// @param _accountType Type of the account being recovered, either CLIENT or CONTRACTOR.
     /// @param _escrow Address of the escrow involved in the recovery.
     /// @param _oldAccount Old account address being replaced in the recovery.
-    /// @dev This function checks that the recovery period has elapsed and that the recovery is confirmed before executing it.
+    /// @dev This function checks that the recovery period has elapsed and that the recovery is confirmed before
+    /// executing it.
     function executeRecovery(Enums.AccountTypeRecovery _accountType, address _escrow, address _oldAccount) external {
         bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, msg.sender);
         RecoveryData storage data = recoveryData[recoveryHash];
@@ -149,7 +150,8 @@ contract EscrowAccountRecovery {
     /// @param escrowType The type of escrow contract involved in the transfer.
     /// @param escrow The address of the escrow contract.
     /// @param contractId The identifier of the contract within the escrow, relevant for contractor transfers.
-    /// @param milestoneId The identifier of the milestone within the contract, relevant for milestone-specific contractor transfers.
+    /// @param milestoneId The identifier of the milestone within the contract, relevant for milestone-specific
+    /// contractor transfers.
     /// @param accountType The type of account to be transferred, can be either CLIENT or CONTRACTOR.
     function _transferContractOwnership(
         Enums.EscrowType escrowType,

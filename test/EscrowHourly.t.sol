@@ -7,7 +7,7 @@ import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
 import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
 import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
 import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
-import { Enums } from "src/libs/Enums.sol";
+import { Enums } from "src/common/Enums.sol";
 import { IEscrow } from "src/interfaces/IEscrow.sol";
 import { MockRegistry } from "test/mocks/MockRegistry.sol";
 import { MockUSDT } from "test/mocks/MockUSDT.sol";

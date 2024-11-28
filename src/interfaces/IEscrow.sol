@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { Enums } from "../libs/Enums.sol";
+import { Enums } from "../common/Enums.sol";
 
 /// @title Escrow Interface
 /// @notice Provides the foundational escrow functionalities common across various types of escrow contracts.

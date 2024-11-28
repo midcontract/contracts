@@ -7,7 +7,7 @@ import { EscrowFeeManager, IEscrowFeeManager, OwnedThreeStep } from "src/modules
 import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
 import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
 import { EscrowRegistry } from "src/modules/EscrowRegistry.sol";
-import { Enums } from "src/libs/Enums.sol";
+import { Enums } from "src/common/Enums.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
 
 contract EscrowFeeManagerUnitTest is Test {

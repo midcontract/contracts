@@ -11,7 +11,7 @@ import { EscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
 import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
 import { EthSepoliaConfig } from "config/EthSepoliaConfig.sol";
 import { PolAmoyConfig } from "config/PolAmoyConfig.sol";
-import { Enums } from "src/libs/Enums.sol";
+import { Enums } from "src/common/Enums.sol";
 import { MockDAI } from "test/mocks/MockDAI.sol";
 import { MockUSDT } from "test/mocks/MockUSDT.sol";
 

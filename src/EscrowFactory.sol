@@ -8,7 +8,7 @@ import { Pausable } from "@openzeppelin/utils/Pausable.sol";
 import { IEscrow } from "./interfaces/IEscrow.sol";
 import { IEscrowFactory } from "./interfaces/IEscrowFactory.sol";
 import { IEscrowRegistry } from "./interfaces/IEscrowRegistry.sol";
-import { Enums } from "./libs/Enums.sol";
+import { Enums } from "./common/Enums.sol";
 
 /// @title EscrowFixedPrice Factory Contract
 /// @dev This contract is used for creating new escrow contract instances using the clone factory pattern.
@@ -38,8 +38,10 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
     /// @param _adminManager Address of the adminManager contract of the escrow platform.
     /// @param _registry Address of the registry contract to fetch escrow implementation.
     /// @return deployedProxy The address of the newly deployed escrow proxy.
-    /// @dev This function clones the specified escrow template and initializes it with specific parameters for the project.
-    /// It uses the clone factory pattern for deployment to minimize gas costs and manage multiple escrow contract versions.
+    /// @dev This function clones the specified escrow template and initializes it with specific parameters for the
+    /// project.
+    /// It uses the clone factory pattern for deployment to minimize gas costs and manage multiple escrow contract
+    /// versions.
     function deployEscrow(Enums.EscrowType _escrowType, address _client, address _adminManager, address _registry)
         external
         whenNotPaused
@@ -64,7 +66,8 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
     /// @dev Internal function to determine the implementation address for a given type of escrow.
     /// @param _escrowType The type of escrow contract (FixedPrice, Milestone, or Hourly).
     /// @return escrowImpl The address of the escrow implementation.
-    /// @dev This internal helper function queries the registry to obtain the correct implementation address for cloning.
+    /// @dev This internal helper function queries the registry to obtain the correct implementation address for
+    /// cloning.
     function _getEscrowImplementation(Enums.EscrowType _escrowType) internal view returns (address escrowImpl) {
         if (_escrowType == Enums.EscrowType.FIXED_PRICE) {
             return IEscrowRegistry(registry).escrowFixedPrice();

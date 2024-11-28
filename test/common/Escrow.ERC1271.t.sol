@@ -8,7 +8,7 @@ import { SignatureChecker, IERC1271 } from "@openzeppelin/utils/cryptography/Sig
 import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
 import { EscrowMilestone, IEscrowMilestone } from "src/EscrowMilestone.sol";
 import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
-import { ERC1271, ECDSA } from "src/libs/ERC1271.sol";
+import { ERC1271, ECDSA } from "src/common/ERC1271.sol";
 
 contract EscrowERC1271UnitTest is Test {
     using ECDSA for bytes32;

@@ -8,8 +8,8 @@ import { IEscrowAdminManager } from "./interfaces/IEscrowAdminManager.sol";
 import { IEscrowFixedPrice } from "./interfaces/IEscrowFixedPrice.sol";
 import { IEscrowFeeManager } from "./interfaces/IEscrowFeeManager.sol";
 import { IEscrowRegistry } from "./interfaces/IEscrowRegistry.sol";
-import { ECDSA, ERC1271 } from "./libs/ERC1271.sol";
-import { Enums } from "./libs/Enums.sol";
+import { ECDSA, ERC1271 } from "./common/ERC1271.sol";
+import { Enums } from "./common/Enums.sol";
 
 /// @title Escrow for Fixed-Price Contracts
 /// @notice Manages lifecycle of fixed-price contracts including deposits, approvals, submissions, claims,

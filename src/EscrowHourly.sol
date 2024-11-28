@@ -8,8 +8,8 @@ import { IEscrowAdminManager } from "./interfaces/IEscrowAdminManager.sol";
 import { IEscrowHourly } from "./interfaces/IEscrowHourly.sol";
 import { IEscrowFeeManager } from "./interfaces/IEscrowFeeManager.sol";
 import { IEscrowRegistry } from "./interfaces/IEscrowRegistry.sol";
-import { ECDSA, ERC1271 } from "./libs/ERC1271.sol";
-import { Enums } from "./libs/Enums.sol";
+import { ECDSA, ERC1271 } from "./common/ERC1271.sol";
+import { Enums } from "./common/Enums.sol";
 
 /// @title Weekly Billing and Payment Management for Escrow Hourly
 /// @notice Manages the creation and addition of multiple weekly bills to escrow contracts.
