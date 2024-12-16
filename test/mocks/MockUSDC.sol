@@ -3,11 +3,11 @@ pragma solidity 0.8.25;
 
 import { ERC20 } from "@solmate/tokens/ERC20.sol";
 
-contract MockDAI is ERC20 {
-    constructor() ERC20("MockDAI", "MockDAI", 18) {}
+contract MockUSDC is ERC20 {
+    constructor() ERC20("MockUSDC", "MockUSDC", 6) {}
 
     function claim() external {
-        _mint(msg.sender, 1000 ether);
+        _mint(msg.sender, 1000e6);
     }
 
     function mint(address account, uint256 amount) public returns (bool) {
