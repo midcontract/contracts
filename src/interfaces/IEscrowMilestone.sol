@@ -71,7 +71,7 @@ interface IEscrowMilestone is IEscrow {
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    event Submitted(address indexed sender, uint256 indexed milestoneId, uint256 indexed contractId);
+    event Submitted(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
 
     /// @notice Emitted when an approval is made.
     /// @param approver The address of the approver.
