@@ -8,6 +8,9 @@
 ## Overview
 This repository contains the Smart Contract Project for a comprehensive escrow system designed to handle various types of agreements, including fixed-price, hourly, and milestone-based contracts. The system is structured to facilitate secure and transparent transactions between parties, ensuring compliance and trust through programmable escrow logic.
 
+## Documentation
+For detailed information about the smart contracts, see the [Docs](docs/src/SUMMARY.md).
+
 ## Key Features
 1. **Versatile Contract Types:** Supports various types of escrow agreements:
    - **Fixed-Price:** For straightforward, one-off payments upon job completion.
@@ -80,14 +83,14 @@ open out/coverage/index.html
 
 | Name             | Address                                                                                                                       |
 | :--------------- | :---------------------------------------------------------------------------------------------------------------------------- |
-| EscrowFixedPrice | [0x6c71098e924D99Ad6D91A48591cD3ae67a2583d6](https://amoy.polygonscan.com/address/0x6c71098e924D99Ad6D91A48591cD3ae67a2583d6) |
-| EscrowHourly     | [0xd3e782ecB258824Aa5C0dC692472f4d6c761B2Dc](https://amoy.polygonscan.com/address/0xd3e782ecB258824Aa5C0dC692472f4d6c761B2Dc) |
-| EscrowMilestone  | [0x0f2bB056a862C1576ce387803a828ca065687f29](https://amoy.polygonscan.com/address/0x0f2bB056a862C1576ce387803a828ca065687f29) |
-| EscroFactory          | [0x7cdFBb8867450F3791ce79Dc41b0027b6de5943f](https://amoy.polygonscan.com/address/0x7cdFBb8867450F3791ce79Dc41b0027b6de5943f) |
-| EscroRegistry   | [0x043b15159a4210Dd884e254FA794ECF6ae8449b3](https://amoy.polygonscan.com/address/0x043b15159a4210Dd884e254FA794ECF6ae8449b3) |
+| EscroFactory     | [0xE2B05184705A5b25De95DcEc77147B93B4a26f31](https://amoy.polygonscan.com/address/0xE2B05184705A5b25De95DcEc77147B93B4a26f31) |
+| EscrowFixedPrice | [0x803DFC1fBB4Ba3A6eB9603eDe2458b5F62C117a8](https://amoy.polygonscan.com/address/0x803DFC1fBB4Ba3A6eB9603eDe2458b5F62C117a8) |
+| EscrowHourly     | [0xD0E424C9ebda1D635cFDFB11Ac10303C148F5049](https://amoy.polygonscan.com/address/0xD0E424C9ebda1D635cFDFB11Ac10303C148F5049) |
+| EscrowMilestone  | [0xae146D824c08F45BDf34741D3b50F4Fb1104E79f](https://amoy.polygonscan.com/address/0xae146D824c08F45BDf34741D3b50F4Fb1104E79f) |
+| EscroRegistry    | [0x17EB9587525A4CdD60A06375f1F5ba9d69684198](https://amoy.polygonscan.com/address/0x17EB9587525A4CdD60A06375f1F5ba9d69684198) |
 | AdminManager     | [0x501cbBCa63ea1f0cc9a490A33B60f08eCD2DAB27](https://amoy.polygonscan.com/address/0x501cbBCa63ea1f0cc9a490A33B60f08eCD2DAB27) |
-| FeeManager       | [0x06D2c7002b78dFFabdF32f3650d4F1100d4C413D](https://amoy.polygonscan.com/address/0x06D2c7002b78dFFabdF32f3650d4F1100d4C413D) |
 | AccountRecovery  | [0xC4F460ED012c71Ec78392bdf6b983fBbDEB38a6d](https://amoy.polygonscan.com/address/0xC4F460ED012c71Ec78392bdf6b983fBbDEB38a6d) |
+| FeeManager       | [0x9FAb81E260be5A5cD7371D6227a004Ce219C46F5](https://amoy.polygonscan.com/address/0x9FAb81E260be5A5cD7371D6227a004Ce219C46F5) |
 
 ## Licensing
 
