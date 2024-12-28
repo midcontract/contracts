@@ -6,6 +6,7 @@ import { IEscrowAdminManager } from "../interfaces/IEscrowAdminManager.sol";
 import { IEscrowFixedPrice } from "../interfaces/IEscrowFixedPrice.sol";
 import { IEscrowHourly } from "../interfaces/IEscrowHourly.sol";
 import { IEscrowMilestone } from "../interfaces/IEscrowMilestone.sol";
+import { IEscrowRegistry } from "../interfaces/IEscrowRegistry.sol";
 import { Enums } from "../common/Enums.sol";
 
 /// @title Escrow Account Recovery
@@ -15,8 +16,14 @@ contract EscrowAccountRecovery {
     /// @dev Address of the adminManager contract.
     IEscrowAdminManager public adminManager;
 
+    /// @dev Address of the registry contract.
+    IEscrowRegistry public registry;
+
     /// @dev Recovery period after which recovery can be executed.
     uint256 public constant MIN_RECOVERY_PERIOD = 3 days;
+
+    /// @dev Maximum allowed recovery period to prevent indefinite blocking of recovery actions.
+    uint256 public constant MAX_RECOVERY_PERIOD = 30 days;
 
     /// @dev Configurable recovery period initialized to the minimum allowed.
     uint256 public recoveryPeriod;
@@ -35,10 +42,10 @@ contract EscrowAccountRecovery {
         uint64 executeAfter;
         /// @dev Flag indicating if the recovery has been executed.
         bool executed;
-        /// @dev Flag indicating if the recovery has been confirmed.
-        bool confirmed;
         /// @dev Type of escrow involved.
         Enums.EscrowType escrowType;
+        /// @dev Type of account to recovery.
+        Enums.AccountTypeRecovery accountType;
     }
 
     /// @dev Mapping of recovery hashes to their corresponding data.
@@ -50,12 +57,12 @@ contract EscrowAccountRecovery {
     error RecoveryAlreadyExecuted();
     /// @dev Thrown when trying to execute recovery before the period has elapsed.
     error RecoveryPeriodStillPending();
-    /// @dev Thrown when trying to execute a recovery that has not been confirmed.
-    error RecoveryNotConfirmed();
+    /// @dev Thrown when trying to execute a recovery that has not been initiated.
+    error RecoveryNotInitiated();
     /// @dev Thrown when an unauthorized account attempts a restricted action.
     error UnauthorizedAccount();
     /// @dev Thrown indicates an attempt to set the recovery period below the minimum required or to zero.
-    error RecoveryPeriodTooSmall();
+    error RecoveryPeriodNotValid();
 
     /// @dev Emitted when a recovery is initiated by the guardian.
     event RecoveryInitiated(address indexed sender, bytes32 indexed recoveryHash);
@@ -70,9 +77,11 @@ contract EscrowAccountRecovery {
 
     /// @dev Initializes the contract with the owner and guardian addresses.
     /// @param _adminManager Address of the adminManager contract of the escrow platform.
-    constructor(address _adminManager) {
-        if (_adminManager == address(0)) revert ZeroAddressProvided();
+    /// @param _registry Address of the registry contract.
+    constructor(address _adminManager, address _registry) {
+        if (_adminManager == address(0) || _registry == address(0)) revert ZeroAddressProvided();
         adminManager = IEscrowAdminManager(_adminManager);
+        registry = IEscrowRegistry(_registry);
         recoveryPeriod = MIN_RECOVERY_PERIOD;
     }
 
@@ -83,17 +92,19 @@ contract EscrowAccountRecovery {
     /// @param _oldAccount Current account address that needs recovery.
     /// @param _newAccount New account address to replace the old one.
     /// @param _escrowType Type of the escrow contract involved.
+    /// @param _accountType Type of the account for recovery.
     function initiateRecovery(
         address _escrow,
         uint256 _contractId,
         uint256 _milestoneId,
         address _oldAccount,
         address _newAccount,
-        Enums.EscrowType _escrowType
+        Enums.EscrowType _escrowType,
+        Enums.AccountTypeRecovery _accountType
     ) external {
         if (!IEscrowAdminManager(adminManager).isGuardian(msg.sender)) revert UnauthorizedAccount();
 
-        bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, _newAccount);
+        bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, _newAccount, _accountType);
         RecoveryData storage data = recoveryData[recoveryHash];
         if (data.executed) revert RecoveryAlreadyExecuted();
 
@@ -104,8 +115,8 @@ contract EscrowAccountRecovery {
             milestoneId: _milestoneId,
             executeAfter: uint64(block.timestamp + recoveryPeriod),
             executed: false,
-            confirmed: true,
-            escrowType: _escrowType
+            escrowType: _escrowType,
+            accountType: _accountType
         });
 
         emit RecoveryInitiated(msg.sender, recoveryHash);
@@ -118,12 +129,12 @@ contract EscrowAccountRecovery {
     /// @dev This function checks that the recovery period has elapsed and that the recovery is confirmed before
     /// executing it.
     function executeRecovery(Enums.AccountTypeRecovery _accountType, address _escrow, address _oldAccount) external {
-        bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, msg.sender);
+        bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, msg.sender, _accountType);
         RecoveryData storage data = recoveryData[recoveryHash];
 
         if (uint64(block.timestamp) < data.executeAfter) revert RecoveryPeriodStillPending();
         if (data.executed) revert RecoveryAlreadyExecuted();
-        if (!data.confirmed) revert RecoveryNotConfirmed();
+        if (data.executeAfter == 0) revert RecoveryNotInitiated();
 
         data.executed = true;
         data.executeAfter = 0;
@@ -136,9 +147,11 @@ contract EscrowAccountRecovery {
     /// @notice Cancels an ongoing recovery process.
     /// @param _recoveryHash Hash of the recovery request to be canceled.
     function cancelRecovery(bytes32 _recoveryHash) external {
+        if (registry.blacklist(msg.sender)) revert UnauthorizedAccount();
+
         RecoveryData storage data = recoveryData[_recoveryHash];
         if (msg.sender != data.account) revert UnauthorizedAccount();
-        if (data.executeAfter == 0) revert RecoveryNotConfirmed();
+        if (data.executeAfter == 0) revert RecoveryNotInitiated();
 
         data.executed = true;
         data.executeAfter = 0;
@@ -161,47 +174,38 @@ contract EscrowAccountRecovery {
         Enums.AccountTypeRecovery accountType
     ) internal {
         if (accountType == Enums.AccountTypeRecovery.CLIENT) {
-            if (escrowType == Enums.EscrowType.FIXED_PRICE) {
-                IEscrowFixedPrice(escrow).transferClientOwnership(msg.sender);
-            } else if (escrowType == Enums.EscrowType.MILESTONE) {
-                IEscrowMilestone(escrow).transferClientOwnership(msg.sender);
-            } else if (escrowType == Enums.EscrowType.HOURLY) {
-                IEscrowHourly(escrow).transferClientOwnership(msg.sender);
-            }
+            IEscrow(escrow).transferClientOwnership(msg.sender);
         } else if (accountType == Enums.AccountTypeRecovery.CONTRACTOR) {
-            if (escrowType == Enums.EscrowType.FIXED_PRICE) {
-                IEscrowFixedPrice(escrow).transferContractorOwnership(contractId, msg.sender);
-            } else if (escrowType == Enums.EscrowType.MILESTONE) {
+            if (escrowType == Enums.EscrowType.MILESTONE) {
                 IEscrowMilestone(escrow).transferContractorOwnership(contractId, milestoneId, msg.sender);
-            } else if (escrowType == Enums.EscrowType.HOURLY) {
-                IEscrowHourly(escrow).transferContractorOwnership(contractId, msg.sender);
+            } else {
+                IEscrowFixedPrice(escrow).transferContractorOwnership(contractId, msg.sender);
             }
         }
     }
 
-    /// @dev Generates the recovery hash based on the escrow, old account, and new account addresses.
-    /// @param _escrow Address of the escrow contract involved in the recovery.
-    /// @param _oldAccount Address of the old account being replaced.
-    /// @param _newAccount Address of the new account replacing the old.
-    /// @return Hash of the recovery details.
-    function _encodeRecoveryHash(address _escrow, address _oldAccount, address _newAccount)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encodePacked(_escrow, _oldAccount, _newAccount));
+    /// @dev Encodes recovery details into a hash (used internally).
+    function _encodeRecoveryHash(
+        address _escrow,
+        address _oldAccount,
+        address _newAccount,
+        Enums.AccountTypeRecovery _accountType
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_escrow, _oldAccount, _newAccount, _accountType));
     }
 
     /// @dev Generates the recovery hash that should be signed by the guardian to initiate a recovery.
     /// @param _oldAccount Address of the user being replaced.
     /// @param _newAccount Address of the new user.
+    /// @param _accountType Type of the account being recovered, either CLIENT or CONTRACTOR.
     /// @return Hash of the recovery details.
-    function getRecoveryHash(address _escrow, address _oldAccount, address _newAccount)
-        external
-        pure
-        returns (bytes32)
-    {
-        return _encodeRecoveryHash(_escrow, _oldAccount, _newAccount);
+    function getRecoveryHash(
+        address _escrow,
+        address _oldAccount,
+        address _newAccount,
+        Enums.AccountTypeRecovery _accountType
+    ) external pure returns (bytes32) {
+        return _encodeRecoveryHash(_escrow, _oldAccount, _newAccount, _accountType);
     }
 
     /// @notice Updates the recovery period to a new value, ensuring it meets minimum requirements.
@@ -209,8 +213,8 @@ contract EscrowAccountRecovery {
     /// @param _recoveryPeriod The new recovery period in seconds.
     function updateRecoveryPeriod(uint256 _recoveryPeriod) external {
         if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert UnauthorizedAccount();
-        if (_recoveryPeriod == 0 || _recoveryPeriod < MIN_RECOVERY_PERIOD) {
-            revert RecoveryPeriodTooSmall();
+        if (_recoveryPeriod == 0 || _recoveryPeriod < MIN_RECOVERY_PERIOD || _recoveryPeriod > MAX_RECOVERY_PERIOD) {
+            revert RecoveryPeriodNotValid();
         }
         recoveryPeriod = _recoveryPeriod;
         emit RecoveryPeriodUpdated(_recoveryPeriod);
