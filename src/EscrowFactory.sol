@@ -34,24 +34,19 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
 
     /// @notice Deploys a new escrow contract clone with unique settings for each project.
     /// @param _escrowType The type of escrow to deploy, which determines the template used for cloning.
-    /// @param _client The client's address who initiates the escrow, msg.sender.
-    /// @param _adminManager Address of the adminManager contract of the escrow platform.
-    /// @param _registry Address of the registry contract to fetch escrow implementation.
     /// @return deployedProxy The address of the newly deployed escrow proxy.
     /// @dev This function clones the specified escrow template and initializes it with specific parameters for the
-    /// project.
-    /// It uses the clone factory pattern for deployment to minimize gas costs and manage multiple escrow contract
-    /// versions.
-    function deployEscrow(Enums.EscrowType _escrowType, address _client, address _adminManager, address _registry)
-        external
-        whenNotPaused
-        returns (address deployedProxy)
-    {
+    /// project. It uses the clone factory pattern for deployment to minimize gas costs and manage multiple escrow
+    /// contract versions.
+    function deployEscrow(Enums.EscrowType _escrowType) external whenNotPaused returns (address deployedProxy) {
         address escrowImplement = _getEscrowImplementation(_escrowType);
-
         bytes32 salt = keccak256(abi.encode(msg.sender, factoryNonce[msg.sender]));
         address clone = LibClone.cloneDeterministic(escrowImplement, salt);
-        IEscrow(clone).initialize(_client, _adminManager, _registry);
+
+        address adminManager = registry.adminManager();
+        if (adminManager == address(0)) revert Factory__ZeroAddressProvided();
+
+        IEscrow(clone).initialize(msg.sender, adminManager, address(registry));
 
         deployedProxy = address(clone);
         existingEscrow[deployedProxy] = true;

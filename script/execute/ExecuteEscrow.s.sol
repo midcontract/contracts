@@ -106,9 +106,7 @@ contract ExecuteEscrowScript is Script {
         EscrowRegistry(registry).setFixedTreasury(owner);
 
         // // deploy new escrow
-        address deployedEscrowProxy = EscrowFactory(factory).deployEscrow(
-            escrowType, address(deployerPublicKey), address(deployerPublicKey), address(registry)
-        );
+        address deployedEscrowProxy = EscrowFactory(factory).deployEscrow(escrowType);
         EscrowFixedPrice escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
 
         // // mint, approve payment token
@@ -137,8 +135,7 @@ contract ExecuteEscrowScript is Script {
     function deploy_and_deposit_escrow_hourly() public {
         address deployedEscrowProxy;
         escrowType = Enums.EscrowType.HOURLY;
-        deployedEscrowProxy =
-            EscrowFactory(factory).deployEscrow(escrowType, deployerPublicKey, address(adminManager), address(registry));
+        deployedEscrowProxy = EscrowFactory(factory).deployEscrow(escrowType);
         EscrowHourly escrowProxyHourly = EscrowHourly(address(deployedEscrowProxy));
         // mint, approve payment token
         MockUSDT(usdtToken).mint(address(deployerPublicKey), 1300e6);

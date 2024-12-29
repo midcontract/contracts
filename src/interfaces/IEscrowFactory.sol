@@ -28,11 +28,6 @@ interface IEscrowFactory {
 
     /// @notice Deploys a new escrow contract with specified parameters.
     /// @param escrowType The type of escrow to deploy, which determines the template used for cloning.
-    /// @param client The address of the client for whom the escrow is being created.
-    /// @param admin The address with administrative privileges over the new escrow.
-    /// @param registry The address of the registry containing escrow configurations.
     /// @return The address of the newly deployed escrow contract.
-    function deployEscrow(Enums.EscrowType escrowType, address client, address admin, address registry)
-        external
-        returns (address);
+    function deployEscrow(Enums.EscrowType escrowType) external returns (address);
 }
