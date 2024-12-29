@@ -622,7 +622,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @param _paymentToken Address of the payment token for the fee.
     /// @param _feeAmount Amount of the fee to be transferred.
     function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {
-        address treasury = IEscrowRegistry(registry).treasury();
+        address treasury = IEscrowRegistry(registry).hourlyTreasury();
         if (treasury == address(0)) revert Escrow__ZeroAddressProvided();
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
     }

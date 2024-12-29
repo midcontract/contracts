@@ -103,7 +103,7 @@ contract ExecuteEscrowScript is Script {
         require(sent, "Failed to send Ether");
 
         // // set treasury
-        EscrowRegistry(registry).setTreasury(owner);
+        EscrowRegistry(registry).setFixedTreasury(owner);
 
         // // deploy new escrow
         address deployedEscrowProxy = EscrowFactory(factory).deployEscrow(

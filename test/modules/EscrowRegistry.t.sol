@@ -18,9 +18,11 @@ contract EscrowRegistryUnitTest is Test {
     EscrowFeeManager feeManager;
 
     address owner;
-    address treasury;
     address accountRecovery;
     address adminManager;
+    address fixedTreasury;
+    address hourlyTreasury;
+    address milestoneTreasury;
 
     event PaymentTokenAdded(address token);
     event PaymentTokenRemoved(address token);
@@ -37,7 +39,9 @@ contract EscrowRegistryUnitTest is Test {
 
     function setUp() public {
         owner = makeAddr("owner");
-        treasury = makeAddr("treasury");
+        fixedTreasury = makeAddr("fixedTreasury");
+        hourlyTreasury = makeAddr("hourlyTreasury");
+        milestoneTreasury = makeAddr("milestoneTreasury");
         accountRecovery = makeAddr("accountRecovery");
         adminManager = makeAddr("adminManager");
         escrow = new EscrowFixedPrice();
@@ -216,20 +220,54 @@ contract EscrowRegistryUnitTest is Test {
         vm.stopPrank();
     }
 
-    function test_setTreasury() public {
-        assertEq(registry.treasury(), address(0));
+    function test_setFixedTreasury() public {
+        assertEq(registry.fixedTreasury(), address(0));
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
-        registry.setTreasury(address(treasury));
+        registry.setFixedTreasury(address(fixedTreasury));
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
-        registry.setTreasury(address(0));
-        assertEq(registry.treasury(), address(0));
+        registry.setFixedTreasury(address(0));
+        assertEq(registry.fixedTreasury(), address(0));
         vm.expectEmit(true, false, false, true);
-        emit TreasurySet(address(treasury));
-        registry.setTreasury(address(treasury));
-        assertEq(registry.treasury(), address(treasury));
+        emit TreasurySet(address(fixedTreasury));
+        registry.setFixedTreasury(address(fixedTreasury));
+        assertEq(registry.fixedTreasury(), address(fixedTreasury));
+        vm.stopPrank();
+    }
+
+    function test_setHourlyTreasury() public {
+        assertEq(registry.hourlyTreasury(), address(0));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        registry.setHourlyTreasury(address(hourlyTreasury));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        registry.setHourlyTreasury(address(0));
+        assertEq(registry.hourlyTreasury(), address(0));
+        vm.expectEmit(true, false, false, true);
+        emit TreasurySet(address(hourlyTreasury));
+        registry.setHourlyTreasury(address(hourlyTreasury));
+        assertEq(registry.hourlyTreasury(), address(hourlyTreasury));
+        vm.stopPrank();
+    }
+
+    function test_setMilestoneTreasury() public {
+        assertEq(registry.milestoneTreasury(), address(0));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        registry.setMilestoneTreasury(address(milestoneTreasury));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        registry.setMilestoneTreasury(address(0));
+        assertEq(registry.milestoneTreasury(), address(0));
+        vm.expectEmit(true, false, false, true);
+        emit TreasurySet(address(milestoneTreasury));
+        registry.setMilestoneTreasury(address(milestoneTreasury));
+        assertEq(registry.milestoneTreasury(), address(milestoneTreasury));
         vm.stopPrank();
     }
 

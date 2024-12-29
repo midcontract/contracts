@@ -28,8 +28,10 @@ contract MockRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @dev This can be updated by the owner as new versions of the FeeManager contract are deployed.
     address public feeManager;
 
-    /// @notice Address of the treasury where fees and other payments are collected.
-    address public treasury;
+    /// @notice Addresses of the treasury where fees and other payments are collected.
+    address public fixedTreasury;
+    address public hourlyTreasury;
+    address public milestoneTreasury;
 
     /// @notice Address of the account recovery module contract.
     address public accountRecovery;
@@ -47,7 +49,7 @@ contract MockRegistry is IEscrowRegistry, OwnedThreeStep {
 
     /// @dev Initializes the contract setting the owner to the message sender.
     /// @param _owner Address of the initial owner of the registry contract.
-    constructor(address _owner) OwnedThreeStep(_owner) {}
+    constructor(address _owner) OwnedThreeStep(_owner) { }
 
     /// @notice Adds a new ERC20 token to the list of accepted payment tokens.
     /// @param _token The address of the ERC20 token to enable.
@@ -106,12 +108,28 @@ contract MockRegistry is IEscrowRegistry, OwnedThreeStep {
         emit FeeManagerUpdated(_feeManager);
     }
 
-    /// @notice Sets the treasury address where collected fees and other payments will be sent.
-    /// @param _treasury New treasury address.
-    function setTreasury(address _treasury) external onlyOwner {
-        // if (_treasury == address(0)) revert Registry__ZeroAddressProvided();
-        treasury = _treasury;
-        emit TreasurySet(_treasury);
+    /// @notice Sets the treasury address designated for fixed-price escrow contracts.
+    /// @param _fixedTreasury The new address of the fixed-price escrow treasury.
+    function setFixedTreasury(address _fixedTreasury) external onlyOwner {
+        // if (_fixedTreasury == address(0)) revert Registry__ZeroAddressProvided();
+        fixedTreasury = _fixedTreasury;
+        emit TreasurySet(_fixedTreasury);
+    }
+
+    /// @notice Sets the treasury address designated for hourly escrow contracts.
+    /// @param _hourlyTreasury The new address of the hourly escrow treasury.
+    function setHourlyTreasury(address _hourlyTreasury) external onlyOwner {
+        // if (_hourlyTreasury == address(0)) revert Registry__ZeroAddressProvided();
+        hourlyTreasury = _hourlyTreasury;
+        emit TreasurySet(_hourlyTreasury);
+    }
+
+    /// @notice Sets the treasury address designated for milestone escrow contracts.
+    /// @param _milestoneTreasury The new address of the milestone escrow treasury.
+    function setMilestoneTreasury(address _milestoneTreasury) external onlyOwner {
+        // if (_milestoneTreasury == address(0)) revert Registry__ZeroAddressProvided();
+        milestoneTreasury = _milestoneTreasury;
+        emit TreasurySet(_milestoneTreasury);
     }
 
     /// @notice Updates the address of the account recovery module contract.

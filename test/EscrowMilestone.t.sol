@@ -124,11 +124,13 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken = new ERC20Mock();
         feeManager = new EscrowFeeManager(300, 500, owner);
         adminManager = new EscrowAdminManager(owner);
-        recovery = new EscrowAccountRecovery(address(adminManager));
+        recovery = new EscrowAccountRecovery(address(adminManager), address(registry));
 
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
-        registry.setTreasury(treasury);
+        registry.setFixedTreasury(treasury);
+        registry.setHourlyTreasury(treasury);
+        registry.setMilestoneTreasury(treasury);
         registry.updateFeeManager(address(feeManager));
         registry.setAccountRecovery(address(recovery));
         vm.stopPrank();

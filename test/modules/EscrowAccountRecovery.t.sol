@@ -76,7 +76,9 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
-        registry.setTreasury(treasury);
+        registry.setFixedTreasury(treasury);
+        registry.setHourlyTreasury(treasury);
+        registry.setMilestoneTreasury(treasury);
         registry.updateFeeManager(address(feeManager));
         adminManager.addGuardian(guardian);
         vm.stopPrank();

@@ -2,7 +2,8 @@
 pragma solidity 0.8.25;
 
 /// @title Interface for the EscrowRegistry
-/// @dev Interface for the registry that manages configuration settings such as payment tokens and contract addresses for an escrow system.
+/// @dev Interface for the registry that manages configuration settings such as payment tokens and contract addresses
+/// for an escrow system.
 interface IEscrowRegistry {
     /// @notice Thrown when a zero address is provided where a valid address is required.
     error Registry__ZeroAddressProvided();
@@ -78,9 +79,20 @@ interface IEscrowRegistry {
     /// @return The address of the feeManager contract.
     function feeManager() external view returns (address);
 
-    /// @notice Retrieves the current treasury account address stored in the registry.
-    /// @return The address of the treasury account.
-    function treasury() external view returns (address);
+    /// @notice Retrieves the treasury address used for fixed-price escrow contracts.
+    /// @dev Used to isolate funds collected from fixed-price contracts.
+    /// @return The address of the fixed-price escrow treasury.
+    function fixedTreasury() external view returns (address);
+
+    /// @notice Retrieves the treasury address used for hourly escrow contracts.
+    /// @dev Used to isolate funds collected from hourly-based contracts.
+    /// @return The address of the hourly escrow treasury.
+    function hourlyTreasury() external view returns (address);
+
+    /// @notice Retrieves the treasury address used for milestone escrow contracts.
+    /// @dev Used to isolate funds collected from milestone-based contracts.
+    /// @return The address of the milestone escrow treasury.
+    function milestoneTreasury() external view returns (address);
 
     /// @notice Retrieves the current account recovery address stored in the registry.
     /// @return The address of the account recovery contract.
