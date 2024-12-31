@@ -9,6 +9,9 @@ import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
 import { EscrowRegistry } from "src/modules/EscrowRegistry.sol";
 import { Enums } from "src/common/Enums.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract EscrowFeeManagerUnitTest is Test {
     EscrowFeeManager feeManager;
@@ -18,6 +21,8 @@ contract EscrowFeeManagerUnitTest is Test {
     address owner;
     address client;
     address contractor;
+    uint256 ownerPrKey;
+    // bytes signature;
 
     event DefaultFeesSet(uint16 coverage, uint16 claim);
     event UserSpecificFeesSet(address indexed user, uint16 coverage, uint16 claim);
@@ -28,7 +33,7 @@ contract EscrowFeeManagerUnitTest is Test {
     event UserSpecificFeesReset(address indexed user);
 
     function setUp() public {
-        owner = makeAddr("owner");
+        (owner, ownerPrKey) = makeAddrAndKey("owner");
         client = makeAddr("client");
         contractor = makeAddr("contractor");
         feeManager = new EscrowFeeManager(300, 500, owner);
@@ -53,7 +58,25 @@ contract EscrowFeeManagerUnitTest is Test {
 
     function create_deposit() public {
         initialize_escrow();
-        EscrowFixedPrice.Deposit memory deposit = IEscrowFixedPrice.Deposit({
+        // Sign deposit authorization
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    address(contractor),
+                    address(paymentToken),
+                    uint256(1 ether),
+                    Enums.FeeConfig.CLIENT_COVERS_ONLY,
+                    keccak256(abi.encodePacked(bytes("contract_data"), keccak256(abi.encodePacked(uint256(42))))),
+                    uint256(block.timestamp + 3 hours),
+                    address(escrow)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        EscrowFixedPrice.DepositRequest memory deposit = IEscrowFixedPrice.DepositRequest({
             contractor: address(contractor),
             paymentToken: address(paymentToken),
             amount: 1 ether,
@@ -61,8 +84,12 @@ contract EscrowFeeManagerUnitTest is Test {
             amountToWithdraw: 0 ether,
             contractorData: keccak256(abi.encodePacked(bytes("contract_data"), keccak256(abi.encodePacked(uint256(42))))),
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
-            status: Enums.Status.ACTIVE
+            status: Enums.Status.ACTIVE,
+            escrow: address(escrow),
+            expiration: block.timestamp + 3 hours,
+            signature: signature
         });
+
         vm.startPrank(client);
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);

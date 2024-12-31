@@ -14,6 +14,9 @@ import { PolAmoyConfig } from "config/PolAmoyConfig.sol";
 import { Enums } from "src/common/Enums.sol";
 import { MockDAI } from "test/mocks/MockDAI.sol";
 import { MockUSDT } from "test/mocks/MockUSDT.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract ExecuteEscrowScript is Script {
     address escrow;
@@ -26,7 +29,7 @@ contract ExecuteEscrowScript is Script {
     address owner;
     address newOwner;
 
-    IEscrowFixedPrice.Deposit deposit;
+    IEscrowFixedPrice.DepositRequest deposit;
     IEscrowHourly.Deposit depositHourly;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
@@ -35,24 +38,15 @@ contract ExecuteEscrowScript is Script {
     bytes32 salt;
     bytes contractData;
 
-    struct Deposit {
-        address contractor;
-        address paymentToken;
-        uint256 amount;
-        uint256 amountToClaim;
-        uint256 amountToWithdraw;
-        bytes32 contractorData;
-        Enums.FeeConfig feeConfig;
-        Enums.Status status;
-    }
-
     address deployerPublicKey;
     uint256 deployerPrivateKey;
+    uint256 ownerPrKey;
 
     function setUp() public {
         deployerPublicKey = vm.envAddress("DEPLOYER_PUBLIC_KEY");
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         owner = vm.envAddress("OWNER_PUBLIC_KEY");
+        ownerPrKey = vm.envUint("OWNER_PRIVATE_KEY");
 
         escrow = PolAmoyConfig.ESCROW_FIXED_PRICE;
         registry = PolAmoyConfig.REGISTRY_1;
@@ -67,7 +61,19 @@ contract ExecuteEscrowScript is Script {
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
-        deposit = IEscrowFixedPrice.Deposit({
+        uint256 expiration = block.timestamp + 1 days;
+
+        // Sign deposit authorization
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                address(this), address(0), address(usdtToken), uint256(1000e6), feeConfig, expiration, address(escrow)
+            )
+        );
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        deposit = IEscrowFixedPrice.DepositRequest({
             contractor: address(0),
             paymentToken: address(usdtToken),
             amount: 1000e6,
@@ -75,7 +81,10 @@ contract ExecuteEscrowScript is Script {
             amountToWithdraw: 0,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: Enums.Status.ACTIVE
+            status: Enums.Status.ACTIVE,
+            escrow: address(escrow),
+            expiration: expiration,
+            signature: signature
         });
     }
 

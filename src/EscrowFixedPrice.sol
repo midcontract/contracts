@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { SafeTransferLib } from "@solbase/utils/SafeTransferLib.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import { SignatureChecker } from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
+import { SafeTransferLib } from "@solbase/utils/SafeTransferLib.sol";
 
 import { IEscrowAdminManager } from "./interfaces/IEscrowAdminManager.sol";
 import { IEscrowFixedPrice } from "./interfaces/IEscrowFixedPrice.sol";
@@ -37,7 +38,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     bool public initialized;
 
     /// @dev Maps each contract ID to its corresponding deposit details.
-    mapping(uint256 contractId => Deposit) public deposits;
+    mapping(uint256 contractId => DepositInfo) public deposits;
 
     /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
@@ -70,7 +71,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
 
     /// @notice Creates a new deposit for a fixed-price contract within the escrow system.
     /// @param _deposit Details of the deposit to be created.
-    function deposit(Deposit calldata _deposit) external onlyClient {
+    function deposit(DepositRequest calldata _deposit) external onlyClient {
         // Ensure the sender is not blacklisted and that the payment token is supported.
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
@@ -78,13 +79,15 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Validate that the deposit amount is greater than zero.
         if (_deposit.amount == 0) revert Escrow__ZeroDepositAmount();
 
-        // Increment the contract ID counter safely.
+        // Validate the deposit fields against admin signature.
+        _validateDepositAuthorization(_deposit);
+
         unchecked {
             currentContractId++;
         }
 
         // Store the deposit information in the storage mapping.
-        Deposit storage D = deposits[currentContractId];
+        DepositInfo storage D = deposits[currentContractId];
         D.contractor = _deposit.contractor;
         D.paymentToken = _deposit.paymentToken;
         D.amount = _deposit.amount;
@@ -111,7 +114,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @param _data Contractor’s details or work summary.
     /// @param _salt Unique salt for cryptographic operations.
     function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt) external {
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         // Only allow the designated contractor to submit, or allow initial submission if no contractor has been set.
         if (D.contractor != address(0) && msg.sender != D.contractor) {
             revert Escrow__UnauthorizedAccount(msg.sender);
@@ -146,7 +149,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Check that the approval amount is greater than zero.
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
 
         // Verify the deposit is in a status that allows for approval.
         if (D.status != Enums.Status.SUBMITTED) revert Escrow__InvalidStatusForApprove();
@@ -175,7 +178,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Ensure a non-zero amount is specified for the refill operation.
         if (_amountAdditional == 0) revert Escrow__InvalidAmount();
 
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
 
         // Calculate the total amount including any applicable fees.
         (uint256 totalAmountAdditional,) =
@@ -197,7 +200,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     function claim(uint256 _contractId) external {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
 
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         // Verify that the deposit is in a state that allows claiming.
         if (D.status != Enums.Status.APPROVED && D.status != Enums.Status.RESOLVED && D.status != Enums.Status.CANCELED)
         {
@@ -243,7 +246,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     function withdraw(uint256 _contractId) external onlyClient {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
 
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         // Verify the deposit's status to ensure it's eligible for withdrawal.
         if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw();
@@ -289,7 +292,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev The contract must be in an eligible state to request a return (not in disputed or already returned status).
     /// @param _contractId ID of the deposit for which the return is requested.
     function requestReturn(uint256 _contractId) external onlyClient {
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         if (
             D.status != Enums.Status.ACTIVE && D.status != Enums.Status.SUBMITTED && D.status != Enums.Status.APPROVED
                 && D.status != Enums.Status.COMPLETED
@@ -303,7 +306,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev This changes the status of the deposit to allow the client to withdraw their funds.
     /// @param _contractId ID of the deposit for which the return is approved.
     function approveReturn(uint256 _contractId) external {
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
         if (msg.sender != D.contractor && !IEscrowAdminManager(adminManager).isAdmin(msg.sender)) {
             revert Escrow__UnauthorizedToApproveReturn();
@@ -318,7 +321,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @param _contractId The unique identifier of the deposit for which the return is being cancelled.
     /// @param _status The new status to set for the deposit, must be ACTIVE, SUBMITTED, APPROVED, or COMPLETED.
     function cancelReturn(uint256 _contractId, Enums.Status _status) external onlyClient {
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
         if (
             _status != Enums.Status.ACTIVE && _status != Enums.Status.SUBMITTED && _status != Enums.Status.APPROVED
@@ -336,7 +339,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @param _contractId ID of the deposit where the dispute is to be created.
     /// This function can only be called if the deposit status is either RETURN_REQUESTED or SUBMITTED.
     function createDispute(uint256 _contractId) external {
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED && D.status != Enums.Status.SUBMITTED) {
             revert Escrow__CreateDisputeNotAllowed();
         }
@@ -360,7 +363,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     {
         if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
 
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         if (D.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
 
         // Validate the total resolution does not exceed the available deposit amount.
@@ -406,7 +409,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
         if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
 
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
 
         // Emit the ownership transfer event before changing the state to reflect the previous state.
         emit ContractorOwnershipTransferred(_contractId, D.contractor, _newAccount);
@@ -536,6 +539,34 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
             // EOA signature verification.
             address recoveredSigner = ECDSA.recover(ethSignedHash, _signature);
             return recoveredSigner == msg.sender;
+        }
+    }
+
+    /// @notice Validates deposit fields against admin-signed approval.
+    /// @param _deposit The deposit details including signature and expiration.
+    function _validateDepositAuthorization(DepositRequest calldata _deposit) internal view {
+        // Ensure the authorization has not expired.
+        if (_deposit.expiration < block.timestamp) revert Escrow__AuthorizationExpired();
+
+        // Generate hash for signed data.
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                msg.sender, // Client submitting the deposit.
+                _deposit.contractor, // Contractor's address.
+                _deposit.paymentToken, // Payment token address.
+                _deposit.amount, // Deposit amount.
+                _deposit.feeConfig, // Fee configuration.
+                _deposit.contractorData, // Data hash for contractor details.
+                _deposit.expiration, // Expiration timestamp.
+                address(this) // Contract address.
+            )
+        );
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+
+        // Verify signature using the admin's address.
+        address signer = adminManager.owner();
+        if (!SignatureChecker.isValidSignatureNow(signer, ethSignedHash, _deposit.signature)) {
+            revert Escrow__InvalidSignature();
         }
     }
 }

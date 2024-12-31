@@ -13,6 +13,9 @@ import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol"
 import { IEscrow } from "src/interfaces/IEscrow.sol";
 import { Enums } from "src/common/Enums.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract EscrowAccountRecoveryUnitTest is Test {
     EscrowAccountRecovery recovery;
@@ -31,12 +34,14 @@ contract EscrowAccountRecoveryUnitTest is Test {
     address contractor;
     address new_client;
     address new_contractor;
+    uint256 ownerPrKey;
 
-    bytes contractData;
-    bytes32 contractorData;
     bytes32 salt;
+    bytes32 contractorData;
+    bytes contractData;
+    bytes signature;
 
-    EscrowFixedPrice.Deposit deposit;
+    EscrowFixedPrice.DepositRequest deposit;
     EscrowAccountRecovery.RecoveryData recoveryInfo;
     IEscrowMilestone.Milestone[] milestones;
     IEscrowHourly.Deposit depositHourly;
@@ -57,7 +62,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     );
 
     function setUp() public {
-        owner = makeAddr("owner");
+        (owner, ownerPrKey) = makeAddrAndKey("owner");
         guardian = makeAddr("guardian");
         treasury = makeAddr("treasury");
         client = makeAddr("client");
@@ -86,17 +91,6 @@ contract EscrowAccountRecoveryUnitTest is Test {
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
-
-        deposit = IEscrowFixedPrice.Deposit({
-            contractor: contractor,
-            paymentToken: address(paymentToken),
-            amount: 1 ether,
-            amountToClaim: 0 ether,
-            amountToWithdraw: 0 ether,
-            contractorData: contractorData,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
-            status: Enums.Status.ACTIVE
-        });
     }
 
     function test_setUpState() public view {
@@ -117,6 +111,29 @@ contract EscrowAccountRecoveryUnitTest is Test {
     }
 
     // helpers
+    function _getSignature(address _proxy, address _token, uint256 _amount, Enums.FeeConfig _feeConfig)
+        internal
+        returns (bytes memory)
+    {
+        // Sign deposit authorization
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    contractor,
+                    address(_token),
+                    uint256(_amount),
+                    _feeConfig,
+                    contractorData,
+                    uint256(block.timestamp + 3 hours),
+                    address(_proxy)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
+        return signature = abi.encodePacked(r, s, v);
+    }
+
     function initializeEscrowFixedPrice() public {
         assertFalse(escrow.initialized());
         escrow.initialize(client, address(adminManager), address(registry));
@@ -125,6 +142,19 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), depositAmount);
         paymentToken.approve(address(escrow), depositAmount);
+        deposit = IEscrowFixedPrice.DepositRequest({
+            contractor: contractor,
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.ACTIVE,
+            escrow: address(escrow),
+            expiration: block.timestamp + 3 hours,
+            signature: _getSignature(address(escrow), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY)
+        });
         escrow.deposit(deposit);
         vm.stopPrank();
     }

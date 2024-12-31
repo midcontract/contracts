@@ -12,6 +12,9 @@ import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
 import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
 import { Enums } from "src/common/Enums.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract EscrowFactoryUnitTest is Test {
     EscrowFactory factory;
@@ -27,28 +30,20 @@ contract EscrowFactoryUnitTest is Test {
     address contractor;
     address treasury;
     address owner;
-
-    EscrowFixedPrice.Deposit deposit;
-    Enums.FeeConfig feeConfig;
-    Enums.Status status;
-    Enums.EscrowType escrowType;
-    IEscrowHourly.Deposit depositHourly;
-    IEscrowHourly.ContractDetails contractDetails;
+    uint256 ownerPrKey;
 
     bytes32 contractorData;
     bytes32 salt;
     bytes contractData;
 
-    struct Deposit {
-        address contractor;
-        address paymentToken;
-        uint256 amount;
-        uint256 amountToClaim;
-        uint256 amountToWithdraw;
-        bytes32 contractorData;
-        Enums.FeeConfig feeConfig;
-        Enums.Status status;
-    }
+    bytes signature;
+
+    EscrowFixedPrice.DepositRequest deposit;
+    Enums.FeeConfig feeConfig;
+    Enums.Status status;
+    Enums.EscrowType escrowType;
+    IEscrowHourly.Deposit depositHourly;
+    IEscrowHourly.ContractDetails contractDetails;
 
     event EscrowProxyDeployed(address sender, address deployedProxy, Enums.EscrowType escrowType);
     event RegistryUpdated(address registry);
@@ -56,7 +51,7 @@ contract EscrowFactoryUnitTest is Test {
     event Unpaused(address account);
 
     function setUp() public {
-        owner = makeAddr("owner");
+        (owner, ownerPrKey) = makeAddrAndKey("owner");
         treasury = makeAddr("treasury");
         client = makeAddr("client");
         contractor = makeAddr("contractor");
@@ -81,17 +76,6 @@ contract EscrowFactoryUnitTest is Test {
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
-
-        deposit = IEscrowFixedPrice.Deposit({
-            contractor: address(0),
-            paymentToken: address(paymentToken),
-            amount: 1 ether,
-            amountToClaim: 0 ether,
-            amountToWithdraw: 0 ether,
-            contractorData: contractorData,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: Enums.Status.ACTIVE
-        });
 
         escrow.initialize(address(client), address(owner), address(registry));
 
@@ -131,6 +115,29 @@ contract EscrowFactoryUnitTest is Test {
         return (totalDepositAmount, feeApplied);
     }
 
+    function _getSignature(address _proxy, address _token, uint256 _amount, Enums.FeeConfig _feeConfig)
+        internal
+        returns (bytes memory)
+    {
+         // Sign deposit authorization
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    address(0),
+                    address(_token),
+                    uint256(_amount),
+                    _feeConfig,
+                    contractorData,
+                    uint256(block.timestamp + 3 hours),
+                    address(_proxy)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
+        return signature = abi.encodePacked(r, s, v);
+    }
+
     function test_deployEscrow() public returns (address deployedEscrowProxy) {
         assertEq(factory.factoryNonce(client), 0);
         escrowType = Enums.EscrowType.FIXED_PRICE;
@@ -167,6 +174,21 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrowProxy), totalDepositAmount);
         // 3. deposit
+        deposit = IEscrowFixedPrice.DepositRequest({
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            status: Enums.Status.ACTIVE,
+            escrow: address(escrowProxy),
+            expiration: block.timestamp + 3 hours,
+            signature: _getSignature(
+                address(escrowProxy), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL
+            )
+        });
         escrowProxy.deposit(deposit);
         uint256 currentContractId = escrowProxy.getCurrentContractId();
         assertEq(currentContractId, 1);
@@ -197,7 +219,7 @@ contract EscrowFactoryUnitTest is Test {
     function test_deposit_next() public {
         EscrowFixedPrice escrowProxy = test_deploy_and_deposit();
 
-        EscrowFixedPrice.Deposit memory deposit2 = IEscrowFixedPrice.Deposit({
+        EscrowFixedPrice.DepositRequest memory deposit2 = IEscrowFixedPrice.DepositRequest({
             contractor: address(0),
             paymentToken: address(paymentToken),
             amount: 2 ether,
@@ -205,7 +227,10 @@ contract EscrowFactoryUnitTest is Test {
             amountToWithdraw: 0 ether,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.NO_FEES,
-            status: Enums.Status.ACTIVE
+            status: Enums.Status.ACTIVE,
+            escrow: address(escrowProxy),
+            expiration: block.timestamp + 3 hours,
+            signature: _getSignature(address(escrowProxy), address(paymentToken), 2 ether, Enums.FeeConfig.NO_FEES)
         });
 
         (uint256 totalDepositAmount,) =

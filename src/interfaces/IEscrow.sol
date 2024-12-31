@@ -100,6 +100,12 @@ interface IEscrow {
     /// @notice Thrown when the specified contractor does not match the initial contractor set for a given contract ID.
     error Escrow__ContractorMismatch();
 
+    /// @notice Thrown when the authorization for a deposit has expired.
+    error Escrow__AuthorizationExpired();
+
+    /// @notice Thrown when the provided signature is invalid during deposit validation.
+    error Escrow__InvalidSignature();
+
     /// @notice Emitted when the registry address is updated in the escrow.
     /// @param registry The new registry address.
     event RegistryUpdated(address registry);

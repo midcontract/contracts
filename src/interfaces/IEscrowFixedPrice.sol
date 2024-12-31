@@ -9,16 +9,45 @@ import { IEscrow, Enums } from "./IEscrow.sol";
 /// Defines only the essential components such as errors, events, struct and key function signatures related to
 /// fixed-price escrow operations.
 interface IEscrowFixedPrice is IEscrow {
-    /// @notice Represents a deposit in the escrow.
-    /// @param contractor The address of the contractor.
-    /// @param paymentToken The address of the payment token.
-    /// @param amount The amount deposited.
-    /// @param amountToClaim The amount to be claimed.
-    /// @param amountToWithdraw The amount to be withdrawn.
-    /// @param contractorData The contractor's data hash.
-    /// @param feeConfig The fee configuration.
-    /// @param status The status of the deposit.
-    struct Deposit {
+    /// @notice Represents input deposit payload for authorization in the escrow.
+    /// @dev This struct is used as a parameter when submitting a deposit request.
+    /// It includes additional metadata like expiration and signature for validation purposes.
+    /// @param contractor The address of the contractor who will receive the deposit.
+    /// @param paymentToken The address of the ERC20 token used for payment.
+    /// @param amount The total amount being deposited.
+    /// @param amountToClaim The amount that can be claimed by the contractor.
+    /// @param amountToWithdraw The amount available for withdrawal by the contractor.
+    /// @param contractorData A hash representing additional data related to the contractor.
+    /// @param feeConfig Configuration specifying how fees are applied to the deposit.
+    /// @param status The status of the deposit request before processing.
+    /// @param escrow The explicit address of the escrow contract handling the deposit.
+    /// @param expiration The timestamp specifying when the deposit request becomes invalid.
+    /// @param signature A digital signature from an admin validating the deposit request.
+    struct DepositRequest {
+        address contractor;
+        address paymentToken;
+        uint256 amount;
+        uint256 amountToClaim;
+        uint256 amountToWithdraw;
+        bytes32 contractorData;
+        Enums.FeeConfig feeConfig;
+        Enums.Status status;
+        address escrow;
+        uint256 expiration;
+        bytes signature;
+    }
+
+    /// @notice Represents a storage for deposit details in the escrow.
+    /// @dev This struct stores essential details about the deposit after it is processed.
+    /// @param contractor The address of the contractor who will receive the deposit.
+    /// @param paymentToken The address of the ERC20 token used for payment.
+    /// @param amount The total amount deposited.
+    /// @param amountToClaim The amount that the contractor is eligible to claim.
+    /// @param amountToWithdraw The amount available for withdrawal by the contractor.
+    /// @param contractorData A hash representing additional data related to the contractor.
+    /// @param feeConfig Configuration specifying how fees are applied to the deposit.
+    /// @param status The current status of the deposit.
+    struct DepositInfo {
         address contractor;
         address paymentToken;
         uint256 amount;
