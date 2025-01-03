@@ -12,6 +12,9 @@ import { IEscrow } from "src/interfaces/IEscrow.sol";
 import { MockRegistry } from "test/mocks/MockRegistry.sol";
 import { MockUSDT } from "test/mocks/MockUSDT.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract EscrowHourlyUnitTest is Test {
     EscrowHourly escrow;
@@ -25,26 +28,19 @@ contract EscrowHourlyUnitTest is Test {
     address contractor;
     address treasury;
     address owner;
+    uint256 ownerPrKey;
 
-    bytes32 contractorData;
     bytes32 salt;
+    bytes32 contractorData;
     bytes contractData;
+    bytes signature;
 
     Enums.FeeConfig feeConfig;
     Enums.Status status;
 
-    IEscrowHourly.Deposit deposit;
+    IEscrowHourly.DepositRequest deposit;
     IEscrowHourly.WeeklyEntry weeklyEntry;
     IEscrowHourly.ContractDetails contractDetails;
-
-    struct Deposit {
-        address contractor;
-        address paymentToken;
-        uint256 prepaymentAmount;
-        uint256 amountToClaim;
-        uint256 amountToWithdraw;
-        Enums.FeeConfig feeConfig;
-    }
 
     struct ContractDetails {
         address contractor;
@@ -101,7 +97,7 @@ contract EscrowHourlyUnitTest is Test {
     );
 
     function setUp() public {
-        owner = makeAddr("owner");
+        (owner, ownerPrKey) = makeAddrAndKey("owner");
         treasury = makeAddr("treasury");
         client = makeAddr("client");
         contractor = makeAddr("contractor");
@@ -124,12 +120,17 @@ contract EscrowHourlyUnitTest is Test {
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: 1 ether,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(paymentToken), 1 ether, 0, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
 
         weeklyEntry = IEscrowHourly.WeeklyEntry({ amountToClaim: 0, weekStatus: Enums.Status.NONE });
@@ -201,6 +202,33 @@ contract EscrowHourlyUnitTest is Test {
         return (claimAmount, feeAmount, clientFee);
     }
 
+    function _getSignature(
+        address _contractor,
+        address _proxy,
+        address _token,
+        uint256 _prepaymentAmount,
+        uint256 _amountToClaim,
+        Enums.FeeConfig _feeConfig
+    ) internal returns (bytes memory) {
+        // Sign deposit authorization
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    address(_contractor),
+                    address(_token),
+                    uint256(_prepaymentAmount),
+                    uint256(_amountToClaim),
+                    _feeConfig,
+                    uint256(block.timestamp + 3 hours),
+                    address(_proxy)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
+        return signature = abi.encodePacked(r, s, v);
+    }
+
     ///////////////////////////////////////////
     //            deposit tests              //
     ///////////////////////////////////////////
@@ -209,6 +237,13 @@ contract EscrowHourlyUnitTest is Test {
         test_initialize();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 0);
+        // deposit = IEscrowHourly.DepositRequest({
+        //     contractor: contractor,
+        //     paymentToken: address(paymentToken),
+        //     prepaymentAmount: 1 ether,
+        //     amountToClaim: 0,
+        //     feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+        // });
         vm.startPrank(client);
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
@@ -294,35 +329,55 @@ contract EscrowHourlyUnitTest is Test {
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
         escrow.deposit(0, deposit);
 
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: 0 ether,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(paymentToken), 0, 0, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidAmount.selector);
         escrow.deposit(0, deposit);
 
         ERC20Mock notPaymentToken = new ERC20Mock();
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(notPaymentToken),
             prepaymentAmount: 1 ether,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor),
+                address(escrow),
+                address(notPaymentToken),
+                1 ether,
+                0,
+                Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NotSupportedPaymentToken.selector);
         escrow.deposit(0, deposit);
 
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: address(0),
             paymentToken: address(paymentToken),
             prepaymentAmount: 1 ether,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(0), address(escrow), address(paymentToken), 1 ether, 0, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
@@ -331,12 +386,17 @@ contract EscrowHourlyUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: 1 ether,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(paymentToken), 1 ether, 0, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         vm.expectRevert(IEscrowHourly.Escrow__InvalidContractId.selector);
         escrow.deposit(1, deposit);
@@ -357,12 +417,17 @@ contract EscrowHourlyUnitTest is Test {
         ERC20Mock new_token = new ERC20Mock();
         vm.prank(owner);
         registry.addPaymentToken(address(new_token));
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(new_token),
             prepaymentAmount: 1 ether,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(new_token), 1 ether, 0, Enums.FeeConfig.CLIENT_COVERS_ALL
+            )
         });
 
         // deposit to the existing contractId
@@ -403,12 +468,22 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount * 3);
 
         address new_contractor = makeAddr("new_contractor");
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: new_contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: 1 ether,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(new_contractor),
+                address(escrow),
+                address(paymentToken),
+                1 ether,
+                0,
+                Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         // create second contract
         vm.startPrank(client);
@@ -441,12 +516,17 @@ contract EscrowHourlyUnitTest is Test {
 
     function test_deposit_reverts_ContractorMismatch() public {
         test_deposit_prepayment();
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: address(this),
             paymentToken: address(paymentToken),
             prepaymentAmount: 1 ether,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(this), address(escrow), address(paymentToken), 1 ether, 0, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         uint256 currentContractId = escrow.getCurrentContractId();
         vm.startPrank(client);
@@ -465,16 +545,26 @@ contract EscrowHourlyUnitTest is Test {
 
         vm.prank(owner);
         registry2.addPaymentToken(address(paymentToken2));
-        escrow2.initialize(client, owner, address(registry2));
+        escrow2.initialize(client, address(adminManager), address(registry2));
 
         uint256 depositAmount = 1 ether;
         uint256 totalDepositAmount = 1.03 ether;
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(paymentToken2),
             prepaymentAmount: 0,
             amountToClaim: depositAmount,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow2),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor),
+                address(escrow2),
+                address(paymentToken2),
+                0,
+                depositAmount,
+                Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
 
         vm.startPrank(address(client));
@@ -502,12 +592,17 @@ contract EscrowHourlyUnitTest is Test {
         test_initialize();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 0);
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: 0,
             amountToClaim: 1 ether,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(paymentToken), 0, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         vm.startPrank(client);
         paymentToken.mint(client, 1.03 ether);
@@ -1381,12 +1476,17 @@ contract EscrowHourlyUnitTest is Test {
         registry.addPaymentToken(address(usdt));
         uint256 depositAmount = 1e6;
         uint256 depositAmountAndFee = 1.08e6;
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(usdt),
             prepaymentAmount: 0 ether,
             amountToClaim: depositAmount,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(usdt), 0, depositAmount, Enums.FeeConfig.CLIENT_COVERS_ALL
+            )
         });
 
         test_initialize();
@@ -1724,12 +1824,17 @@ contract EscrowHourlyUnitTest is Test {
         registry.addPaymentToken(address(usdt));
         uint256 depositAmount = 1e6;
         uint256 depositAmountAndFee = 1.03e6;
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(usdt),
             prepaymentAmount: 0 ether,
             amountToClaim: depositAmount,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(usdt), 0, depositAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
 
         test_initialize();
@@ -1837,12 +1942,17 @@ contract EscrowHourlyUnitTest is Test {
         registry.addPaymentToken(address(usdt));
         uint256 depositAmount = 1e6;
         uint256 depositAmountAndFee = 1.03e6;
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(usdt),
             prepaymentAmount: 0 ether,
             amountToClaim: depositAmount,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(usdt), 0, depositAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
 
         test_initialize();
@@ -1967,12 +2077,17 @@ contract EscrowHourlyUnitTest is Test {
         registry.addPaymentToken(address(usdt));
         uint256 depositAmount = 1e6;
         uint256 depositAmountAndFee = 1.03e6;
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(usdt),
             prepaymentAmount: 0 ether,
             amountToClaim: depositAmount,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(usdt), 0, depositAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
 
         test_initialize();
@@ -2012,12 +2127,17 @@ contract EscrowHourlyUnitTest is Test {
 
         // 2d deposit
         // address new_contractor = makeAddr("new_contractor");
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(usdt),
             prepaymentAmount: 0 ether,
             amountToClaim: depositAmount,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(usdt), 0, depositAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
 
         vm.startPrank(client);
@@ -2040,12 +2160,17 @@ contract EscrowHourlyUnitTest is Test {
         // assertEq(usdt.balanceOf(address(new_contractor)), 0 ether);
 
         // 3rd deposit
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(usdt),
             prepaymentAmount: 0 ether,
             amountToClaim: depositAmount,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(usdt), 0, depositAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         vm.startPrank(client);
         usdt.mint(client, depositAmountAndFee);
@@ -2296,12 +2421,17 @@ contract EscrowHourlyUnitTest is Test {
         test_initialize();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(currentContractId, 0);
-        deposit = IEscrowHourly.Deposit({
+        deposit = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: 0,
             amountToClaim: 1 ether,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                address(contractor), address(escrow), address(paymentToken), 0, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         vm.startPrank(client);
         paymentToken.mint(client, 2.06 ether);

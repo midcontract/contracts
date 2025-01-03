@@ -28,15 +28,17 @@ contract ExecuteEscrowScript is Script {
     address usdtToken;
     address owner;
     address newOwner;
+    address client;
 
     IEscrowFixedPrice.DepositRequest deposit;
-    IEscrowHourly.Deposit depositHourly;
+    IEscrowHourly.DepositRequest depositHourly;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
     bytes32 contractorData;
     bytes32 salt;
     bytes contractData;
+    bytes signature;
 
     address deployerPublicKey;
     uint256 deployerPrivateKey;
@@ -56,6 +58,7 @@ contract ExecuteEscrowScript is Script {
         usdtToken = PolAmoyConfig.MOCK_USDT;
         escrowHourly = PolAmoyConfig.ESCROW_HOURLY_1;
         adminManager = PolAmoyConfig.ADMIN_MANAGER;
+        client = deployerPublicKey;
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
@@ -151,12 +154,22 @@ contract ExecuteEscrowScript is Script {
         MockUSDT(usdtToken).approve(address(escrowProxyHourly), 1300e6);
         // deposit
         uint256 depositHourlyAmount = 1000e6;
-        depositHourly = IEscrowHourly.Deposit({
+        depositHourly = IEscrowHourly.DepositRequest({
             contractor: deployerPublicKey,
             paymentToken: address(usdtToken),
             prepaymentAmount: depositHourlyAmount,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrowProxyHourly),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignatureHourly(
+                deployerPublicKey,
+                address(escrowProxyHourly),
+                address(usdtToken),
+                depositHourlyAmount,
+                0,
+                Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         uint256 currentContractId = escrowProxyHourly.getCurrentContractId();
         (uint256 totalDepositAmount, uint256 feeApplied) = EscrowFeeManager(feeManager).computeDepositAmountAndFee(
@@ -168,5 +181,32 @@ contract ExecuteEscrowScript is Script {
         );
         assert(totalDepositAmount > depositHourlyAmount);
         escrowProxyHourly.deposit(currentContractId, depositHourly);
+    }
+
+    function _getSignatureHourly(
+        address _contractor,
+        address _proxy,
+        address _token,
+        uint256 _prepaymentAmount,
+        uint256 _amountToClaim,
+        Enums.FeeConfig _feeConfig
+    ) internal returns (bytes memory) {
+        // Sign deposit authorization
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    address(_contractor),
+                    address(_token),
+                    uint256(_prepaymentAmount),
+                    uint256(_amountToClaim),
+                    _feeConfig,
+                    uint256(block.timestamp + 3 hours),
+                    address(_proxy)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
+        return signature = abi.encodePacked(r, s, v);
     }
 }

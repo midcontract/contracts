@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { SafeTransferLib } from "@solbase/utils/SafeTransferLib.sol";
+import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import { SignatureChecker } from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
+import { SafeTransferLib } from "@solbase/utils/SafeTransferLib.sol";
 
 import { IEscrowAdminManager } from "./interfaces/IEscrowAdminManager.sol";
 import { IEscrowHourly } from "./interfaces/IEscrowHourly.sol";
@@ -76,11 +77,14 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// contract.
     /// @param _contractId ID of the contract for which the deposit is made; if zero, a new contract is initialized.
     /// @param _deposit Details for deposit and initial week settings.
-    function deposit(uint256 _contractId, Deposit calldata _deposit) external onlyClient {
+    function deposit(uint256 _contractId, DepositRequest calldata _deposit) external onlyClient {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
         if (_deposit.prepaymentAmount == 0 && _deposit.amountToClaim == 0) revert Escrow__InvalidAmount();
         if (_deposit.contractor == address(0)) revert Escrow__ZeroAddressProvided();
+
+        // Validate the deposit fields against admin signature.
+        _validateDepositAuthorization(_deposit);
 
         // Determine contract ID.
         uint256 contractId = _contractId == 0 ? ++currentContractId : _contractId;
@@ -94,6 +98,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (C.contractor != address(0) && _deposit.contractor != C.contractor) {
             revert Escrow__ContractorMismatch();
         }
+
         // Set parameters if not already set.
         if (C.contractor == address(0)) {
             C.contractor = _deposit.contractor;
@@ -659,6 +664,34 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
             // EOA signature verification.
             address recoveredSigner = ECDSA.recover(ethSignedHash, _signature);
             return recoveredSigner == msg.sender;
+        }
+    }
+
+    /// @notice Validates deposit fields against admin-signed approval.
+    /// @param _deposit The deposit details including signature and expiration.
+    function _validateDepositAuthorization(DepositRequest calldata _deposit) internal view {
+        // Ensure the authorization has not expired.
+        if (_deposit.expiration < block.timestamp) revert Escrow__AuthorizationExpired();
+
+        // Generate hash for signed data.
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                msg.sender, // Client submitting the deposit.
+                _deposit.contractor, // Contractor's address.
+                _deposit.paymentToken, // Payment token address.
+                _deposit.prepaymentAmount, // Deposit prepaymentAmount.
+                _deposit.amountToClaim, // Deposit prepaymentAmount.
+                _deposit.feeConfig, // Fee configuration.
+                _deposit.expiration, // Expiration timestamp.
+                address(this) // Contract address.
+            )
+        );
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+
+        // Verify signature using the admin's address.
+        address signer = adminManager.owner();
+        if (!SignatureChecker.isValidSignatureNow(signer, ethSignedHash, _deposit.signature)) {
+            revert Escrow__InvalidSignature();
         }
     }
 }

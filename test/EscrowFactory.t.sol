@@ -35,14 +35,13 @@ contract EscrowFactoryUnitTest is Test {
     bytes32 contractorData;
     bytes32 salt;
     bytes contractData;
-
     bytes signature;
 
-    EscrowFixedPrice.DepositRequest deposit;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
-    IEscrowHourly.Deposit depositHourly;
+    IEscrowFixedPrice.DepositRequest deposit;
+    IEscrowHourly.DepositRequest depositHourly;
     IEscrowHourly.ContractDetails contractDetails;
 
     event EscrowProxyDeployed(address sender, address deployedProxy, Enums.EscrowType escrowType);
@@ -115,11 +114,11 @@ contract EscrowFactoryUnitTest is Test {
         return (totalDepositAmount, feeApplied);
     }
 
-    function _getSignature(address _proxy, address _token, uint256 _amount, Enums.FeeConfig _feeConfig)
+    function _getSignatureFixed(address _proxy, address _token, uint256 _amount, Enums.FeeConfig _feeConfig)
         internal
         returns (bytes memory)
     {
-         // Sign deposit authorization
+        // Sign deposit authorization
         bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
             keccak256(
                 abi.encodePacked(
@@ -129,6 +128,33 @@ contract EscrowFactoryUnitTest is Test {
                     uint256(_amount),
                     _feeConfig,
                     contractorData,
+                    uint256(block.timestamp + 3 hours),
+                    address(_proxy)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
+        return signature = abi.encodePacked(r, s, v);
+    }
+
+    function _getSignatureHourly(
+        address _contractor,
+        address _proxy,
+        address _token,
+        uint256 _prepaymentAmount,
+        uint256 _amountToClaim,
+        Enums.FeeConfig _feeConfig
+    ) internal returns (bytes memory) {
+        // Sign deposit authorization
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    address(_contractor),
+                    address(_token),
+                    uint256(_prepaymentAmount),
+                    uint256(_amountToClaim),
+                    _feeConfig,
                     uint256(block.timestamp + 3 hours),
                     address(_proxy)
                 )
@@ -185,7 +211,7 @@ contract EscrowFactoryUnitTest is Test {
             status: Enums.Status.ACTIVE,
             escrow: address(escrowProxy),
             expiration: block.timestamp + 3 hours,
-            signature: _getSignature(
+            signature: _getSignatureFixed(
                 address(escrowProxy), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL
             )
         });
@@ -230,7 +256,7 @@ contract EscrowFactoryUnitTest is Test {
             status: Enums.Status.ACTIVE,
             escrow: address(escrowProxy),
             expiration: block.timestamp + 3 hours,
-            signature: _getSignature(address(escrowProxy), address(paymentToken), 2 ether, Enums.FeeConfig.NO_FEES)
+            signature: _getSignatureFixed(address(escrowProxy), address(paymentToken), 2 ether, Enums.FeeConfig.NO_FEES)
         });
 
         (uint256 totalDepositAmount,) =
@@ -394,12 +420,22 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken.approve(address(escrowProxyHourly), totalDepositHourlyAmount);
 
         // 3. deposit
-        depositHourly = IEscrowHourly.Deposit({
+        depositHourly = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: depositHourlyAmount,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrowProxyHourly),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignatureHourly(
+                address(contractor),
+                address(escrowProxyHourly),
+                address(paymentToken),
+                depositHourlyAmount,
+                0,
+                Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         uint256 currentContractId = escrowProxyHourly.getCurrentContractId();
         assertEq(currentContractId, 0);

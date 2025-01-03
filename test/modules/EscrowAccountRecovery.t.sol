@@ -44,7 +44,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     EscrowFixedPrice.DepositRequest deposit;
     EscrowAccountRecovery.RecoveryData recoveryInfo;
     IEscrowMilestone.Milestone[] milestones;
-    IEscrowHourly.Deposit depositHourly;
+    IEscrowHourly.DepositRequest depositHourly;
     IEscrowHourly.ContractDetails contractDetails;
 
     event AdminManagerUpdated(address adminManager);
@@ -111,7 +111,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     }
 
     // helpers
-    function _getSignature(address _proxy, address _token, uint256 _amount, Enums.FeeConfig _feeConfig)
+    function _getSignatureFixed(address _proxy, address _token, uint256 _amount, Enums.FeeConfig _feeConfig)
         internal
         returns (bytes memory)
     {
@@ -125,6 +125,33 @@ contract EscrowAccountRecoveryUnitTest is Test {
                     uint256(_amount),
                     _feeConfig,
                     contractorData,
+                    uint256(block.timestamp + 3 hours),
+                    address(_proxy)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
+        return signature = abi.encodePacked(r, s, v);
+    }
+
+    function _getSignatureHourly(
+        address _contractor,
+        address _proxy,
+        address _token,
+        uint256 _prepaymentAmount,
+        uint256 _amountToClaim,
+        Enums.FeeConfig _feeConfig
+    ) internal returns (bytes memory) {
+        // Sign deposit authorization
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    address(_contractor),
+                    address(_token),
+                    uint256(_prepaymentAmount),
+                    uint256(_amountToClaim),
+                    _feeConfig,
                     uint256(block.timestamp + 3 hours),
                     address(_proxy)
                 )
@@ -153,7 +180,9 @@ contract EscrowAccountRecoveryUnitTest is Test {
             status: Enums.Status.ACTIVE,
             escrow: address(escrow),
             expiration: block.timestamp + 3 hours,
-            signature: _getSignature(address(escrow), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY)
+            signature: _getSignatureFixed(
+                address(escrow), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
         escrow.deposit(deposit);
         vm.stopPrank();
@@ -185,12 +214,22 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function initializeEscrowHourly() public {
         uint256 depositAmount = 1 ether;
-        depositHourly = IEscrowHourly.Deposit({
+        depositHourly = IEscrowHourly.DepositRequest({
             contractor: contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: depositAmount,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrowHourly),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignatureHourly(
+                address(contractor),
+                address(escrowHourly),
+                address(paymentToken),
+                depositAmount,
+                0,
+                Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
         });
 
         assertFalse(escrowHourly.initialized());
