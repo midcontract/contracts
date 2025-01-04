@@ -9,7 +9,10 @@ import { Enums } from "../common/Enums.sol";
 /// @notice Manages fee rates and calculations for escrow transactions.
 contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @notice The maximum allowable percentage in basis points (100%).
-    uint256 public constant MAX_BPS = 10_000; // 100%
+    uint256 public constant MAX_BPS = 10000; // 100%
+
+    /// @notice The maximum allowable fee percentage in basis points (e.g., 50%).
+    uint256 public constant MAX_FEE_BPS = 5000; // 50%
 
     /// @notice The default fees applied if no special fees are set (4th priority).
     FeeRates public defaultFees;
@@ -43,7 +46,7 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @param _coverage Specific coverage fee percentage for the user.
     /// @param _claim Specific claim fee percentage for the user.
     function setUserSpecificFees(address _user, uint16 _coverage, uint16 _claim) external onlyOwner {
-        if (_coverage > MAX_BPS || _claim > MAX_BPS) revert EscrowFeeManager__FeeTooHigh();
+        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
         if (_user == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
         userSpecificFees[_user] = FeeRates({ coverage: _coverage, claim: _claim });
         emit UserSpecificFeesSet(_user, _coverage, _claim);
@@ -54,7 +57,7 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @param _coverage Specific coverage fee percentage for the instance.
     /// @param _claim Specific claim fee percentage for the instance.
     function setInstanceFees(address _instance, uint16 _coverage, uint16 _claim) external onlyOwner {
-        if (_coverage > MAX_BPS || _claim > MAX_BPS) revert EscrowFeeManager__FeeTooHigh();
+        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
         if (_instance == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
         instanceFees[_instance] = FeeRates({ coverage: _coverage, claim: _claim });
         emit InstanceFeesSet(_instance, _coverage, _claim);
@@ -69,7 +72,7 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
         external
         onlyOwner
     {
-        if (_coverage > MAX_BPS || _claim > MAX_BPS) revert EscrowFeeManager__FeeTooHigh();
+        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
         if (_instance == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
         contractSpecificFees[_instance][_contractId] = FeeRates({ coverage: _coverage, claim: _claim });
         emit ContractSpecificFeesSet(_instance, _contractId, _coverage, _claim);
@@ -239,7 +242,7 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @param _coverage New default coverage fee percentage.
     /// @param _claim New default claim fee percentage.
     function _setDefaultFees(uint16 _coverage, uint16 _claim) internal {
-        if (_coverage > MAX_BPS || _claim > MAX_BPS) revert EscrowFeeManager__FeeTooHigh();
+        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
         defaultFees = FeeRates({ coverage: _coverage, claim: _claim });
         emit DefaultFeesSet(_coverage, _claim);
     }
