@@ -63,6 +63,14 @@ contract EscrowAccountRecovery {
     error UnauthorizedAccount();
     /// @dev Thrown indicates an attempt to set the recovery period below the minimum required or to zero.
     error RecoveryPeriodNotValid();
+    /// @dev Thrown if the provided contract ID is invalid or uninitialized.
+    error InvalidContractId();
+    /// @dev Thrown if the provided milestone ID does not exist for the specified contract.
+    error InvalidMilestoneId();
+    /// @dev Thrown if a milestone ID is provided for non-milestone escrows.
+    error MilestoneNotSupported();
+    /// @dev Thrown if the old and new account addresses provided for recovery are identical.
+    error SameAccountProvided();
 
     /// @dev Emitted when a recovery is initiated by the guardian.
     event RecoveryInitiated(address indexed sender, bytes32 indexed recoveryHash);
@@ -103,8 +111,18 @@ contract EscrowAccountRecovery {
         Enums.AccountTypeRecovery _accountType
     ) external {
         if (!IEscrowAdminManager(adminManager).isGuardian(msg.sender)) revert UnauthorizedAccount();
+        if (_escrow == address(0)) revert ZeroAddressProvided();
+        if (_oldAccount == _newAccount) revert SameAccountProvided();
+        if (_contractId > IEscrow(_escrow).getCurrentContractId()) revert InvalidContractId();
 
-        bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, _newAccount, _accountType);
+        if (_escrowType == Enums.EscrowType.MILESTONE) {
+            if (_milestoneId >= IEscrowMilestone(_escrow).getMilestoneCount(_contractId)) revert InvalidMilestoneId();
+        } else {
+            if (_milestoneId != 0) revert MilestoneNotSupported();
+        }
+
+        bytes32 recoveryHash =
+            _encodeRecoveryHash(_escrow, _contractId, _milestoneId, _oldAccount, _newAccount, _accountType);
         RecoveryData storage data = recoveryData[recoveryHash];
         if (data.executed) revert RecoveryAlreadyExecuted();
 
@@ -125,11 +143,20 @@ contract EscrowAccountRecovery {
     /// @notice Executes a previously confirmed recovery.
     /// @param _accountType Type of the account being recovered, either CLIENT or CONTRACTOR.
     /// @param _escrow Address of the escrow involved in the recovery.
+    /// @param _contractId Contract identifier within the escrow.
+    /// @param _milestoneId Milestone identifier within the contract.
     /// @param _oldAccount Old account address being replaced in the recovery.
     /// @dev This function checks that the recovery period has elapsed and that the recovery is confirmed before
     /// executing it.
-    function executeRecovery(Enums.AccountTypeRecovery _accountType, address _escrow, address _oldAccount) external {
-        bytes32 recoveryHash = _encodeRecoveryHash(_escrow, _oldAccount, msg.sender, _accountType);
+    function executeRecovery(
+        Enums.AccountTypeRecovery _accountType,
+        address _escrow,
+        uint256 _contractId,
+        uint256 _milestoneId,
+        address _oldAccount
+    ) external {
+        bytes32 recoveryHash =
+            _encodeRecoveryHash(_escrow, _contractId, _milestoneId, _oldAccount, msg.sender, _accountType);
         RecoveryData storage data = recoveryData[recoveryHash];
 
         if (uint64(block.timestamp) < data.executeAfter) revert RecoveryPeriodStillPending();
@@ -160,26 +187,26 @@ contract EscrowAccountRecovery {
     }
 
     /// @dev Transfers the ownership of the escrow contract based on the specified account type and escrow type.
-    /// @param escrowType The type of escrow contract involved in the transfer.
-    /// @param escrow The address of the escrow contract.
-    /// @param contractId The identifier of the contract within the escrow, relevant for contractor transfers.
-    /// @param milestoneId The identifier of the milestone within the contract, relevant for milestone-specific
+    /// @param _escrowType The type of escrow contract involved in the transfer.
+    /// @param _escrow The address of the escrow contract.
+    /// @param _contractId The identifier of the contract within the escrow, relevant for contractor transfers.
+    /// @param _milestoneId The identifier of the milestone within the contract, relevant for milestone-specific
     /// contractor transfers.
-    /// @param accountType The type of account to be transferred, can be either CLIENT or CONTRACTOR.
+    /// @param _accountType The type of account to be transferred, can be either CLIENT or CONTRACTOR.
     function _transferContractOwnership(
-        Enums.EscrowType escrowType,
-        address escrow,
-        uint256 contractId,
-        uint256 milestoneId,
-        Enums.AccountTypeRecovery accountType
+        Enums.EscrowType _escrowType,
+        address _escrow,
+        uint256 _contractId,
+        uint256 _milestoneId,
+        Enums.AccountTypeRecovery _accountType
     ) internal {
-        if (accountType == Enums.AccountTypeRecovery.CLIENT) {
-            IEscrow(escrow).transferClientOwnership(msg.sender);
-        } else if (accountType == Enums.AccountTypeRecovery.CONTRACTOR) {
-            if (escrowType == Enums.EscrowType.MILESTONE) {
-                IEscrowMilestone(escrow).transferContractorOwnership(contractId, milestoneId, msg.sender);
+        if (_accountType == Enums.AccountTypeRecovery.CLIENT) {
+            IEscrow(_escrow).transferClientOwnership(msg.sender);
+        } else if (_accountType == Enums.AccountTypeRecovery.CONTRACTOR) {
+            if (_escrowType == Enums.EscrowType.MILESTONE) {
+                IEscrowMilestone(_escrow).transferContractorOwnership(_contractId, _milestoneId, msg.sender);
             } else {
-                IEscrowFixedPrice(escrow).transferContractorOwnership(contractId, msg.sender);
+                IEscrowFixedPrice(_escrow).transferContractorOwnership(_contractId, msg.sender);
             }
         }
     }
@@ -187,25 +214,32 @@ contract EscrowAccountRecovery {
     /// @dev Encodes recovery details into a hash (used internally).
     function _encodeRecoveryHash(
         address _escrow,
+        uint256 _contractId,
+        uint256 _milestoneId,
         address _oldAccount,
         address _newAccount,
         Enums.AccountTypeRecovery _accountType
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_escrow, _oldAccount, _newAccount, _accountType));
+        return keccak256(abi.encodePacked(_escrow, _contractId, _milestoneId, _oldAccount, _newAccount, _accountType));
     }
 
     /// @dev Generates the recovery hash that should be signed by the guardian to initiate a recovery.
+    /// @param _escrow Address of the escrow contract related to the recovery.
+    /// @param _contractId Contract identifier within the escrow.
+    /// @param _milestoneId Milestone identifier within the contract.
     /// @param _oldAccount Address of the user being replaced.
     /// @param _newAccount Address of the new user.
     /// @param _accountType Type of the account being recovered, either CLIENT or CONTRACTOR.
     /// @return Hash of the recovery details.
     function getRecoveryHash(
         address _escrow,
+        uint256 _contractId,
+        uint256 _milestoneId,
         address _oldAccount,
         address _newAccount,
         Enums.AccountTypeRecovery _accountType
     ) external pure returns (bytes32) {
-        return _encodeRecoveryHash(_escrow, _oldAccount, _newAccount, _accountType);
+        return _encodeRecoveryHash(_escrow, _contractId, _milestoneId, _oldAccount, _newAccount, _accountType);
     }
 
     /// @notice Updates the recovery period to a new value, ensuring it meets minimum requirements.

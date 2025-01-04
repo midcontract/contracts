@@ -8,21 +8,21 @@ import { IEscrow, Enums } from "./IEscrow.sol";
 /// Focuses on the declaration of structs, events, errors, and essential function signatures to support milestone
 /// operations within the escrow system.
 interface IEscrowMilestone is IEscrow {
-    /// @notice Error for when no deposits are provided in a function call that expects at least one.
+    /// @notice Thrown when no deposits are provided in a function call that expects at least one.
     error Escrow__NoDepositsProvided();
 
-    /// @notice Error for when too many deposit entries are provided, exceeding the allowed limit for a single
+    /// @notice Thrown when too many deposit entries are provided, exceeding the allowed limit for a single
     /// transaction.
     error Escrow__TooManyMilestones();
 
-    /// @notice Error for when an invalid contract ID is provided to a function expecting a valid existing contract ID.
+    /// @notice Thrown when an invalid contract ID is provided to a function expecting a valid existing contract ID.
     error Escrow__InvalidContractId();
 
-    /// @notice Error for when an invalid milestone ID is provided to a function expecting a valid existing milestone
+    /// @notice Thrown when an invalid milestone ID is provided to a function expecting a valid existing milestone
     /// ID.
     error Escrow__InvalidMilestoneId();
 
-    /// @notice Error for when the provided milestone limit is zero or exceeds the maximum allowed.
+    /// @notice Thrown when the provided milestone limit is zero or exceeds the maximum allowed.
     error Escrow__InvalidMilestoneLimit();
 
     /// @notice This struct stores details about individual milestones within an escrow contract.
@@ -194,6 +194,12 @@ interface IEscrowMilestone is IEscrow {
     /// @notice Emitted when the maximum number of milestones per transaction is updated.
     /// @param maxMilestones The new maximum number of milestones that can be processed in a single transaction.
     event MaxMilestonesSet(uint256 maxMilestones);
+
+    /// @notice Retrieves the total number of milestones associated with a specific contract ID.
+    /// @dev Provides the length of the milestones array for the specified contract.
+    /// @param contractId The ID of the contract for which milestone count is requested.
+    /// @return milestoneCount The number of milestones linked to the specified contract ID.
+    function getMilestoneCount(uint256 contractId) external view returns (uint256);
 
     /// @notice Interface declaration for transferring contractor ownership.
     /// @param contractId The identifier of the contract for which contractor ownership is being transferred.

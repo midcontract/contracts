@@ -119,6 +119,11 @@ interface IEscrow {
     /// @param newOwner The new owner of the client account.
     event ClientOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
+    /// @notice Retrieves the current highest contract ID that has been created within the escrow.
+    /// @dev Returns the most recent contract ID, which is incremented for each new contract.
+    /// @return currentContractId The ID of the most recently created contract.
+    function getCurrentContractId() external view returns (uint256);
+
     /// @notice Initializes the escrow contract.
     /// @param client Address of the client initiating actions within the escrow.
     /// @param adminManager Address of the adminManager contract of the escrow platform.

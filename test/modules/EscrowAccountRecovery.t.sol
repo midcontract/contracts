@@ -35,6 +35,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     address new_client;
     address new_contractor;
     uint256 ownerPrKey;
+    uint256 milestoneId;
 
     bytes32 salt;
     bytes32 contractorData;
@@ -249,7 +250,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
         uint256 contractId = escrow.getCurrentContractId();
         Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrow), client, new_client, accountType);
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrow), contractId, milestoneId, client, new_client, accountType);
 
         vm.prank(guardian);
         vm.expectEmit(true, false, false, true);
@@ -280,7 +282,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
         uint256 contractId = escrow.getCurrentContractId();
         Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrow), client, new_client, accountType);
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrow), contractId, milestoneId, client, new_client, accountType);
         vm.prank(address(this)); //not a guardian
         vm.expectRevert(EscrowAccountRecovery.UnauthorizedAccount.selector);
         recovery.initiateRecovery(address(escrow), contractId, 0, client, new_client, escrowType, accountType);
@@ -291,8 +294,9 @@ contract EscrowAccountRecoveryUnitTest is Test {
     function test_initiateRecovery_reverts_RecoveryAlreadyExecuted() public {
         test_executeRecovery_fixed_price_client();
         uint256 contractId = escrow.getCurrentContractId();
-        bytes32 recoveryHash =
-            recovery.getRecoveryHash(address(escrow), client, new_client, Enums.AccountTypeRecovery.CLIENT);
+        bytes32 recoveryHash = recovery.getRecoveryHash(
+            address(escrow), contractId, milestoneId, client, new_client, Enums.AccountTypeRecovery.CLIENT
+        );
         (,,,,, bool _executed,,) = recovery.recoveryData(recoveryHash);
         assertTrue(_executed);
         assertEq(escrow.client(), new_client);
@@ -310,10 +314,72 @@ contract EscrowAccountRecoveryUnitTest is Test {
         );
     }
 
+    function test_initiateRecovery_reverts_ZeroAddressProvided() public {
+        initializeEscrowFixedPrice();
+        uint256 contractId = escrow.getCurrentContractId();
+        Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
+        Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrow), contractId, milestoneId, client, new_client, accountType);
+        vm.prank(guardian);
+        vm.expectRevert(EscrowAccountRecovery.ZeroAddressProvided.selector);
+        recovery.initiateRecovery(address(0), contractId, milestoneId, client, new_client, escrowType, accountType);
+        (,,,,, bool _executed,,) = recovery.recoveryData(recoveryHash);
+        assertFalse(_executed);
+    }
+
+    function test_initiateRecovery_reverts_SameAccountProvided() public {
+        initializeEscrowFixedPrice();
+        uint256 contractId = escrow.getCurrentContractId();
+        Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
+        Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrow), contractId, milestoneId, client, new_client, accountType);
+        vm.prank(guardian);
+        vm.expectRevert(EscrowAccountRecovery.SameAccountProvided.selector);
+        recovery.initiateRecovery(
+            address(escrow), contractId, milestoneId, new_client, new_client, escrowType, accountType
+        );
+        (,,,,, bool _executed,,) = recovery.recoveryData(recoveryHash);
+        assertFalse(_executed);
+    }
+
+    function test_initiateRecovery_reverts_InvalidContractId() public {
+        initializeEscrowFixedPrice();
+        uint256 contractId = escrow.getCurrentContractId();
+        Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
+        Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrow), ++contractId, milestoneId, client, new_client, accountType);
+        vm.prank(guardian);
+        vm.expectRevert(EscrowAccountRecovery.InvalidContractId.selector);
+        recovery.initiateRecovery(address(escrow), contractId, milestoneId, client, new_client, escrowType, accountType);
+        (,,,,, bool _executed,,) = recovery.recoveryData(recoveryHash);
+        assertFalse(_executed);
+    }
+
+    function test_initiateRecovery_reverts_MilestoneNotSupported() public {
+        initializeEscrowFixedPrice();
+        uint256 contractId = escrow.getCurrentContractId();
+        Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
+        Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrow), contractId, milestoneId, client, new_client, accountType);
+        vm.prank(guardian);
+        vm.expectRevert(EscrowAccountRecovery.MilestoneNotSupported.selector);
+        recovery.initiateRecovery(
+            address(escrow), contractId, ++milestoneId, client, new_client, escrowType, accountType
+        );
+        (,,,,, bool _executed,,) = recovery.recoveryData(recoveryHash);
+        assertFalse(_executed);
+    }
+
     function test_cancelRecovery() public {
         test_initiateRecovery_fixed_price_client();
-        bytes32 recoveryHash =
-            recovery.getRecoveryHash(address(escrow), client, new_client, Enums.AccountTypeRecovery.CLIENT);
+        uint256 contractId = escrow.getCurrentContractId();
+        bytes32 recoveryHash = recovery.getRecoveryHash(
+            address(escrow), contractId, milestoneId, client, new_client, Enums.AccountTypeRecovery.CLIENT
+        );
         vm.prank(owner);
         vm.expectRevert(EscrowAccountRecovery.UnauthorizedAccount.selector);
         recovery.cancelRecovery(recoveryHash);
@@ -331,8 +397,10 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_cancelRecovery_reverts_when_blacklisted() public {
         test_initiateRecovery_fixed_price_client();
-        bytes32 recoveryHash =
-            recovery.getRecoveryHash(address(escrow), client, new_client, Enums.AccountTypeRecovery.CLIENT);
+        uint256 contractId = escrow.getCurrentContractId();
+        bytes32 recoveryHash = recovery.getRecoveryHash(
+            address(escrow), contractId, milestoneId, client, new_client, Enums.AccountTypeRecovery.CLIENT
+        );
         vm.prank(owner);
         registry.addToBlacklist(client);
         assertTrue(registry.blacklist(client));
@@ -345,7 +413,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
         test_initiateRecovery_fixed_price_client();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
         uint256 contractId = escrow.getCurrentContractId();
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrow), client, new_client, accountType);
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrow), contractId, milestoneId, client, new_client, accountType);
         (
             address _escrow,
             address _oldAccount,
@@ -367,28 +436,28 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodStillPending.selector);
-        recovery.executeRecovery(accountType, address(escrow), client);
+        recovery.executeRecovery(accountType, address(escrow), contractId, milestoneId, client);
 
         skip(3 days);
         bytes memory expectedRevertData =
             abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(recovery));
         vm.prank(new_client);
         vm.expectRevert(expectedRevertData);
-        recovery.executeRecovery(accountType, address(escrow), client);
+        recovery.executeRecovery(accountType, address(escrow), contractId, milestoneId, client);
 
         vm.prank(owner);
         registry.setAccountRecovery(address(recovery));
 
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryNotInitiated.selector);
-        recovery.executeRecovery(Enums.AccountTypeRecovery.CONTRACTOR, address(escrow), client);
+        recovery.executeRecovery(Enums.AccountTypeRecovery.CONTRACTOR, address(escrow), contractId, milestoneId, client);
 
         vm.prank(new_client);
         vm.expectEmit(true, true, true, true);
         emit ClientOwnershipTransferred(client, new_client);
         vm.expectEmit(true, true, true, true);
         emit RecoveryExecuted(new_client, recoveryHash);
-        recovery.executeRecovery(accountType, address(escrow), client);
+        recovery.executeRecovery(accountType, address(escrow), contractId, milestoneId, client);
         (,,,, _executeAfter, _executed,,) = recovery.recoveryData(recoveryHash);
         assertEq(_executeAfter, 0);
         assertTrue(_executed);
@@ -396,7 +465,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
-        recovery.executeRecovery(accountType, address(escrow), client);
+        recovery.executeRecovery(accountType, address(escrow), contractId, milestoneId, client);
     }
 
     function test_executeRecovery_fixed_price_client_reverts_ZeroAddressProvided() public {
@@ -413,7 +482,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
         uint256 contractId = escrow.getCurrentContractId();
         Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrow), contractor, new_contractor, accountType);
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrow), contractId, milestoneId, contractor, new_contractor, accountType);
 
         vm.prank(guardian);
         vm.expectEmit(true, false, false, true);
@@ -443,7 +513,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
         test_initiateRecovery_fixed_price_contractor();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
         uint256 contractId = escrow.getCurrentContractId();
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrow), contractor, new_contractor, accountType);
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrow), contractId, milestoneId, contractor, new_contractor, accountType);
         (
             address _escrow,
             address _oldAccount,
@@ -468,28 +539,28 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodStillPending.selector);
-        recovery.executeRecovery(accountType, address(escrow), contractor);
+        recovery.executeRecovery(accountType, address(escrow), contractId, milestoneId, contractor);
 
         skip(3 days);
         bytes memory expectedRevertData =
             abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(recovery));
         vm.prank(new_contractor);
         vm.expectRevert(expectedRevertData);
-        recovery.executeRecovery(accountType, address(escrow), contractor);
+        recovery.executeRecovery(accountType, address(escrow), contractId, milestoneId, contractor);
 
         vm.prank(owner);
         registry.setAccountRecovery(address(recovery));
 
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryNotInitiated.selector);
-        recovery.executeRecovery(Enums.AccountTypeRecovery.CLIENT, address(escrow), contractor);
+        recovery.executeRecovery(Enums.AccountTypeRecovery.CLIENT, address(escrow), contractId, milestoneId, contractor);
 
         vm.prank(new_contractor);
         vm.expectEmit(true, true, true, true);
         emit ContractorOwnershipTransferred(contractId, contractor, new_contractor);
         vm.expectEmit(true, true, true, true);
         emit RecoveryExecuted(new_contractor, recoveryHash);
-        recovery.executeRecovery(accountType, address(escrow), contractor);
+        recovery.executeRecovery(accountType, address(escrow), contractId, milestoneId, contractor);
         (,,,, _executeAfter, _executed,,) = recovery.recoveryData(recoveryHash);
         assertEq(_executeAfter, 0);
         assertTrue(_executed);
@@ -499,7 +570,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
-        recovery.executeRecovery(accountType, address(escrow), contractor);
+        recovery.executeRecovery(accountType, address(escrow), contractId, milestoneId, contractor);
     }
 
     function test_executeRecovery_fixed_price_contractor_reverts_ZeroAddressProvided() public {
@@ -515,12 +586,17 @@ contract EscrowAccountRecoveryUnitTest is Test {
     function test_initiateRecovery_milestone_client() public {
         initializeEscrowMilestone();
         uint256 contractId = escrowMilestone.getCurrentContractId();
+        uint256 milestoneId_ = escrowMilestone.getMilestoneCount(contractId);
         Enums.EscrowType escrowType = Enums.EscrowType.MILESTONE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrowMilestone), client, new_client, accountType);
+        bytes32 recoveryHash = recovery.getRecoveryHash(
+            address(escrowMilestone), contractId, --milestoneId_, client, new_client, accountType
+        );
 
         vm.prank(guardian);
-        recovery.initiateRecovery(address(escrowMilestone), contractId, 0, client, new_client, escrowType, accountType);
+        recovery.initiateRecovery(
+            address(escrowMilestone), contractId, milestoneId_, client, new_client, escrowType, accountType
+        );
         (
             address _escrow,
             address _oldAccount,
@@ -534,19 +610,39 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertEq(_escrow, address(escrowMilestone));
         assertEq(_oldAccount, client);
         assertEq(_contractId, contractId);
-        assertEq(_milestoneId, 0);
+        assertEq(_milestoneId, milestoneId_); //0
         assertEq(_executeAfter, block.timestamp + 3 days);
         assertFalse(_executed);
         assertEq(uint256(_escrowType), 1);
         assertEq(uint256(_accountType), 0);
     }
 
+    function test_initiateRecovery_milestone_reverts_InvalidMilestoneId() public {
+        initializeEscrowMilestone();
+        uint256 contractId = escrowMilestone.getCurrentContractId();
+        uint256 milestoneId_ = escrowMilestone.getMilestoneCount(contractId);
+        Enums.EscrowType escrowType = Enums.EscrowType.MILESTONE;
+        Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
+        bytes32 recoveryHash = recovery.getRecoveryHash(
+            address(escrowMilestone), contractId, ++milestoneId_, client, new_client, accountType
+        );
+        vm.prank(guardian);
+        vm.expectRevert(EscrowAccountRecovery.InvalidMilestoneId.selector);
+        recovery.initiateRecovery(
+            address(escrowMilestone), contractId, milestoneId_, client, new_client, escrowType, accountType
+        );
+        (,,,,, bool _executed,,) = recovery.recoveryData(recoveryHash);
+        assertFalse(_executed);
+    }
+
     function test_executeRecovery_milestone_client() public {
         test_initiateRecovery_milestone_client();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
         uint256 contractId = escrowMilestone.getCurrentContractId();
-        uint256 milestoneId = escrowMilestone.getMilestoneCount(contractId);
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrowMilestone), client, new_client, accountType);
+        uint256 milestoneId_ = escrowMilestone.getMilestoneCount(contractId);
+        bytes32 recoveryHash = recovery.getRecoveryHash(
+            address(escrowMilestone), contractId, --milestoneId_, client, new_client, accountType
+        );
         (
             address _escrow,
             address _oldAccount,
@@ -560,7 +656,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertEq(_escrow, address(escrowMilestone));
         assertEq(_oldAccount, client);
         assertEq(_contractId, contractId);
-        assertEq(_milestoneId, --milestoneId);
+        assertEq(_milestoneId, milestoneId_);
         assertEq(_executeAfter, block.timestamp + 3 days);
         assertFalse(_executed);
         assertEq(uint256(_escrowType), 1);
@@ -568,28 +664,30 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodStillPending.selector);
-        recovery.executeRecovery(accountType, address(escrowMilestone), client);
+        recovery.executeRecovery(accountType, address(escrowMilestone), contractId, milestoneId, client);
 
         skip(3 days);
         bytes memory expectedRevertData =
             abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(recovery));
         vm.prank(new_client);
         vm.expectRevert(expectedRevertData);
-        recovery.executeRecovery(accountType, address(escrowMilestone), client);
+        recovery.executeRecovery(accountType, address(escrowMilestone), contractId, milestoneId, client);
 
         vm.prank(owner);
         registry.setAccountRecovery(address(recovery));
 
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryNotInitiated.selector);
-        recovery.executeRecovery(Enums.AccountTypeRecovery.CONTRACTOR, address(escrowMilestone), client);
+        recovery.executeRecovery(
+            Enums.AccountTypeRecovery.CONTRACTOR, address(escrowMilestone), contractId, milestoneId, client
+        );
 
         vm.prank(new_client);
         vm.expectEmit(true, true, true, true);
         emit ClientOwnershipTransferred(client, new_client);
         vm.expectEmit(true, true, true, true);
         emit RecoveryExecuted(new_client, recoveryHash);
-        recovery.executeRecovery(accountType, address(escrowMilestone), client);
+        recovery.executeRecovery(accountType, address(escrowMilestone), contractId, milestoneId, client);
         (,,,, _executeAfter, _executed,,) = recovery.recoveryData(recoveryHash);
         assertEq(_executeAfter, 0);
         assertTrue(_executed);
@@ -597,7 +695,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
-        recovery.executeRecovery(accountType, address(escrowMilestone), client);
+        recovery.executeRecovery(accountType, address(escrowMilestone), contractId, milestoneId, client);
     }
 
     function test_executeRecovery_milestone_client_reverts_ZeroAddressProvided() public {
@@ -614,8 +712,9 @@ contract EscrowAccountRecoveryUnitTest is Test {
         uint256 contractId = escrowMilestone.getCurrentContractId();
         Enums.EscrowType escrowType = Enums.EscrowType.MILESTONE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
-        bytes32 recoveryHash =
-            recovery.getRecoveryHash(address(escrowMilestone), contractor, new_contractor, accountType);
+        bytes32 recoveryHash = recovery.getRecoveryHash(
+            address(escrowMilestone), contractId, milestoneId, contractor, new_contractor, accountType
+        );
 
         vm.prank(guardian);
         vm.expectEmit(true, false, false, true);
@@ -647,9 +746,10 @@ contract EscrowAccountRecoveryUnitTest is Test {
         test_initiateRecovery_milestone_contractor();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
         uint256 contractId = escrowMilestone.getCurrentContractId();
-        uint256 milestoneId = escrowMilestone.getMilestoneCount(contractId);
-        bytes32 recoveryHash =
-            recovery.getRecoveryHash(address(escrowMilestone), contractor, new_contractor, accountType);
+        uint256 milestoneId_ = escrowMilestone.getMilestoneCount(contractId);
+        bytes32 recoveryHash = recovery.getRecoveryHash(
+            address(escrowMilestone), contractId, --milestoneId_, contractor, new_contractor, accountType
+        );
         (
             address _escrow,
             address _oldAccount,
@@ -669,31 +769,33 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertEq(uint256(_escrowType), 1);
         assertEq(uint256(_accountType), 1);
 
-        (address _contractor,,,,,,) = escrowMilestone.contractMilestones(contractId, --milestoneId);
+        (address _contractor,,,,,,) = escrowMilestone.contractMilestones(contractId, milestoneId_);
         assertEq(_contractor, contractor);
 
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodStillPending.selector);
-        recovery.executeRecovery(accountType, address(escrowMilestone), contractor);
+        recovery.executeRecovery(accountType, address(escrowMilestone), contractId, milestoneId_, contractor);
 
         skip(3 days);
         vm.prank(new_contractor);
         vm.expectRevert(abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(recovery)));
-        recovery.executeRecovery(accountType, address(escrowMilestone), contractor);
+        recovery.executeRecovery(accountType, address(escrowMilestone), contractId, milestoneId, contractor);
 
         vm.prank(owner);
         registry.setAccountRecovery(address(recovery));
 
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryNotInitiated.selector);
-        recovery.executeRecovery(Enums.AccountTypeRecovery.CLIENT, address(escrowMilestone), contractor);
+        recovery.executeRecovery(
+            Enums.AccountTypeRecovery.CLIENT, address(escrowMilestone), contractId, milestoneId, contractor
+        );
 
         vm.prank(new_contractor);
         vm.expectEmit(true, true, true, true);
         emit ContractorOwnershipTransferred(contractId, milestoneId, contractor, new_contractor);
         vm.expectEmit(true, true, true, true);
         emit RecoveryExecuted(new_contractor, recoveryHash);
-        recovery.executeRecovery(accountType, address(escrowMilestone), contractor);
+        recovery.executeRecovery(accountType, address(escrowMilestone), contractId, milestoneId, contractor);
         (,,,, _executeAfter, _executed,,) = recovery.recoveryData(recoveryHash);
         assertEq(_executeAfter, 0);
         assertTrue(_executed);
@@ -703,18 +805,18 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
-        recovery.executeRecovery(accountType, address(escrowMilestone), contractor);
+        recovery.executeRecovery(accountType, address(escrowMilestone), contractId, milestoneId, contractor);
     }
 
     function test_executeRecovery_milestone_contractor_reverts_ZeroAddressProvided() public {
         test_initiateRecovery_milestone_contractor();
         uint256 contractId = escrowMilestone.getCurrentContractId();
-        uint256 milestoneId = escrowMilestone.getMilestoneCount(contractId);
+        uint256 milestoneId_ = escrowMilestone.getMilestoneCount(contractId);
         vm.prank(owner);
         registry.setAccountRecovery(address(recovery));
         vm.prank(address(recovery));
         vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrowMilestone.transferContractorOwnership(contractId, --milestoneId, address(0));
+        escrowMilestone.transferContractorOwnership(contractId, --milestoneId_, address(0));
     }
 
     function test_initiateRecovery_hourly_client() public {
@@ -722,7 +824,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
         uint256 contractId = escrowHourly.getCurrentContractId();
         Enums.EscrowType escrowType = Enums.EscrowType.HOURLY;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrowHourly), client, new_client, accountType);
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrowHourly), contractId, milestoneId, client, new_client, accountType);
 
         vm.prank(guardian);
         recovery.initiateRecovery(address(escrowHourly), contractId, 0, client, new_client, escrowType, accountType);
@@ -750,7 +853,8 @@ contract EscrowAccountRecoveryUnitTest is Test {
         test_initiateRecovery_hourly_client();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
         uint256 contractId = escrowHourly.getCurrentContractId();
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrowHourly), client, new_client, accountType);
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrowHourly), contractId, milestoneId, client, new_client, accountType);
         (
             address _escrow,
             address _oldAccount,
@@ -772,28 +876,30 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodStillPending.selector);
-        recovery.executeRecovery(accountType, address(escrowHourly), client);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractId, milestoneId, client);
 
         skip(3 days);
         bytes memory expectedRevertData =
             abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(recovery));
         vm.prank(new_client);
         vm.expectRevert(expectedRevertData);
-        recovery.executeRecovery(accountType, address(escrowHourly), client);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractId, milestoneId, client);
 
         vm.prank(owner);
         registry.setAccountRecovery(address(recovery));
 
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryNotInitiated.selector);
-        recovery.executeRecovery(Enums.AccountTypeRecovery.CONTRACTOR, address(escrowHourly), client);
+        recovery.executeRecovery(
+            Enums.AccountTypeRecovery.CONTRACTOR, address(escrowHourly), contractId, milestoneId, client
+        );
 
         vm.prank(new_client);
         vm.expectEmit(true, true, true, true);
         emit ClientOwnershipTransferred(client, new_client);
         vm.expectEmit(true, true, true, true);
         emit RecoveryExecuted(new_client, recoveryHash);
-        recovery.executeRecovery(accountType, address(escrowHourly), client);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractId, milestoneId, client);
         (,,,, _executeAfter, _executed,,) = recovery.recoveryData(recoveryHash);
         assertEq(_executeAfter, 0);
         assertTrue(_executed);
@@ -801,7 +907,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_client);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
-        recovery.executeRecovery(accountType, address(escrowHourly), client);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractId, milestoneId, client);
     }
 
     function test_executeRecovery_hourly_client_reverts_ZeroAddressProvided() public {
@@ -818,7 +924,9 @@ contract EscrowAccountRecoveryUnitTest is Test {
         uint256 contractId = escrowHourly.getCurrentContractId();
         Enums.EscrowType escrowType = Enums.EscrowType.HOURLY;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrowHourly), contractor, new_contractor, accountType);
+        bytes32 recoveryHash = recovery.getRecoveryHash(
+            address(escrowHourly), contractId, milestoneId, contractor, new_contractor, accountType
+        );
 
         vm.prank(guardian);
         vm.expectEmit(true, false, false, true);
@@ -850,7 +958,9 @@ contract EscrowAccountRecoveryUnitTest is Test {
         test_initiateRecovery_hourly_contractor();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
         uint256 contractId = escrowHourly.getCurrentContractId();
-        bytes32 recoveryHash = recovery.getRecoveryHash(address(escrowHourly), contractor, new_contractor, accountType);
+        bytes32 recoveryHash = recovery.getRecoveryHash(
+            address(escrowHourly), contractId, milestoneId, contractor, new_contractor, accountType
+        );
         (
             address _escrow,
             address _oldAccount,
@@ -875,26 +985,28 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryPeriodStillPending.selector);
-        recovery.executeRecovery(accountType, address(escrowHourly), contractor);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractId, milestoneId, contractor);
 
         skip(3 days);
         vm.prank(new_contractor);
         vm.expectRevert(abi.encodeWithSelector(IEscrow.Escrow__UnauthorizedAccount.selector, address(recovery)));
-        recovery.executeRecovery(accountType, address(escrowHourly), contractor);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractId, milestoneId, contractor);
 
         vm.prank(owner);
         registry.setAccountRecovery(address(recovery));
 
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryNotInitiated.selector);
-        recovery.executeRecovery(Enums.AccountTypeRecovery.CLIENT, address(escrowHourly), contractor);
+        recovery.executeRecovery(
+            Enums.AccountTypeRecovery.CLIENT, address(escrowHourly), contractId, milestoneId, contractor
+        );
 
         vm.prank(new_contractor);
         vm.expectEmit(true, true, true, true);
         // emit ContractorOwnershipTransferred(contractId, contractor, new_contractor);
         // vm.expectEmit(true, true, true, true);
         emit RecoveryExecuted(new_contractor, recoveryHash);
-        recovery.executeRecovery(accountType, address(escrowHourly), contractor);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractId, milestoneId, contractor);
         (,,,, _executeAfter, _executed,,) = recovery.recoveryData(recoveryHash);
         assertEq(_executeAfter, 0);
         assertTrue(_executed);
@@ -904,7 +1016,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         vm.prank(new_contractor);
         vm.expectRevert(EscrowAccountRecovery.RecoveryAlreadyExecuted.selector);
-        recovery.executeRecovery(accountType, address(escrowHourly), contractor);
+        recovery.executeRecovery(accountType, address(escrowHourly), contractId, milestoneId, contractor);
     }
 
     function test_executeRecovery_hourly_contractor_reverts_ZeroAddressProvided() public {
