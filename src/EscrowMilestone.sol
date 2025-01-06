@@ -156,7 +156,8 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _milestoneId ID of the milestone to submit work for.
     /// @param _data Contractor’s details or work summary.
     /// @param _salt Unique salt for cryptographic operations.
-    function submit(uint256 _contractId, uint256 _milestoneId, bytes calldata _data, bytes32 _salt) external {
+    /// @param _signature Signature proving the contractor’s authorization.
+    function submit(uint256 _contractId, uint256 _milestoneId, bytes calldata _data, bytes32 _salt, bytes calldata _signature) external {
         // Ensure that the specified milestone exists within the bounds of the contract's milestones.
         if (_milestoneId >= contractMilestones[_contractId].length) revert Escrow__InvalidMilestoneId();
 
@@ -170,9 +171,17 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         // Ensure that the milestone is in a state that allows submission.
         if (M.status != Enums.Status.ACTIVE) revert Escrow__InvalidStatusForSubmit();
 
-        // Verify contractor's data using a hash function to ensure it matches expected details.
-        bytes32 contractorDataHash = _getContractorDataHash(_data, _salt);
+        // Compute hash with contractor binding.
+        bytes32 contractorDataHash = _getContractorDataHash(msg.sender, _data, _salt);
+
+        // Verify that the computed hash matches stored contractor data.
         if (M.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
+
+        // Verify the contractor's signature.
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+        if (ECDSA.recover(ethSignedHash, _signature) != msg.sender) {
+            revert Escrow__InvalidSignature();
+        }
 
         // Update the contractor information and status to SUBMITTED.
         M.contractor = msg.sender; // Assign the contractor if not previously set.
@@ -591,23 +600,34 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         return contractMilestones[_contractId].length;
     }
 
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
-    /// @param _data Contractor data.
-    /// @param _salt Salt value for generating the hash.
-    /// @return Hash value of the contractor data.
-    function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
-        return _getContractorDataHash(_data, _salt);
+    /// @notice Generates a hash for the contractor data with address binding.
+    /// @dev External function to compute a hash value tied to the contractor's identity.
+    /// @param _contractor Address of the contractor.
+    /// @param _data Contractor-specific data.
+    /// @param _salt A unique salt value.
+    /// @return Hash value bound to the contractor's address, data, and salt.
+    function getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+        external
+        pure
+        returns (bytes32)
+    {
+        return _getContractorDataHash(_contractor, _data, _salt);
     }
 
     /*//////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This internal function computes the hash value for the contractor data using the provided data and salt.
-    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_data, _salt));
+    /// @notice Generates a unique hash for verifying contractor data.
+    /// @dev Computes a hash that combines the contractor's address, data, and a salt value to securely bind the data
+    ///      to the contractor. This approach prevents impersonation and front-running attacks.
+    /// @return A keccak256 hash combining the contractor's address, data, and salt for verification.
+    function _getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_contractor, _data, _salt));
     }
 
     /// @notice Computes the total deposit amount and the applied fee.

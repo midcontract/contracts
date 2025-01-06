@@ -13,8 +13,7 @@ import { MockRegistry } from "test/mocks/MockRegistry.sol";
 import { MockDAI } from "test/mocks/MockDAI.sol";
 import { MockUSDT } from "test/mocks/MockUSDT.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { ECDSA } from "@solbase/utils/ECDSA.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract EscrowFixedPriceUnitTest is Test {
@@ -30,6 +29,7 @@ contract EscrowFixedPriceUnitTest is Test {
     address treasury;
     address owner;
     uint256 ownerPrKey;
+    uint256 contractorPrKey;
 
     bytes32 salt;
     bytes32 contractorData;
@@ -66,9 +66,10 @@ contract EscrowFixedPriceUnitTest is Test {
 
     function setUp() public {
         (owner, ownerPrKey) = makeAddrAndKey("owner");
-        treasury = makeAddr("treasury");
+        (contractor, contractorPrKey) = makeAddrAndKey("contractor");
+        (newContractor, newContractorPrKey) = makeAddrAndKey("newContractor");
         client = makeAddr("client");
-        contractor = makeAddr("contractor");
+        treasury = makeAddr("treasury");
 
         escrow = new EscrowFixedPrice();
         registry = new EscrowRegistry(owner);
@@ -87,7 +88,7 @@ contract EscrowFixedPriceUnitTest is Test {
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        contractorData = keccak256(abi.encodePacked(contractData, salt));
+        contractorData = keccak256(abi.encodePacked(contractor, contractData, salt));
     }
 
     ///////////////////////////////////////////
@@ -278,11 +279,10 @@ contract EscrowFixedPriceUnitTest is Test {
         escrow2.deposit(deposit);
 
         uint256 currentContractId = escrow2.getCurrentContractId();
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.prank(contractor);
-        escrow2.submit(currentContractId, contractData, salt);
+        escrow2.submit(currentContractId, contractData, salt, contractorSignature);
         vm.prank(client);
         escrow2.approve(currentContractId, 1 ether, contractor);
 
@@ -378,7 +378,7 @@ contract EscrowFixedPriceUnitTest is Test {
         Enums.FeeConfig _feeConfig
     ) internal returns (bytes memory) {
         // Sign deposit authorization
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
             keccak256(
                 abi.encodePacked(
                     client,
@@ -595,6 +595,21 @@ contract EscrowFixedPriceUnitTest is Test {
     //             submit tests              //
     ///////////////////////////////////////////
 
+    function _getSubmitSignature() internal returns (bytes32 contractorDataHash, bytes memory contractorSignature) {
+        // Prepare contractor data and generate hash.
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+
+        // Generate the contractor's off-chain signature
+        contractorDataHash = keccak256(abi.encodePacked(contractor, contractData, salt)); // Matches
+            // _getContractorDataHash()
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(contractorPrKey, ethSignedHash); // Simulate contractor's signature
+        contractorSignature = abi.encodePacked(r, s, v);
+        return (contractorDataHash, contractorSignature);
+    }
+
     function test_submit() public {
         test_depositWithAuthorization();
         uint256 currentContractId = escrow.getCurrentContractId();
@@ -611,17 +626,32 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        // contractData = bytes("contract_data");
+        // salt = keccak256(abi.encodePacked(uint256(42)));
+        // bytes32 contractorDataHash = escrow.getContractorDataHash(contractor, contractData, salt);
+        (bytes32 contractorDataHash, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit Submitted(contractor, currentContractId);
-        escrow.submit(currentContractId, contractData, salt);
+        escrow.submit(currentContractId, contractData, salt, contractorSignature);
         (_contractor,, _amount, _amountToClaim,,, _feeConfig, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorDataHash);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
+    }
+
+    function _getSubmitSignatureWithParams(bytes memory _data, bytes32 _salt)
+        internal
+        view
+        returns (bytes memory contractorSignature)
+    {
+        // Generate the contractor's off-chain signature
+        bytes32 contractorDataHash = keccak256(abi.encodePacked(contractor, _data, _salt)); // Matches
+            // _getContractorDataHash()
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(contractorPrKey, ethSignedHash); // Simulate contractor's signature
+        return contractorSignature = abi.encodePacked(r, s, v);
     }
 
     function test_submit_reverts() public {
@@ -631,20 +661,22 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        contractData = bytes("contract_data_");
+        bytes memory contractData1 = bytes("contract_data_");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractor, contractData1, salt);
+        bytes memory contractorSignature = _getSubmitSignatureWithParams(contractData1, salt);
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidContractorDataHash.selector);
-        escrow.submit(currentContractId, contractData, salt);
+        escrow.submit(currentContractId, contractData1, salt, contractorSignature);
         assertEq(_contractor, address(0));
 
-        contractData = bytes("contract_data");
+        bytes memory contractData2 = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(41)));
-        contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        contractorDataHash = escrow.getContractorDataHash(contractor, contractData2, salt);
+        contractorSignature = _getSubmitSignatureWithParams(contractData2, salt);
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidContractorDataHash.selector);
-        escrow.submit(currentContractId, contractData, salt);
+        escrow.submit(currentContractId, contractData2, salt, contractorSignature);
         assertEq(_contractor, address(0));
         vm.stopPrank();
     }
@@ -659,16 +691,17 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        // contractData = bytes("contract_data");
+        // salt = keccak256(abi.encodePacked(uint256(42)));
+        // bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        (bytes32 contractorDataHash, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(address(this));
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
-        escrow.submit(currentContractId, contractData, salt);
+        escrow.submit(currentContractId, contractData, salt, contractorSignature);
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit Submitted(contractor, currentContractId);
-        escrow.submit(currentContractId, contractData, salt);
+        escrow.submit(currentContractId, contractData, salt, contractorSignature);
         (_contractor,,,,, _contractorData, _feeConfig, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorDataHash);
@@ -681,11 +714,13 @@ contract EscrowFixedPriceUnitTest is Test {
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 1); //Status.ACTIVE
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        // contractData = bytes("contract_data");
+        // salt = keccak256(abi.encodePacked(uint256(42)));
+        // bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        (, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(address(this));
         vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
-        escrow.submit(currentContractId, contractData, salt);
+        escrow.submit(currentContractId, contractData, salt, contractorSignature);
         (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 1); //Status.ACTIVE
@@ -699,12 +734,13 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        // contractData = bytes("contract_data");
+        // salt = keccak256(abi.encodePacked(uint256(42)));
+        // bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        (bytes32 contractorDataHash, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusForSubmit.selector);
-        escrow.submit(currentContractId, contractData, salt);
+        escrow.submit(currentContractId, contractData, salt, contractorSignature);
         (_contractor,,,,, _contractorData,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorDataHash);
@@ -1059,7 +1095,7 @@ contract EscrowFixedPriceUnitTest is Test {
                 address(escrow)
             )
         );
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(hash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
         bytes memory signature1 = abi.encodePacked(r, s, v);
         deposit = IEscrowFixedPrice.DepositRequest({
@@ -1086,11 +1122,12 @@ contract EscrowFixedPriceUnitTest is Test {
         vm.stopPrank();
 
         uint256 currentContractId = escrow.getCurrentContractId();
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        // contractData = bytes("contract_data");
+        // salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.prank(contractor);
-        escrow.submit(currentContractId, contractData, salt);
+        escrow.submit(currentContractId, contractData, salt, contractorSignature);
 
         uint256 amountApprove = 1 ether;
         vm.prank(client);
@@ -1155,11 +1192,10 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.prank(contractor);
-        escrow.submit(currentContractId_2, contractData, salt);
+        escrow.submit(currentContractId_2, contractData, salt, contractorSignature);
 
         uint256 amountApprove = 1 ether;
         vm.prank(client);
@@ -1191,7 +1227,7 @@ contract EscrowFixedPriceUnitTest is Test {
         // this test need it's own setup
         test_initialize();
         // Sign deposit authorization
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
             keccak256(
                 abi.encodePacked(
                     client,
@@ -1231,11 +1267,10 @@ contract EscrowFixedPriceUnitTest is Test {
         vm.stopPrank();
 
         uint256 currentContractId = escrow.getCurrentContractId();
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.prank(contractor);
-        escrow.submit(currentContractId, contractData, salt);
+        escrow.submit(currentContractId, contractData, salt, contractorSignature);
         (
             address _contractor,
             ,
@@ -1323,7 +1358,7 @@ contract EscrowFixedPriceUnitTest is Test {
 
     function test_claim_whenResolveDispute_winnerSplit_reverts_NotApproved() public {
         test_initialize();
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
             keccak256(
                 abi.encodePacked(
                     client,
@@ -1363,11 +1398,10 @@ contract EscrowFixedPriceUnitTest is Test {
         vm.stopPrank();
 
         uint256 currentContractId = escrow.getCurrentContractId();
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.prank(contractor);
-        escrow.submit(currentContractId, contractData, salt);
+        escrow.submit(currentContractId, contractData, salt, contractorSignature);
         (
             address _contractor,
             ,
@@ -1417,14 +1451,14 @@ contract EscrowFixedPriceUnitTest is Test {
     MockDAI dai;
     MockUSDT usdt;
 
-    function _getSignature(address token, uint256 amount) internal returns (bytes memory) {
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+    function _getSignature(address _token, uint256 _amount) internal returns (bytes memory) {
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
             keccak256(
                 abi.encodePacked(
                     client,
                     address(0),
-                    address(token),
-                    uint256(amount),
+                    address(_token),
+                    uint256(_amount),
                     Enums.FeeConfig.CLIENT_COVERS_ONLY,
                     contractorData,
                     uint256(block.timestamp + 3 hours),
@@ -1434,6 +1468,40 @@ contract EscrowFixedPriceUnitTest is Test {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash);
         return signature = abi.encodePacked(r, s, v);
+    }
+
+    function _getSignature2(address _token, uint256 _amount, address _contractor) internal returns (bytes memory) {
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    _contractor,
+                    address(_token),
+                    uint256(_amount),
+                    Enums.FeeConfig.CLIENT_COVERS_ONLY,
+                    keccak256(abi.encodePacked(_contractor, contractData, salt)),
+                    uint256(block.timestamp + 3 hours),
+                    address(escrow)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash);
+        return signature = abi.encodePacked(r, s, v);
+    }
+
+    address newContractor;
+    uint256 newContractorPrKey;
+
+    function _getSubmitSignature2() internal returns (bytes32 contractorDataHash, bytes memory contractorSignature) {
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+
+        contractorDataHash = keccak256(abi.encodePacked(newContractor, contractData, salt));
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(newContractorPrKey, ethSignedHash);
+        contractorSignature = abi.encodePacked(r, s, v);
+        return (contractorDataHash, contractorSignature);
     }
 
     function test_claim_several_contractIds_with_diff_tokens() public {
@@ -1480,9 +1548,10 @@ contract EscrowFixedPriceUnitTest is Test {
         (,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,, Enums.Status _status) =
             escrow.deposits(currentContractId_1);
         assertEq(uint256(_status), 1); //Status.ACTIVE
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.prank(contractor);
-        escrow.submit(currentContractId_1, contractData, salt);
+        escrow.submit(currentContractId_1, contractData, salt, contractorSignature);
         (,,,,,,, _status) = escrow.deposits(currentContractId_1);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
 
@@ -1496,17 +1565,17 @@ contract EscrowFixedPriceUnitTest is Test {
 
         // 2. deposit usdt
         deposit = IEscrowFixedPrice.DepositRequest({
-            contractor: address(0),
+            contractor: address(newContractor),
             paymentToken: address(usdt),
             amount: 1e6,
             amountToClaim: 0,
             amountToWithdraw: 0,
-            contractorData: contractorData,
+            contractorData: keccak256(abi.encodePacked(newContractor, contractData, salt)),
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
             status: Enums.Status.ACTIVE,
             escrow: address(escrow),
             expiration: block.timestamp + 3 hours,
-            signature: _getSignature(address(usdt), 1e6)
+            signature: _getSignature2(address(usdt), 1e6, newContractor)
         });
 
         uint256 initialTotalDepositAmount_usdt = 1.03e6;
@@ -1516,7 +1585,7 @@ contract EscrowFixedPriceUnitTest is Test {
         usdt.mint(client, initialTotalDepositAmount_usdt);
         usdt.approve(address(escrow), initialTotalDepositAmount_usdt);
         vm.expectEmit(true, true, true, true);
-        emit Deposited(client, 2, initialTotalDepositAmount_usdt, address(0));
+        emit Deposited(client, 2, initialTotalDepositAmount_usdt, newContractor);
         escrow.deposit(deposit);
         vm.stopPrank();
 
@@ -1575,10 +1644,10 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amountToWithdraw, depositAmount_usdt);
         assertEq(uint256(_status), 8); //Status.REFUND_APPROVED
 
-        (uint256 totalDeposited_usdt, uint256 feeAmount_usdt) = _computeDepositAndFeeAmount(
+        (, uint256 feeAmount_usdt) = _computeDepositAndFeeAmount(
             address(escrow), currentContractId_3, client, _amountToWithdraw, Enums.FeeConfig.CLIENT_COVERS_ONLY
         );
-        (totalDeposited_usdt);
+        // (totalDeposited_usdt);
 
         (, uint256 initialFeeAmount_usdt) = _computeDepositAndFeeAmount(
             address(escrow), currentContractId_3, client, depositAmount_usdt, Enums.FeeConfig.CLIENT_COVERS_ONLY
@@ -1603,16 +1672,16 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(dai.balanceOf(address(escrow)), 1.03 ether); //1.03 ether - totalDepositAmount_dai
         assertEq(dai.balanceOf(address(contractor)), 0 ether);
 
-        address new_contractor = makeAddr("new_contractor");
-        vm.prank(new_contractor);
-        escrow.submit(currentContractId_2, contractData, salt);
+        (, contractorSignature) = _getSubmitSignature2();
+        vm.prank(newContractor);
+        escrow.submit(currentContractId_2, contractData, salt, contractorSignature);
         vm.prank(client);
-        escrow.approve(currentContractId_2, depositAmount_usdt, new_contractor);
+        escrow.approve(currentContractId_2, depositAmount_usdt, newContractor);
 
         (uint256 claimAmount, uint256 contractorFee, uint256 clientFee) =
             _computeClaimableAndFeeAmount(address(escrow), 1, contractor, 1e6, Enums.FeeConfig.CLIENT_COVERS_ONLY);
 
-        vm.prank(new_contractor);
+        vm.prank(newContractor);
         escrow.claim(currentContractId_2);
 
         assertEq(usdt.balanceOf(address(client)), 1e6 + initialFeeAmount_usdt);

@@ -14,8 +14,7 @@ import { PolAmoyConfig } from "config/PolAmoyConfig.sol";
 import { Enums } from "src/common/Enums.sol";
 import { MockDAI } from "test/mocks/MockDAI.sol";
 import { MockUSDT } from "test/mocks/MockUSDT.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { ECDSA } from "@solbase/utils/ECDSA.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract ExecuteEscrowScript is Script {
@@ -35,9 +34,11 @@ contract ExecuteEscrowScript is Script {
     Enums.FeeConfig feeConfig;
     Enums.Status status;
     Enums.EscrowType escrowType;
+    bytes32 contractorDataHash;
     bytes32 contractorData;
     bytes32 salt;
     bytes contractData;
+    bytes contractorSignature;
     bytes signature;
 
     address deployerPublicKey;
@@ -64,6 +65,12 @@ contract ExecuteEscrowScript is Script {
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
+        // Generate the contractor's off-chain signature
+        contractorDataHash = keccak256(abi.encodePacked(deployerPublicKey, contractData, salt));
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(deployerPrivateKey, ethSignedHash); // Simulate contractor's signature
+        contractorSignature = abi.encodePacked(r, s, v);
+
         uint256 expiration = block.timestamp + 1 days;
 
         // Sign deposit authorization
@@ -72,9 +79,9 @@ contract ExecuteEscrowScript is Script {
                 address(this), address(0), address(usdtToken), uint256(1000e6), feeConfig, expiration, address(escrow)
             )
         );
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
-        bytes memory signature = abi.encodePacked(r, s, v);
+        ethSignedHash = ECDSA.toEthSignedMessageHash(hash);
+        (v, r, s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
+        signature = abi.encodePacked(r, s, v);
 
         deposit = IEscrowFixedPrice.DepositRequest({
             contractor: address(0),
@@ -135,7 +142,7 @@ contract ExecuteEscrowScript is Script {
         uint256 currentContractId = EscrowFixedPrice(escrowProxy).getCurrentContractId();
 
         // // submit
-        EscrowFixedPrice(escrowProxy).submit(currentContractId, contractData, salt);
+        EscrowFixedPrice(escrowProxy).submit(currentContractId, contractData, salt, contractorSignature);
 
         // // approve
         EscrowFixedPrice(escrowProxy).approve(currentContractId, 1000e6, address(deployerPublicKey));
@@ -192,7 +199,7 @@ contract ExecuteEscrowScript is Script {
         Enums.FeeConfig _feeConfig
     ) internal returns (bytes memory) {
         // Sign deposit authorization
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
             keccak256(
                 abi.encodePacked(
                     client,

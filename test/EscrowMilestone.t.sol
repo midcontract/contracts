@@ -13,6 +13,8 @@ import { IEscrow } from "src/interfaces/IEscrow.sol";
 import { MockRegistry } from "test/mocks/MockRegistry.sol";
 import { MockUSDT } from "test/mocks/MockUSDT.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { ECDSA } from "@solbase/utils/ECDSA.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract EscrowMilestoneUnitTest is Test {
     EscrowMilestone escrow;
@@ -27,10 +29,13 @@ contract EscrowMilestoneUnitTest is Test {
     address contractor;
     address treasury;
     address owner;
+    uint256 ownerPrKey;
+    uint256 contractorPrKey;
 
-    bytes32 contractorData;
     bytes32 salt;
+    bytes32 contractorData;
     bytes contractData;
+    bytes signature;
 
     Enums.FeeConfig feeConfig;
     Enums.Status status;
@@ -114,10 +119,11 @@ contract EscrowMilestoneUnitTest is Test {
     );
 
     function setUp() public {
-        owner = makeAddr("owner");
-        treasury = makeAddr("treasury");
+        (owner, ownerPrKey) = makeAddrAndKey("owner");
+        (contractor, contractorPrKey) = makeAddrAndKey("contractor");
+        (newContractor, newContractorPrKey) = makeAddrAndKey("newContractor");
         client = makeAddr("client");
-        contractor = makeAddr("contractor");
+        treasury = makeAddr("treasury");
 
         escrow = new EscrowMilestone();
         registry = new EscrowRegistry(owner);
@@ -137,7 +143,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        contractorData = keccak256(abi.encodePacked(contractData, salt));
+        contractorData = keccak256(abi.encodePacked(contractor, contractData, salt));
 
         // Initialize the milestones array within setUp
         milestones.push(
@@ -217,6 +223,32 @@ contract EscrowMilestoneUnitTest is Test {
             _feeManager.computeClaimableAmountAndFee(_escrow, _contractId, _contractor, _claimAmount, _feeConfig);
 
         return (claimAmount, feeAmount, clientFee);
+    }
+
+    function _getSubmitSignature() internal returns (bytes32 contractorDataHash, bytes memory contractorSignature) {
+        // Prepare contractor data and generate hash.
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+
+        // Generate the contractor's off-chain signature
+        contractorDataHash = keccak256(abi.encodePacked(contractor, contractData, salt));
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(contractorPrKey, ethSignedHash); // Simulate contractor's signature
+        contractorSignature = abi.encodePacked(r, s, v);
+        return (contractorDataHash, contractorSignature);
+    }
+
+    function _getSubmitSignatureWithParams(bytes memory _data, bytes32 _salt)
+        internal
+        view
+        returns (bytes memory contractorSignature)
+    {
+        bytes32 contractorDataHash = keccak256(abi.encodePacked(contractor, _data, _salt));
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(contractorPrKey, ethSignedHash);
+        return contractorSignature = abi.encodePacked(r, s, v);
     }
 
     ///////////////////////////////////////////
@@ -403,10 +435,9 @@ contract EscrowMilestoneUnitTest is Test {
         escrow2.deposit(0, address(paymentToken2), _milestones);
 
         uint256 currentContractId = escrow2.getCurrentContractId();
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(contractor);
-        escrow2.submit(currentContractId, 0, contractData, salt);
+        escrow2.submit(currentContractId, 0, contractData, salt, contractorSignature);
         vm.prank(client);
         escrow2.approve(currentContractId, 0, 1 ether, contractor);
 
@@ -653,13 +684,11 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        (bytes32 contractorDataHash, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit Submitted(contractor, currentContractId, 0);
-        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
         (_contractor, _amount,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorDataHash);
@@ -676,13 +705,11 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        (bytes32 contractorDataHash, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit Submitted(contractor, currentContractId, 0);
-        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
         (_contractor, _amount,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorDataHash);
@@ -698,11 +725,10 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusForSubmit.selector);
-        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
         (_contractor,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorData);
@@ -721,20 +747,20 @@ contract EscrowMilestoneUnitTest is Test {
 
         contractData = bytes("contract_data_");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        bytes memory contractorSignature = _getSubmitSignatureWithParams(contractData, salt);
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidContractorDataHash.selector);
-        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
         (_contractor,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(43)));
-        contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        contractorSignature = _getSubmitSignatureWithParams(contractData, salt);
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidContractorDataHash.selector);
-        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
         (_contractor,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 1); //Status.ACTIVE
@@ -749,12 +775,10 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractData, salt);
+        (bytes32 contractorDataHash, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(address(this));
         vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
-        escrow.submit(currentContractId, 0, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
         (_contractor,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorDataHash);
@@ -773,11 +797,10 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         assertEq(milestoneId, 1);
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(contractor);
         vm.expectRevert(IEscrowMilestone.Escrow__InvalidMilestoneId.selector);
-        escrow.submit(currentContractId, ++milestoneId, contractData, salt);
+        escrow.submit(currentContractId, ++milestoneId, contractData, salt, contractorSignature);
     }
 
     ////////////////////////////////////////////
@@ -1315,10 +1338,9 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(contractor);
-        escrow.submit(currentContractId, milestoneId2, contractData, salt);
+        escrow.submit(currentContractId, milestoneId2, contractData, salt, contractorSignature);
 
         uint256 amountApprove = 2 ether;
         vm.prank(client);
@@ -1355,13 +1377,12 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt);
-        escrow.submit(currentContractId, 1, contractData, salt);
-        escrow.submit(currentContractId, 2, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -1440,13 +1461,12 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt);
-        escrow.submit(currentContractId, 1, contractData, salt);
-        escrow.submit(currentContractId, 2, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -1489,13 +1509,12 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt);
-        escrow.submit(currentContractId, 1, contractData, salt);
-        escrow.submit(currentContractId, 2, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -1555,13 +1574,12 @@ contract EscrowMilestoneUnitTest is Test {
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt);
-        escrow.submit(currentContractId, 1, contractData, salt);
-        escrow.submit(currentContractId, 2, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -1603,13 +1621,12 @@ contract EscrowMilestoneUnitTest is Test {
         // uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(escrow.getMilestoneCount(1), 3);
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.startPrank(contractor);
-        escrow.submit(1, 0, contractData, salt);
-        escrow.submit(1, 1, contractData, salt);
-        escrow.submit(1, 2, contractData, salt);
+        escrow.submit(1, 0, contractData, salt, contractorSignature);
+        escrow.submit(1, 1, contractData, salt, contractorSignature);
+        escrow.submit(1, 2, contractData, salt, contractorSignature);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -1713,13 +1730,12 @@ contract EscrowMilestoneUnitTest is Test {
         // uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(escrow.getMilestoneCount(1), 3);
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.startPrank(contractor);
-        escrow.submit(1, 0, contractData, salt);
-        escrow.submit(1, 1, contractData, salt);
-        escrow.submit(1, 2, contractData, salt);
+        escrow.submit(1, 0, contractData, salt, contractorSignature);
+        escrow.submit(1, 1, contractData, salt, contractorSignature);
+        escrow.submit(1, 2, contractData, salt, contractorSignature);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -1828,6 +1844,21 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0.54 ether + 1.03 ether); //amountToWithdrawSplit+fee
     }
 
+    address newContractor;
+    uint256 newContractorPrKey;
+
+    function _getSubmitSignature2() internal returns (bytes32 contractorDataHash, bytes memory contractorSignature) {
+        contractData = bytes("contract_data");
+        salt = keccak256(abi.encodePacked(uint256(42)));
+
+        contractorDataHash = keccak256(abi.encodePacked(newContractor, contractData, salt));
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(newContractorPrKey, ethSignedHash);
+        contractorSignature = abi.encodePacked(r, s, v);
+        return (contractorDataHash, contractorSignature);
+    }
+
     function test_claimAll_when_diff_contractors() public {
         MockUSDT usdt = new MockUSDT();
         vm.prank(owner);
@@ -1845,13 +1876,12 @@ contract EscrowMilestoneUnitTest is Test {
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
             status: Enums.Status.NONE
         });
-        address new_contractor = makeAddr("new_contractor");
         _milestones[1] = IEscrowMilestone.Milestone({
-            contractor: new_contractor,
+            contractor: newContractor,
             amount: depositAmount,
             amountToClaim: 0,
             amountToWithdraw: 0,
-            contractorData: contractorData,
+            contractorData: keccak256(abi.encodePacked(newContractor, contractData, salt)),
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
             status: Enums.Status.ACTIVE
         });
@@ -1876,18 +1906,18 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(usdt.balanceOf(address(client)), 0 ether);
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt);
-        escrow.submit(currentContractId, 2, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
         vm.stopPrank();
-        vm.prank(new_contractor);
-        escrow.submit(currentContractId, 1, contractData, salt);
+        (, contractorSignature) = _getSubmitSignature2();
+        vm.prank(newContractor);
+        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
         vm.startPrank(client);
         escrow.approve(currentContractId, 0, depositAmount, contractor);
         escrow.approve(currentContractId, 2, depositAmount, contractor);
-        escrow.approve(currentContractId, 1, depositAmount, new_contractor);
+        escrow.approve(currentContractId, 1, depositAmount, newContractor);
         vm.stopPrank();
 
         (uint256 claimAmount, uint256 contractorFee, uint256 clientFee) = _computeClaimableAndFeeAmount(
@@ -1899,15 +1929,15 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(usdt.balanceOf(address(escrow)), totalDepositAmount - (claimAmount + (contractorFee + clientFee)) * 2);
         assertEq(usdt.balanceOf(address(treasury)), (contractorFee + clientFee) * 2);
         assertEq(usdt.balanceOf(address(contractor)), claimAmount * 2);
-        assertEq(usdt.balanceOf(address(new_contractor)), 0);
+        assertEq(usdt.balanceOf(address(newContractor)), 0);
         assertEq(usdt.balanceOf(address(client)), 0);
 
-        vm.prank(new_contractor);
+        vm.prank(newContractor);
         escrow.claimAll(currentContractId, 0, 2); // claim 1 of 3
         assertEq(usdt.balanceOf(address(escrow)), totalDepositAmount - (claimAmount + (contractorFee + clientFee)) * 3);
         assertEq(usdt.balanceOf(address(treasury)), (contractorFee + clientFee) * 3);
         assertEq(usdt.balanceOf(address(contractor)), claimAmount * 2);
-        assertEq(usdt.balanceOf(address(new_contractor)), claimAmount);
+        assertEq(usdt.balanceOf(address(newContractor)), claimAmount);
         assertEq(usdt.balanceOf(address(client)), 0);
     }
 
@@ -1915,13 +1945,12 @@ contract EscrowMilestoneUnitTest is Test {
         test_deposit_severalMilestones();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt);
-        escrow.submit(currentContractId, 1, contractData, salt);
-        escrow.submit(currentContractId, 2, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -1941,13 +1970,12 @@ contract EscrowMilestoneUnitTest is Test {
         test_deposit_severalMilestones();
         uint256 currentContractId = escrow.getCurrentContractId();
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
-        contractData = bytes("contract_data");
-        salt = keccak256(abi.encodePacked(uint256(42)));
+        (, bytes memory contractorSignature) = _getSubmitSignature();
 
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt);
-        escrow.submit(currentContractId, 1, contractData, salt);
-        escrow.submit(currentContractId, 2, contractData, salt);
+        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
+        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
         vm.stopPrank();
 
         vm.startPrank(client);

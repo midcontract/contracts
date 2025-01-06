@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import { SignatureChecker } from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 import { SafeTransferLib } from "@solbase/utils/SafeTransferLib.sol";
+import { SignatureChecker } from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
 import { IEscrowAdminManager } from "./interfaces/IEscrowAdminManager.sol";
 import { IEscrowFixedPrice } from "./interfaces/IEscrowFixedPrice.sol";
@@ -109,11 +108,12 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     }
 
     /// @notice Submits work for a contract by the contractor.
-    /// @dev This function allows the contractor to submit their work details for a contract.
+    /// @dev Uses ECDSA signature to ensure the data originates from the contractor.
     /// @param _contractId ID of the deposit to be submitted.
-    /// @param _data Contractor’s details or work summary.
-    /// @param _salt Unique salt for cryptographic operations.
-    function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt) external {
+    /// @param _data Contractor-specific data.
+    /// @param _salt Unique salt value.
+    /// @param _signature Signature proving the contractor’s authorization.
+    function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt, bytes calldata _signature) external {
         DepositInfo storage D = deposits[_contractId];
         // Only allow the designated contractor to submit, or allow initial submission if no contractor has been set.
         if (D.contractor != address(0) && msg.sender != D.contractor) {
@@ -123,9 +123,17 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Check that the contract is currently active and ready to receive a submission.
         if (D.status != Enums.Status.ACTIVE) revert Escrow__InvalidStatusForSubmit();
 
-        // Verify contractor's data using a hash function to ensure it matches expected details.
-        bytes32 contractorDataHash = _getContractorDataHash(_data, _salt);
+        // Compute hash with contractor binding.
+        bytes32 contractorDataHash = _getContractorDataHash(msg.sender, _data, _salt);
+
+        // Verify that the computed hash matches stored contractor data.
         if (D.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
+
+        // Verify the contractor's signature.
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+        if (ECDSA.recover(ethSignedHash, _signature) != msg.sender) {
+            revert Escrow__InvalidSignature();
+        }
 
         // Update the contractor's address and change the contract status to SUBMITTED.
         D.contractor = msg.sender;
@@ -443,23 +451,34 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         return currentContractId;
     }
 
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
-    /// @param _data Contractor data.
-    /// @param _salt Salt value for generating the hash.
-    /// @return Hash value of the contractor data.
-    function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
-        return _getContractorDataHash(_data, _salt);
+    /// @notice Generates a hash for the contractor data with address binding.
+    /// @dev External function to compute a hash value tied to the contractor's identity.
+    /// @param _contractor Address of the contractor.
+    /// @param _data Contractor-specific data.
+    /// @param _salt A unique salt value.
+    /// @return Hash value bound to the contractor's address, data, and salt.
+    function getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+        external
+        pure
+        returns (bytes32)
+    {
+        return _getContractorDataHash(_contractor, _data, _salt);
     }
 
     /*//////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This internal function computes the hash value for the contractor data using the provided data and salt.
-    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_data, _salt));
+    /// @notice Generates a unique hash for verifying contractor data.
+    /// @dev Computes a hash that combines the contractor's address, data, and a salt value to securely bind the data
+    ///      to the contractor. This approach prevents impersonation and front-running attacks.
+    /// @return A keccak256 hash combining the contractor's address, data, and salt for verification.
+    function _getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_contractor, _data, _salt));
     }
 
     /// @notice Computes the total deposit amount and the applied fee.
@@ -561,7 +580,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
                 address(this) // Contract address.
             )
         );
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(hash);
 
         // Verify signature using the admin's address.
         address signer = adminManager.owner();
