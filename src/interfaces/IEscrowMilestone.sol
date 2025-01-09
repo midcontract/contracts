@@ -25,6 +25,25 @@ interface IEscrowMilestone is IEscrow {
     /// @notice Thrown when the provided milestone limit is zero or exceeds the maximum allowed.
     error Escrow__InvalidMilestoneLimit();
 
+    /// @notice Thrown when the provided milestonesHash does not match the computed hash of milestones.
+    error Escrow__InvalidMilestonesHash();
+
+    /// @notice Struct to encapsulate all parameters required for a milestone deposit.
+    /// @param contractId ID of the contract, or zero to create a new contract.
+    /// @param paymentToken Address of the payment token for deposits.
+    /// @param milestonesHash Precomputed hash of milestones.
+    /// @param escrow The explicit address of the escrow contract handling the deposit.
+    /// @param expiration Timestamp indicating expiration of authorization.
+    /// @param signature Signature authorizing the deposit request.
+    struct DepositRequest {
+        uint256 contractId;
+        address paymentToken;
+        bytes32 milestonesHash;
+        address escrow;
+        uint256 expiration;
+        bytes signature;
+    }
+
     /// @notice This struct stores details about individual milestones within an escrow contract.
     /// @param paymentToken The address of the token to be used for payments.
     /// @param depositAmount The initial deposit amount set aside for this milestone.

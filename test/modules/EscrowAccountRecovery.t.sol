@@ -3,6 +3,10 @@ pragma solidity 0.8.25;
 
 import { Test, console2 } from "forge-std/Test.sol";
 
+import { ECDSA } from "@solbase/utils/ECDSA.sol";
+import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+
 import { EscrowAccountRecovery } from "src/modules/EscrowAccountRecovery.sol";
 import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
 import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
@@ -12,10 +16,6 @@ import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManage
 import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
 import { IEscrow } from "src/interfaces/IEscrow.sol";
 import { Enums } from "src/common/Enums.sol";
-import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract EscrowAccountRecoveryUnitTest is Test {
     EscrowAccountRecovery recovery;
@@ -47,6 +47,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     IEscrowMilestone.Milestone[] milestones;
     IEscrowHourly.DepositRequest depositHourly;
     IEscrowHourly.ContractDetails contractDetails;
+    IEscrowMilestone.DepositRequest depositMilestone;
 
     event AdminManagerUpdated(address adminManager);
     event RecoveryInitiated(address indexed sender, bytes32 indexed recoveryHash);
@@ -111,13 +112,13 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertFalse(address(newRecovery).code.length > 0);
     }
 
-    // helpers
+    // Helpers
     function _getSignatureFixed(address _proxy, address _token, uint256 _amount, Enums.FeeConfig _feeConfig)
         internal
         returns (bytes memory)
     {
         // Sign deposit authorization
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
             keccak256(
                 abi.encodePacked(
                     client,
@@ -144,7 +145,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         Enums.FeeConfig _feeConfig
     ) internal returns (bytes memory) {
         // Sign deposit authorization
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
             keccak256(
                 abi.encodePacked(
                     client,
@@ -160,6 +161,45 @@ contract EscrowAccountRecoveryUnitTest is Test {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
         return signature = abi.encodePacked(r, s, v);
+    }
+
+    function _getSignatureMilestone(
+        address _proxy,
+        address _client,
+        uint256 _contractId,
+        address _token,
+        bytes32 _milestonesHash
+    ) internal returns (bytes memory) {
+        // Sign deposit authorization
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    _client,
+                    _contractId,
+                    address(_token),
+                    _milestonesHash,
+                    uint256(block.timestamp + 3 hours),
+                    address(_proxy)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
+        return signature = abi.encodePacked(r, s, v);
+    }
+
+    function _hashMilestones(IEscrowMilestone.Milestone[] memory _milestones) internal pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](_milestones.length);
+        for (uint256 i = 0; i < _milestones.length; i++) {
+            hashes[i] = keccak256(
+                abi.encode(
+                    _milestones[i].contractor,
+                    _milestones[i].amount,
+                    _milestones[i].contractorData,
+                    _milestones[i].feeConfig
+                )
+            );
+        }
+        return keccak256(abi.encodePacked(hashes));
     }
 
     function initializeEscrowFixedPrice() public {
@@ -205,11 +245,21 @@ contract EscrowAccountRecoveryUnitTest is Test {
         escrowMilestone.initialize(client, address(adminManager), address(registry));
         assertTrue(escrowMilestone.initialized());
 
+        bytes32 milestonesHash = _hashMilestones(milestones);
+        depositMilestone = IEscrowMilestone.DepositRequest({
+            contractId: 0,
+            paymentToken: address(paymentToken),
+            milestonesHash: milestonesHash,
+            escrow: address(escrowMilestone),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignatureMilestone(address(escrowMilestone), client, 0, address(paymentToken), milestonesHash)
+        });
+
         uint256 depositAmount = 1.03 ether;
         vm.startPrank(address(client));
         paymentToken.mint(address(client), depositAmount);
         paymentToken.approve(address(escrowMilestone), depositAmount);
-        escrowMilestone.deposit(0, address(paymentToken), milestones);
+        escrowMilestone.deposit(depositMilestone, milestones);
         vm.stopPrank();
     }
 
