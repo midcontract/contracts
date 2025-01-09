@@ -3,15 +3,15 @@ pragma solidity 0.8.25;
 
 import { Test, console2 } from "forge-std/Test.sol";
 
+import { ECDSA } from "@solbase/utils/ECDSA.sol";
+import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+
 import { EscrowFeeManager, IEscrowFeeManager, OwnedThreeStep } from "src/modules/EscrowFeeManager.sol";
 import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
 import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
 import { EscrowRegistry } from "src/modules/EscrowRegistry.sol";
 import { Enums } from "src/common/Enums.sol";
-import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract EscrowFeeManagerUnitTest is Test {
     EscrowFeeManager feeManager;
@@ -58,10 +58,11 @@ contract EscrowFeeManagerUnitTest is Test {
     function create_deposit() public {
         initialize_escrow();
         // Sign deposit authorization
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
             keccak256(
                 abi.encodePacked(
                     client,
+                    uint256(1),
                     address(contractor),
                     address(paymentToken),
                     uint256(1 ether),
@@ -76,6 +77,7 @@ contract EscrowFeeManagerUnitTest is Test {
         bytes memory signature = abi.encodePacked(r, s, v);
 
         EscrowFixedPrice.DepositRequest memory deposit = IEscrowFixedPrice.DepositRequest({
+            contractId: 1,
             contractor: address(contractor),
             paymentToken: address(paymentToken),
             amount: 1 ether,
@@ -103,7 +105,7 @@ contract EscrowFeeManagerUnitTest is Test {
     function test_setUpState() public view {
         assertTrue(address(feeManager).code.length > 0);
         assertEq(feeManager.owner(), address(owner));
-        assertEq(feeManager.MAX_BPS(), 10000);
+        assertEq(feeManager.MAX_BPS(), 10_000);
         assertEq(feeManager.MAX_FEE_BPS(), 5000);
         (uint16 coverage, uint16 claim) = feeManager.defaultFees();
         assertEq(coverage, 300);
@@ -228,7 +230,7 @@ contract EscrowFeeManagerUnitTest is Test {
 
     function test_setContractSpecificFees() public {
         test_setInstanceFees();
-        uint256 contractId = escrow.getCurrentContractId();
+        uint256 contractId = 1;
         (uint16 coverage, uint16 claim) = feeManager.instanceFees(address(escrow));
         assertEq(coverage, 250);
         assertEq(claim, 450);
@@ -351,7 +353,7 @@ contract EscrowFeeManagerUnitTest is Test {
 
     function test_resetContractSpecificFees() public {
         test_setContractSpecificFees();
-        uint256 contractId = escrow.getCurrentContractId();
+        uint256 contractId = 1;
         (uint16 coverage, uint16 claim) = feeManager.defaultFees();
         assertEq(coverage, 300);
         assertEq(claim, 500);
@@ -386,7 +388,7 @@ contract EscrowFeeManagerUnitTest is Test {
 
     function test_resetAllToDefault() public {
         test_setContractSpecificFees();
-        uint256 contractId = escrow.getCurrentContractId();
+        uint256 contractId = 1;
         (uint16 coverage, uint16 claim) = feeManager.defaultFees();
         assertEq(coverage, 300);
         assertEq(claim, 500);

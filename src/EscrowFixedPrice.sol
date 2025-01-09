@@ -30,9 +30,6 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Address of the client who initiates the escrow contract.
     address public client;
 
-    /// @dev Tracks the last issued contract ID, incrementing with each new contract creation.
-    uint256 private currentContractId;
-
     /// @dev Indicates that the contract has been initialized.
     bool public initialized;
 
@@ -78,15 +75,19 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Validate that the deposit amount is greater than zero.
         if (_deposit.amount == 0) revert Escrow__ZeroDepositAmount();
 
+        // Ensure the provided `contractId` is valid, unique, and non-zero.
+        if (
+            _deposit.contractId == 0 || deposits[_deposit.contractId].status != Enums.Status.NONE
+                || deposits[_deposit.contractId].paymentToken != address(0)
+        ) {
+            revert Escrow__ContractIdAlreadyExists();
+        }
+
         // Validate the deposit fields against admin signature.
         _validateDepositAuthorization(_deposit);
 
-        unchecked {
-            currentContractId++;
-        }
-
         // Store the deposit information in the storage mapping.
-        DepositInfo storage D = deposits[currentContractId];
+        DepositInfo storage D = deposits[_deposit.contractId];
         D.contractor = _deposit.contractor;
         D.paymentToken = _deposit.paymentToken;
         D.amount = _deposit.amount;
@@ -98,13 +99,13 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
 
         // Compute the total amount to be transferred, including any applicable fees.
         (uint256 totalDepositAmount,) =
-            _computeDepositAmountAndFee(currentContractId, msg.sender, _deposit.amount, _deposit.feeConfig);
+            _computeDepositAmountAndFee(_deposit.contractId, msg.sender, _deposit.amount, _deposit.feeConfig);
 
         // Transfer the calculated total deposit amount from the sender to this contract.
         SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), totalDepositAmount);
 
         // Emit an event to log the deposit details.
-        emit Deposited(msg.sender, currentContractId, totalDepositAmount, _deposit.contractor);
+        emit Deposited(msg.sender, _deposit.contractId, totalDepositAmount, _deposit.contractor);
     }
 
     /// @notice Submits work for a contract by the contractor.
@@ -445,10 +446,11 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         emit AdminManagerUpdated(_adminManager);
     }
 
-    /// @notice Retrieves the current contract ID.
-    /// @return The current contract ID.
-    function getCurrentContractId() external view returns (uint256) {
-        return currentContractId;
+    /// @notice Checks if a given contract ID exists.
+    /// @param _contractId The contract ID to check.
+    /// @return bool True if the contract exists, false otherwise.
+    function contractExists(uint256 _contractId) external view returns (bool) {
+        return deposits[_contractId].status != Enums.Status.NONE;
     }
 
     /// @notice Generates a hash for the contractor data with address binding.
@@ -571,6 +573,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         bytes32 hash = keccak256(
             abi.encodePacked(
                 msg.sender, // Client submitting the deposit.
+                _deposit.contractId, // Contract ID for the deposit.
                 _deposit.contractor, // Contractor's address.
                 _deposit.paymentToken, // Payment token address.
                 _deposit.amount, // Deposit amount.

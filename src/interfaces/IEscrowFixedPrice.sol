@@ -9,9 +9,12 @@ import { IEscrow, Enums } from "./IEscrow.sol";
 /// Defines only the essential components such as errors, events, struct and key function signatures related to
 /// fixed-price escrow operations.
 interface IEscrowFixedPrice is IEscrow {
+    /// @notice Thrown when the provided `contractId` already exists in storage.
+    error Escrow__ContractIdAlreadyExists();
+
     /// @notice Represents input deposit payload for authorization in the escrow.
-    /// @dev This struct is used as a parameter when submitting a deposit request.
-    /// It includes additional metadata like expiration and signature for validation purposes.
+    /// @dev Includes additional metadata like expiration and signature for validation purposes.
+    /// @param contractId The ID of the contract associated with the deposit.
     /// @param contractor The address of the contractor who will receive the deposit.
     /// @param paymentToken The address of the ERC20 token used for payment.
     /// @param amount The total amount being deposited.
@@ -24,6 +27,7 @@ interface IEscrowFixedPrice is IEscrow {
     /// @param expiration The timestamp specifying when the deposit request becomes invalid.
     /// @param signature A digital signature from an admin validating the deposit request.
     struct DepositRequest {
+        uint256 contractId;
         address contractor;
         address paymentToken;
         uint256 amount;

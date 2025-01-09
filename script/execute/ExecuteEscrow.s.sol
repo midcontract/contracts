@@ -3,6 +3,9 @@ pragma solidity 0.8.25;
 
 import { Script, console } from "forge-std/Script.sol";
 
+import { ECDSA } from "@solbase/utils/ECDSA.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+
 import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
 import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
 import { EscrowFactory, IEscrowFactory } from "src/EscrowFactory.sol";
@@ -14,8 +17,6 @@ import { PolAmoyConfig } from "config/PolAmoyConfig.sol";
 import { Enums } from "src/common/Enums.sol";
 import { MockDAI } from "test/mocks/MockDAI.sol";
 import { MockUSDT } from "test/mocks/MockUSDT.sol";
-import { ECDSA } from "@solbase/utils/ECDSA.sol";
-import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 contract ExecuteEscrowScript is Script {
     address escrow;
@@ -84,6 +85,7 @@ contract ExecuteEscrowScript is Script {
         signature = abi.encodePacked(r, s, v);
 
         deposit = IEscrowFixedPrice.DepositRequest({
+            contractId: 1,
             contractor: address(0),
             paymentToken: address(usdtToken),
             amount: 1000e6,
@@ -139,7 +141,7 @@ contract ExecuteEscrowScript is Script {
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
         // bytes32 contractorDataHash = Escrow(escrowProxy).getContractorDataHash(contractData, salt);
-        uint256 currentContractId = EscrowFixedPrice(escrowProxy).getCurrentContractId();
+        uint256 currentContractId = 1;
 
         // // submit
         EscrowFixedPrice(escrowProxy).submit(currentContractId, contractData, salt, contractorSignature);
