@@ -815,6 +815,125 @@ contract EscrowMilestoneUnitTest is Test {
         vm.stopPrank();
     }
 
+    function test_deposit_reverts_InvalidMilestonesHash() public {
+        test_initialize();
+        bytes32 validMilestonesHash = _hashMilestones(milestones);
+        bytes32 invalidMilestonesHash = keccak256(abi.encodePacked("invalidMilestonesHash"));
+        deposit = IEscrowMilestone.DepositRequest({
+            contractId: contractId,
+            paymentToken: address(paymentToken),
+            milestonesHash: invalidMilestonesHash,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getDepositSignature(address(escrow), client, contractId, address(paymentToken), validMilestonesHash)
+        });
+        vm.startPrank(client);
+        paymentToken.mint(address(client), 1 ether);
+        paymentToken.approve(address(escrow), 1 ether);
+        vm.expectRevert(IEscrowMilestone.Escrow__InvalidMilestonesHash.selector);
+        escrow.deposit(deposit, milestones);
+        vm.stopPrank();
+    }
+
+    function test_deposit_reverts_InvalidSignature() public {
+        test_initialize();
+
+        // Generate a valid milestones hash
+        bytes32 validMilestonesHash = _hashMilestones(milestones);
+
+        // Use an invalid signature by signing with a different hash
+        bytes32 invalidHashForSignature = keccak256(abi.encodePacked("invalidHash"));
+        deposit = IEscrowMilestone.DepositRequest({
+            contractId: contractId,
+            paymentToken: address(paymentToken),
+            milestonesHash: validMilestonesHash,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getDepositSignature(
+                address(escrow), client, contractId, address(paymentToken), invalidHashForSignature
+            )
+        });
+
+        // Act as the client and attempt the deposit
+        vm.startPrank(client);
+        paymentToken.mint(address(client), 1 ether);
+        paymentToken.approve(address(escrow), 1 ether);
+
+        // Expect the function to revert with `Escrow__InvalidSignature`
+        vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
+        escrow.deposit(deposit, milestones);
+
+        vm.stopPrank();
+    }
+
+    function test_deposit_reverts_InvalidSignature_DifferentSigner() public {
+        test_initialize();
+
+        // Generate a valid milestones hash
+        bytes32 validMilestonesHash = _hashMilestones(milestones);
+        
+        // Use a different signer for the signature
+        (address fakeAdmin, uint256 fakeAdminPrKey) = makeAddrAndKey("fakeAdmin");
+        (fakeAdmin);
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    contractId,
+                    address(paymentToken),
+                    validMilestonesHash,
+                    uint256(block.timestamp + 3 hours),
+                    address(escrow)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(fakeAdminPrKey, ethSignedHash);
+        bytes memory fakeSignature = abi.encodePacked(r, s, v);
+
+        deposit = IEscrowMilestone.DepositRequest({
+            contractId: contractId,
+            paymentToken: address(paymentToken),
+            milestonesHash: validMilestonesHash,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: fakeSignature
+        });
+
+        vm.startPrank(client);
+        paymentToken.mint(address(client), 1 ether);
+        paymentToken.approve(address(escrow), 1 ether);
+        vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
+        escrow.deposit(deposit, milestones);
+        vm.stopPrank();
+    }
+
+    function test_deposit_reverts_AuthorizationExpired() public {
+        test_initialize();
+
+        // Generate a valid milestones hash
+        bytes32 validMilestonesHash = _hashMilestones(milestones);
+
+        deposit = IEscrowMilestone.DepositRequest({
+            contractId: contractId,
+            paymentToken: address(paymentToken),
+            milestonesHash: validMilestonesHash,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours), // Valid for 3 hours
+            signature: _getDepositSignature(address(escrow), client, contractId, address(paymentToken), validMilestonesHash)
+        });
+
+        // Simulate time passage beyond the expiration
+        // uint256 expiredTimestamp = (uint256(block.timestamp + 3 hours)) + 1 hours
+        skip(4 hours); // Fast forward time by 4 hours, making the request expired
+        // Act as the client and attempt the deposit
+        vm.startPrank(client);
+        paymentToken.mint(address(client), 1 ether);
+        paymentToken.approve(address(escrow), 1 ether);
+        vm.expectRevert(IEscrow.Escrow__AuthorizationExpired.selector);
+        escrow.deposit(deposit, milestones);
+        vm.stopPrank();
+    }
+
     ///////////////////////////////////////////
     //             submit tests              //
     ///////////////////////////////////////////
