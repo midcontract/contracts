@@ -91,12 +91,12 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         if (milestonesLength == 0) revert Escrow__NoDepositsProvided();
         if (milestonesLength > maxMilestones) revert Escrow__TooManyMilestones();
 
-        // Validate authorization using a single signature for the entire request.
-        _validateDepositAuthorization(_deposit);
-
         // Verify hash integrity.
         bytes32 computedHash = _hashMilestones(_milestones);
         if (computedHash != _deposit.milestonesHash) revert Escrow__InvalidMilestonesHash();
+
+        // Validate authorization using a single signature for the entire request.
+        _validateDepositAuthorization(_deposit);
 
         // Initialize or validate the contract ID.
         uint256 contractId = _deposit.contractId == 0 ? ++currentContractId : _deposit.contractId;
