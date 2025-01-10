@@ -113,7 +113,7 @@ contract EscrowAccountRecovery {
         if (!IEscrowAdminManager(adminManager).isGuardian(msg.sender)) revert UnauthorizedAccount();
         if (_escrow == address(0)) revert ZeroAddressProvided();
         if (_oldAccount == _newAccount) revert SameAccountProvided();
-        if (_contractId > IEscrow(_escrow).getCurrentContractId()) revert InvalidContractId();
+        if (!IEscrow(_escrow).contractExists(_contractId)) revert InvalidContractId();
 
         if (_escrowType == Enums.EscrowType.MILESTONE) {
             if (_milestoneId >= IEscrowMilestone(_escrow).getMilestoneCount(_contractId)) revert InvalidMilestoneId();

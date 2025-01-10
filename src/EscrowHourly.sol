@@ -30,9 +30,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @dev Address of the client who initiates the escrow contract.
     address public client;
 
-    /// @dev Tracks the last issued contract ID, incrementing with each new contract creation.
-    uint256 private currentContractId;
-
     /// @dev Indicates that the contract has been initialized.
     bool public initialized;
 
@@ -75,9 +72,8 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @dev This function handles the initialization or update of a week's deposit in a single transaction.
     ///      If a new contract ID is provided, a new contract is initialized; otherwise, it adds to an existing
     /// contract.
-    /// @param _contractId ID of the contract for which the deposit is made; if zero, a new contract is initialized.
     /// @param _deposit Details for deposit and initial week settings.
-    function deposit(uint256 _contractId, DepositRequest calldata _deposit) external onlyClient {
+    function deposit(DepositRequest calldata _deposit) external onlyClient {
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
         if (_deposit.prepaymentAmount == 0 && _deposit.amountToClaim == 0) revert Escrow__InvalidAmount();
@@ -86,27 +82,28 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         // Validate the deposit fields against admin signature.
         _validateDepositAuthorization(_deposit);
 
-        // Determine contract ID.
-        uint256 contractId = _contractId == 0 ? ++currentContractId : _contractId;
-        ContractDetails storage C = contractDetails[contractId];
-        if (_contractId > 0) {
-            if (weeklyEntries[_contractId].length == 0 && _contractId > currentContractId) {
-                revert Escrow__InvalidContractId();
-            }
-        }
-        // Check for contractor consistency for existing contract.
-        if (C.contractor != address(0) && _deposit.contractor != C.contractor) {
-            revert Escrow__ContractorMismatch();
-        }
+        // Ensure the provided `contractId` is valid.
+        ContractDetails storage C = contractDetails[_deposit.contractId];
+        if (_deposit.contractId == 0) revert Escrow__InvalidContractId();
 
-        // Set parameters if not already set.
-        if (C.contractor == address(0)) {
+        if (C.status == Enums.Status.NONE) {
+            // New contract: Ensure it does not exist already.
+            if (C.paymentToken != address(0)) revert Escrow__ContractIdAlreadyExists();
+
+            // Initialize new contract.
             C.contractor = _deposit.contractor;
             C.paymentToken = _deposit.paymentToken;
             C.feeConfig = _deposit.feeConfig;
-        }
-        if (_deposit.prepaymentAmount > 0) {
-            C.prepaymentAmount += _deposit.prepaymentAmount; // Update prepayment amount only when specified.
+            C.prepaymentAmount = _deposit.prepaymentAmount;
+        } else {
+            // Existing contract: Validate consistency.
+            if (C.contractor != _deposit.contractor) revert Escrow__ContractorMismatch();
+            if (C.paymentToken != _deposit.paymentToken) revert Escrow__PaymentTokenMismatch();
+
+            // Update prepayment amount if provided.
+            if (_deposit.prepaymentAmount > 0) {
+                C.prepaymentAmount += _deposit.prepaymentAmount;
+            }
         }
 
         // Only update the contract status if it's not in a active or approved state.
@@ -123,16 +120,24 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         // Append the new week entry.
         Enums.Status weekStatus = _deposit.amountToClaim > 0 ? Enums.Status.APPROVED : Enums.Status.ACTIVE;
-        weeklyEntries[contractId].push(WeeklyEntry({ amountToClaim: _deposit.amountToClaim, weekStatus: weekStatus }));
+        weeklyEntries[_deposit.contractId].push(
+            WeeklyEntry({ amountToClaim: _deposit.amountToClaim, weekStatus: weekStatus })
+        );
 
-        uint256 totalDepositAmount = 0;
         uint256 depositAmount = _deposit.prepaymentAmount > 0 ? _deposit.prepaymentAmount : _deposit.amountToClaim;
-        (totalDepositAmount,) = _computeDepositAmountAndFee(contractId, msg.sender, depositAmount, C.feeConfig);
+        (uint256 totalDepositAmount,) =
+            _computeDepositAmountAndFee(_deposit.contractId, msg.sender, depositAmount, C.feeConfig);
 
         SafeTransferLib.safeTransferFrom(C.paymentToken, msg.sender, address(this), totalDepositAmount);
 
         // Emit an event for the deposit of each week.
-        emit Deposited(msg.sender, contractId, weeklyEntries[contractId].length - 1, totalDepositAmount, C.contractor);
+        emit Deposited(
+            msg.sender,
+            _deposit.contractId,
+            weeklyEntries[_deposit.contractId].length - 1,
+            totalDepositAmount,
+            C.contractor
+        );
     }
 
     /// @notice Approves a deposit by the client.
@@ -554,10 +559,11 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         emit AdminManagerUpdated(_adminManager);
     }
 
-    /// @notice Retrieves the current contract ID.
-    /// @return The current contract ID.
-    function getCurrentContractId() external view returns (uint256) {
-        return currentContractId;
+    /// @notice Checks if a given contract ID exists.
+    /// @param _contractId The contract ID to check.
+    /// @return bool True if the contract exists, false otherwise.
+    function contractExists(uint256 _contractId) external view returns (bool) {
+        return contractDetails[_contractId].status != Enums.Status.NONE;
     }
 
     /// @notice Retrieves the number of weeks for a given contract ID.
@@ -677,6 +683,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         bytes32 hash = keccak256(
             abi.encodePacked(
                 msg.sender, // Client submitting the deposit.
+                _deposit.contractId, // Contract ID.
                 _deposit.contractor, // Contractor's address.
                 _deposit.paymentToken, // Payment token address.
                 _deposit.prepaymentAmount, // Deposit prepaymentAmount.

@@ -9,9 +9,6 @@ import { IEscrow, Enums } from "./IEscrow.sol";
 /// Defines only the essential components such as errors, events, struct and key function signatures related to
 /// fixed-price escrow operations.
 interface IEscrowFixedPrice is IEscrow {
-    /// @notice Thrown when the provided `contractId` already exists in storage.
-    error Escrow__ContractIdAlreadyExists();
-
     /// @notice Represents input deposit payload for authorization in the escrow.
     /// @dev Includes additional metadata like expiration and signature for validation purposes.
     /// @param contractId The ID of the contract associated with the deposit.

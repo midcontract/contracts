@@ -106,6 +106,12 @@ interface IEscrow {
     /// @notice Thrown when the provided signature is invalid during deposit validation.
     error Escrow__InvalidSignature();
 
+    /// @notice Thrown when the provided `contractId` already exists in storage.
+    error Escrow__ContractIdAlreadyExists();
+
+    /// @notice Thrown when the provided payment token does not match the existing contract's payment token.
+    error Escrow__PaymentTokenMismatch();
+
     /// @notice Emitted when the registry address is updated in the escrow.
     /// @param registry The new registry address.
     event RegistryUpdated(address registry);
@@ -119,10 +125,10 @@ interface IEscrow {
     /// @param newOwner The new owner of the client account.
     event ClientOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    /// @notice Retrieves the current highest contract ID that has been created within the escrow.
-    /// @dev Returns the most recent contract ID, which is incremented for each new contract.
-    /// @return currentContractId The ID of the most recently created contract.
-    function getCurrentContractId() external view returns (uint256);
+    /// @notice Checks if a given contract ID exists.
+    /// @param contractId The contract ID to check.
+    /// @return bool True if the contract exists, false otherwise.
+    function contractExists(uint256 contractId) external view returns (bool);
 
     /// @notice Initializes the escrow contract.
     /// @param client Address of the client initiating actions within the escrow.

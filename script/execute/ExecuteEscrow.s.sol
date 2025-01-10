@@ -162,8 +162,10 @@ contract ExecuteEscrowScript is Script {
         MockUSDT(usdtToken).mint(address(deployerPublicKey), 1300e6);
         MockUSDT(usdtToken).approve(address(escrowProxyHourly), 1300e6);
         // deposit
+        uint256 currentContractId = 1;
         uint256 depositHourlyAmount = 1000e6;
         depositHourly = IEscrowHourly.DepositRequest({
+            contractId: currentContractId,
             contractor: deployerPublicKey,
             paymentToken: address(usdtToken),
             prepaymentAmount: depositHourlyAmount,
@@ -172,6 +174,7 @@ contract ExecuteEscrowScript is Script {
             escrow: address(escrowProxyHourly),
             expiration: uint256(block.timestamp + 3 hours),
             signature: _getSignatureHourly(
+                currentContractId,
                 deployerPublicKey,
                 address(escrowProxyHourly),
                 address(usdtToken),
@@ -180,7 +183,6 @@ contract ExecuteEscrowScript is Script {
                 Enums.FeeConfig.CLIENT_COVERS_ONLY
             )
         });
-        uint256 currentContractId = escrowProxyHourly.getCurrentContractId();
         (uint256 totalDepositAmount, uint256 feeApplied) = EscrowFeeManager(feeManager).computeDepositAmountAndFee(
             address(escrowProxyHourly),
             currentContractId,
@@ -188,11 +190,13 @@ contract ExecuteEscrowScript is Script {
             depositHourlyAmount,
             Enums.FeeConfig.CLIENT_COVERS_ONLY
         );
+        (feeApplied);
         assert(totalDepositAmount > depositHourlyAmount);
-        escrowProxyHourly.deposit(currentContractId, depositHourly);
+        escrowProxyHourly.deposit(depositHourly);
     }
 
     function _getSignatureHourly(
+        uint256 _contractId,
         address _contractor,
         address _proxy,
         address _token,
@@ -205,6 +209,7 @@ contract ExecuteEscrowScript is Script {
             keccak256(
                 abi.encodePacked(
                     client,
+                    _contractId,
                     address(_contractor),
                     address(_token),
                     uint256(_prepaymentAmount),

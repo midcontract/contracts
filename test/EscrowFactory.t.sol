@@ -82,24 +82,10 @@ contract EscrowFactoryUnitTest is Test {
         factory = new EscrowFactory(address(registry), owner);
     }
 
-    function test_setUpState() public view {
-        assertTrue(escrow.initialized());
-        assertTrue(address(factory).code.length > 0);
-        assertFalse(factory.paused());
-        assertEq(factory.owner(), address(owner));
-        assertEq(address(factory.registry()), address(registry));
-    }
+    ///////////////////////////////////////////
+    //               helpers                 //
+    ///////////////////////////////////////////
 
-    function test_deployFactory_reverts() public {
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        new EscrowFactory(address(0), owner);
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        new EscrowFactory(address(0), address(0));
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        new EscrowFactory(address(registry), address(0));
-    }
-
-    // Helpers
     function _computeDepositAndFeeAmount(
         address _escrow,
         uint256 _contractId,
@@ -115,10 +101,13 @@ contract EscrowFactoryUnitTest is Test {
         return (totalDepositAmount, feeApplied);
     }
 
-    function _getSignatureFixed(uint256 _contractId, address _proxy, address _token, uint256 _amount, Enums.FeeConfig _feeConfig)
-        internal
-        returns (bytes memory)
-    {
+    function _getSignatureFixed(
+        uint256 _contractId,
+        address _proxy,
+        address _token,
+        uint256 _amount,
+        Enums.FeeConfig _feeConfig
+    ) internal returns (bytes memory) {
         // Sign deposit authorization
         bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
             keccak256(
@@ -140,6 +129,7 @@ contract EscrowFactoryUnitTest is Test {
     }
 
     function _getSignatureHourly(
+        uint256 _contractId,
         address _contractor,
         address _proxy,
         address _token,
@@ -152,6 +142,7 @@ contract EscrowFactoryUnitTest is Test {
             keccak256(
                 abi.encodePacked(
                     client,
+                    _contractId,
                     address(_contractor),
                     address(_token),
                     uint256(_prepaymentAmount),
@@ -205,6 +196,27 @@ contract EscrowFactoryUnitTest is Test {
         return keccak256(abi.encodePacked(hashes));
     }
 
+    ///////////////////////////////////////////
+    //        setup & functional tests       //
+    ///////////////////////////////////////////
+
+    function test_setUpState() public view {
+        assertTrue(escrow.initialized());
+        assertTrue(address(factory).code.length > 0);
+        assertFalse(factory.paused());
+        assertEq(factory.owner(), address(owner));
+        assertEq(address(factory.registry()), address(registry));
+    }
+
+    function test_deployFactory_reverts() public {
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        new EscrowFactory(address(0), owner);
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        new EscrowFactory(address(0), address(0));
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        new EscrowFactory(address(registry), address(0));
+    }
+
     function test_deployEscrow() public returns (address deployedEscrowProxy) {
         assertEq(factory.factoryNonce(client), 0);
         escrowType = Enums.EscrowType.FIXED_PRICE;
@@ -217,7 +229,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(escrowProxy.client(), client);
         assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
-        // assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxy)));
@@ -231,7 +242,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(escrowProxy.client(), client);
         assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
-        // assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxy)));
@@ -258,8 +268,7 @@ contract EscrowFactoryUnitTest is Test {
             )
         });
         escrowProxy.deposit(deposit);
-        uint256 currentContractId = 1; //escrowProxy.getCurrentContractId();
-        assertEq(currentContractId, 1);
+        uint256 currentContractId = 1;
         assertEq(paymentToken.balanceOf(address(escrowProxy)), totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
@@ -318,8 +327,7 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrowProxy), totalDepositAmount);
         escrowProxy.deposit(deposit2);
-        uint256 currentContractId = 2; //escrowProxy.getCurrentContractId();
-        // assertEq(currentContractId, 2);
+        uint256 currentContractId = 2;
         assertEq(paymentToken.balanceOf(address(escrowProxy)), escrowBalanceBefore + totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         (
@@ -349,7 +357,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(escrowProxy.client(), client);
         assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
-        // assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxy)));
@@ -360,7 +367,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(escrowProxy2.client(), client);
         assertEq(address(escrowProxy2.adminManager()), address(adminManager));
         assertEq(address(escrowProxy2.registry()), address(registry));
-        // assertEq(escrowProxy2.getCurrentContractId(), 0);
         assertTrue(escrowProxy2.initialized());
         assertEq(factory.factoryNonce(client), 2);
         assertTrue(factory.existingEscrow(address(escrowProxy2)));
@@ -381,7 +387,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(escrowProxy.client(), client);
         assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
-        assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxy)));
@@ -406,9 +411,7 @@ contract EscrowFactoryUnitTest is Test {
             status: Enums.Status.ACTIVE
         });
 
-        uint256 currentContractId = escrowProxy.getCurrentContractId();
-        assertEq(currentContractId, 0);
-
+        uint256 currentContractId = 1;
         bytes32 milestonesHash = _hashMilestones(milestones);
         depositMilestone = IEscrowMilestone.DepositRequest({
             contractId: currentContractId,
@@ -426,8 +429,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         vm.stopPrank();
-        currentContractId = escrowProxy.getCurrentContractId();
-        assertEq(currentContractId, 1);
         uint256 milestoneId = escrowProxy.getMilestoneCount(currentContractId);
 
         (
@@ -462,7 +463,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(escrowProxyHourly.client(), client);
         assertEq(address(escrowProxyHourly.adminManager()), address(adminManager));
         assertEq(address(escrowProxyHourly.registry()), address(registry));
-        assertEq(escrowProxyHourly.getCurrentContractId(), 0);
         assertTrue(escrowProxyHourly.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxyHourly)));
@@ -476,7 +476,9 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken.approve(address(escrowProxyHourly), totalDepositHourlyAmount);
 
         // 3. deposit
+        uint256 currentContractId = 1;
         depositHourly = IEscrowHourly.DepositRequest({
+            contractId: currentContractId,
             contractor: contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: depositHourlyAmount,
@@ -485,6 +487,7 @@ contract EscrowFactoryUnitTest is Test {
             escrow: address(escrowProxyHourly),
             expiration: uint256(block.timestamp + 3 hours),
             signature: _getSignatureHourly(
+                currentContractId,
                 address(contractor),
                 address(escrowProxyHourly),
                 address(paymentToken),
@@ -493,17 +496,15 @@ contract EscrowFactoryUnitTest is Test {
                 Enums.FeeConfig.CLIENT_COVERS_ONLY
             )
         });
-        uint256 currentContractId = escrowProxyHourly.getCurrentContractId();
-        assertEq(currentContractId, 0);
+        assertFalse(escrowProxyHourly.contractExists(currentContractId));
 
-        escrowProxyHourly.deposit(currentContractId, depositHourly);
+        escrowProxyHourly.deposit(depositHourly);
         assertEq(paymentToken.balanceOf(address(escrowProxyHourly)), totalDepositHourlyAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        assertTrue(escrowProxyHourly.contractExists(currentContractId));
         vm.stopPrank();
 
-        currentContractId = escrowProxyHourly.getCurrentContractId();
-        assertEq(currentContractId, 1);
         (
             address _contractor,
             address _paymentToken,
@@ -511,7 +512,7 @@ contract EscrowFactoryUnitTest is Test {
             uint256 _amountToWithdraw,
             Enums.FeeConfig _feeConfig,
             Enums.Status _status
-        ) = escrowProxyHourly.contractDetails(currentContractId); //currentContractId
+        ) = escrowProxyHourly.contractDetails(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);

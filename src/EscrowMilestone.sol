@@ -30,9 +30,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @dev Address of the client who initiates the escrow contract.
     address public client;
 
-    /// @dev Tracks the last issued contract ID, incrementing with each new contract creation.
-    uint256 private currentContractId;
-
     /// @notice The maximum number of milestones that can be processed in a single transaction.
     uint256 public maxMilestones;
 
@@ -98,13 +95,22 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         // Validate authorization using a single signature for the entire request.
         _validateDepositAuthorization(_deposit);
 
-        // Initialize or validate the contract ID.
-        uint256 contractId = _deposit.contractId == 0 ? ++currentContractId : _deposit.contractId;
-        if (
-            _deposit.contractId > 0
-                && (contractMilestones[_deposit.contractId].length == 0 && _deposit.contractId > currentContractId)
-        ) {
-            revert Escrow__InvalidContractId();
+        // Ensure the provided `contractId` is valid.
+        uint256 contractId = _deposit.contractId;
+        if (contractId == 0) revert Escrow__InvalidContractId();
+
+        // Handle new or existing contracts.
+        if (contractMilestones[contractId].length == 0) {
+            // New contract initialization.
+            if (milestoneDetails[contractId][0].paymentToken != address(0)) revert Escrow__ContractIdAlreadyExists();
+
+            // Initialize contract milestone metadata.
+            milestoneDetails[contractId][0].paymentToken = _deposit.paymentToken;
+        } else {
+            // Validate consistency for existing contracts.
+            if (milestoneDetails[contractId][0].paymentToken != _deposit.paymentToken) {
+                revert Escrow__PaymentTokenMismatch();
+            }
         }
 
         // Calculate the required deposit amounts for each milestone to ensure sufficient funds are transferred.
@@ -600,10 +606,11 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         emit MaxMilestonesSet(_maxMilestones);
     }
 
-    /// @notice Retrieves the current contract ID.
-    /// @return The current contract ID.
-    function getCurrentContractId() external view returns (uint256) {
-        return currentContractId;
+    /// @notice Checks if a given contract ID exists.
+    /// @param _contractId The contract ID to check.
+    /// @return bool True if the contract exists, false otherwise.
+    function contractExists(uint256 _contractId) external view returns (bool) {
+        return contractMilestones[_contractId].length > 0;
     }
 
     /// @notice Retrieves the number of milestones for a given contract ID.

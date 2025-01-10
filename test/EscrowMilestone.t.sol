@@ -32,7 +32,7 @@ contract EscrowMilestoneUnitTest is Test {
     address owner;
     uint256 ownerPrKey;
     uint256 contractorPrKey;
-    uint256 contractId;
+    uint256 contractId = 1;
 
     bytes32 salt;
     bytes32 contractorData;
@@ -44,12 +44,6 @@ contract EscrowMilestoneUnitTest is Test {
     IEscrowMilestone.DepositRequest deposit;
     IEscrowMilestone.Milestone[] milestones;
     IEscrowMilestone.MilestoneDetails milestoneDetails;
-
-    struct MilestoneDetails {
-        address paymentToken;
-        uint256 depositAmount;
-        Enums.Winner winner;
-    }
 
     event Deposited(
         address indexed depositor,
@@ -150,41 +144,9 @@ contract EscrowMilestoneUnitTest is Test {
     }
 
     ///////////////////////////////////////////
-    //        setup & initialize tests       //
+    //               helpers                 //
     ///////////////////////////////////////////
 
-    function test_setUpState() public view {
-        assertTrue(address(escrow).code.length > 0);
-        assertTrue(registry.paymentTokens(address(paymentToken)));
-    }
-
-    function test_initialize() public {
-        assertFalse(escrow.initialized());
-        escrow.initialize(client, address(adminManager), address(registry));
-        assertEq(escrow.client(), client);
-        assertEq(address(escrow.adminManager()), address(adminManager));
-        assertEq(address(escrow.registry()), address(registry));
-        assertEq(escrow.getCurrentContractId(), 0);
-        assertTrue(escrow.initialized());
-    }
-
-    function test_initialize_reverts() public {
-        assertFalse(escrow.initialized());
-        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(address(0), address(adminManager), address(registry));
-        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, address(0), address(registry));
-        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(client, address(adminManager), address(0));
-        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
-        escrow.initialize(address(0), address(0), address(0));
-        escrow.initialize(client, address(adminManager), address(registry));
-        assertTrue(escrow.initialized());
-        vm.expectRevert(IEscrow.Escrow__AlreadyInitialized.selector);
-        escrow.initialize(client, address(adminManager), address(registry));
-    }
-
-    // Helpers
     function _computeDepositAndFeeAmount(
         address _escrow,
         uint256 _contractId,
@@ -281,11 +243,47 @@ contract EscrowMilestoneUnitTest is Test {
     }
 
     ///////////////////////////////////////////
+    //        setup & initialize tests       //
+    ///////////////////////////////////////////
+
+    function test_setUpState() public view {
+        assertTrue(address(escrow).code.length > 0);
+        assertTrue(registry.paymentTokens(address(paymentToken)));
+    }
+
+    function test_initialize() public {
+        assertFalse(escrow.initialized());
+        escrow.initialize(client, address(adminManager), address(registry));
+        assertEq(escrow.client(), client);
+        assertEq(address(escrow.adminManager()), address(adminManager));
+        assertEq(address(escrow.registry()), address(registry));
+        assertFalse(escrow.contractExists(1));
+        assertTrue(escrow.initialized());
+    }
+
+    function test_initialize_reverts() public {
+        assertFalse(escrow.initialized());
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.initialize(address(0), address(adminManager), address(registry));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.initialize(client, address(0), address(registry));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.initialize(client, address(adminManager), address(0));
+        vm.expectRevert(IEscrow.Escrow__ZeroAddressProvided.selector);
+        escrow.initialize(address(0), address(0), address(0));
+        escrow.initialize(client, address(adminManager), address(registry));
+        assertTrue(escrow.initialized());
+        vm.expectRevert(IEscrow.Escrow__AlreadyInitialized.selector);
+        escrow.initialize(client, address(adminManager), address(registry));
+    }
+
+    ///////////////////////////////////////////
     //            deposit tests              //
     ///////////////////////////////////////////
 
     function test_deposit() public {
         test_initialize();
+        assertFalse(escrow.contractExists(contractId));
         // Create deposit request struct with authorization
         bytes32 _milestonesHash = _hashMilestones(milestones);
         deposit = IEscrowMilestone.DepositRequest({
@@ -303,10 +301,9 @@ contract EscrowMilestoneUnitTest is Test {
         emit Deposited(client, 1, 0, 1 ether, address(0));
         escrow.deposit(deposit, milestones); //0, address(paymentToken), milestones
         vm.stopPrank();
-        uint256 currentContractId = escrow.getCurrentContractId();
-        assertEq(currentContractId, 1);
+        assertTrue(escrow.contractExists(contractId));
         (uint256 totalDepositAmount,) = _computeDepositAndFeeAmount(
-            address(escrow), currentContractId, client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            address(escrow), contractId, client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY
         );
         assertEq(paymentToken.balanceOf(address(escrow)), totalDepositAmount); //1.03 ether
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
@@ -319,7 +316,7 @@ contract EscrowMilestoneUnitTest is Test {
             bytes32 _contractorData,
             Enums.FeeConfig _feeConfig,
             Enums.Status _status
-        ) = escrow.contractMilestones(currentContractId, 0);
+        ) = escrow.contractMilestones(contractId, 0);
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
@@ -327,9 +324,8 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 1); //Status.ACTIVE
-        assertEq(escrow.getMilestoneCount(currentContractId), 1);
-        (address _paymentToken, uint256 _depositAmount, Enums.Winner _winner) =
-            escrow.milestoneDetails(currentContractId, 0);
+        assertEq(escrow.getMilestoneCount(contractId), 1);
+        (address _paymentToken, uint256 _depositAmount, Enums.Winner _winner) = escrow.milestoneDetails(contractId, 0);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_depositAmount, _amount);
         assertEq(uint256(_winner), 0); //Status.NONE
@@ -337,8 +333,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_deposit_existingContract() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
-        assertEq(currentContractId, 1);
+        uint256 currentContractId = 1;
         bytes32 _milestonesHash = _hashMilestones(milestones);
         deposit = IEscrowMilestone.DepositRequest({
             contractId: currentContractId,
@@ -355,7 +350,7 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken.approve(address(escrow), 1.03 ether);
         vm.expectEmit(true, true, true, true);
         emit Deposited(client, 1, 1, 1 ether, address(0));
-        escrow.deposit(deposit, milestones); //currentContractId, address(paymentToken), milestones
+        escrow.deposit(deposit, milestones);
         vm.stopPrank();
         (
             address _contractor,
@@ -480,12 +475,12 @@ contract EscrowMilestoneUnitTest is Test {
         });
         _milestonesHash = _hashMilestones(_milestones);
         deposit = IEscrowMilestone.DepositRequest({
-            contractId: ++contractId,
+            contractId: 0,
             paymentToken: address(paymentToken),
             milestonesHash: _milestonesHash,
             escrow: address(escrow),
             expiration: uint256(block.timestamp + 3 hours),
-            signature: _getDepositSignature(address(escrow), client, contractId, address(paymentToken), _milestonesHash)
+            signature: _getDepositSignature(address(escrow), client, 0, address(paymentToken), _milestonesHash)
         });
         vm.expectRevert(IEscrowMilestone.Escrow__InvalidContractId.selector);
         escrow.deposit(deposit, _milestones); //1, address(paymentToken), _milestones
@@ -539,7 +534,7 @@ contract EscrowMilestoneUnitTest is Test {
         vm.prank(client);
         escrow2.deposit(deposit, _milestones); //0, address(paymentToken2), _milestones
 
-        uint256 currentContractId = escrow2.getCurrentContractId();
+        uint256 currentContractId = 1;
         (, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(contractor);
         escrow2.submit(currentContractId, 0, contractData, salt, contractorSignature);
@@ -604,7 +599,7 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrow), totalDepositAmount);
         escrow.deposit(deposit, _milestones); //0, address(paymentToken), _milestones
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (
             address _contractor,
             uint256 _amount,
@@ -693,7 +688,7 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken.mint(address(client), totalDepositAmountWithFee);
         paymentToken.approve(address(escrow), totalDepositAmountWithFee);
         escrow.deposit(deposit, _milestones); //0, address(paymentToken), _milestones
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (
             address _contractor,
             uint256 _amount,
@@ -787,7 +782,7 @@ contract EscrowMilestoneUnitTest is Test {
         paymentToken.mint(address(client), depositAmountMilestone1);
         paymentToken.approve(address(escrow), depositAmountMilestone1);
         escrow.deposit(deposit, _milestones); //0, address(paymentToken), _milestones
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (
             address _contractor,
             uint256 _amount,
@@ -871,7 +866,7 @@ contract EscrowMilestoneUnitTest is Test {
 
         // Generate a valid milestones hash
         bytes32 validMilestonesHash = _hashMilestones(milestones);
-        
+
         // Use a different signer for the signature
         (address fakeAdmin, uint256 fakeAdminPrKey) = makeAddrAndKey("fakeAdmin");
         (fakeAdmin);
@@ -940,7 +935,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_submit() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (address _contractor, uint256 _amount,,, bytes32 _contractorData,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, address(0));
@@ -961,7 +956,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_submit_withContractorAddress() public {
         test_deposit_withContractorAddress();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (address _contractor, uint256 _amount,,, bytes32 _contractorData,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
@@ -982,7 +977,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_submit_reverts_InvalidStatusForSubmit() public {
         test_submit_withContractorAddress();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (address _contractor,,,, bytes32 _contractorData,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
@@ -1001,7 +996,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_submit_reverts_InvalidContractorDataHash() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (address _contractor, uint256 _amount,,, bytes32 _contractorData,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, address(0));
@@ -1032,7 +1027,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_submit_reverts_UnauthorizedAccount() public {
         test_deposit_withContractorAddress();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (address _contractor,,,, bytes32 _contractorData,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
@@ -1051,7 +1046,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_submit_reverts_InvalidMilestoneId() public {
         test_deposit_withContractorAddress();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (address _contractor,,,, bytes32 _contractorData,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
@@ -1073,7 +1068,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approve() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         milestoneId--;
         (address _contractor, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
@@ -1097,7 +1092,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approve_by_admin() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         milestoneId--;
         (address _contractor, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
@@ -1121,7 +1116,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approve_by_new_admin() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         milestoneId--;
         (address _contractor, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
@@ -1149,7 +1144,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approve_reverts_UnauthorizedAccount() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         milestoneId--;
         (address _contractor, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
@@ -1172,7 +1167,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approve_reverts_InvalidStatusForApprove() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -1192,7 +1187,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approve_reverts_UnauthorizedReceiver() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -1220,7 +1215,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approve_reverts_InvalidAmount() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -1240,7 +1235,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approve_reverts_NotEnoughDeposit() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -1264,7 +1259,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_refill() public {
         test_approve_reverts_NotEnoughDeposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -1298,7 +1293,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_refill_reverts() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (, uint256 _amount,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(_amount, 1 ether);
@@ -1341,7 +1336,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_claim_clientCoversOnly() public {
         test_approve();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,
@@ -1389,7 +1384,7 @@ contract EscrowMilestoneUnitTest is Test {
     function test_claim_reverts() public {
         uint256 amountApprove = 0 ether;
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -1437,7 +1432,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_claim_whenResolveDispute_winnerSplit() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,
@@ -1528,7 +1523,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_claim_whenResolveDispute_winnerSplit_reverts_NotApproved() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,
@@ -1583,7 +1578,7 @@ contract EscrowMilestoneUnitTest is Test {
         test_deposit_severalMilestones();
         assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
 
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
         uint256 milestoneId1 = milestoneId - 1;
@@ -1638,7 +1633,7 @@ contract EscrowMilestoneUnitTest is Test {
         test_deposit_severalMilestones();
         assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
 
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
         (, bytes memory contractorSignature) = _getSubmitSignature();
@@ -1722,7 +1717,7 @@ contract EscrowMilestoneUnitTest is Test {
     function test_claimAll_oneOfThree() public {
         test_deposit_severalMilestones();
         assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
         (, bytes memory contractorSignature) = _getSubmitSignature();
@@ -1770,7 +1765,7 @@ contract EscrowMilestoneUnitTest is Test {
     function test_claimAll_twoOfThree() public {
         test_deposit_severalMilestones();
         assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
         (, bytes memory contractorSignature) = _getSubmitSignature();
@@ -1835,7 +1830,7 @@ contract EscrowMilestoneUnitTest is Test {
     function test_claimAll_invalidContractor() public {
         test_deposit_severalMilestones();
         assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
         (, bytes memory contractorSignature) = _getSubmitSignature();
@@ -1882,7 +1877,7 @@ contract EscrowMilestoneUnitTest is Test {
     function test_claimAll_whenResolvedAndCanceled_afterWithdraw() public {
         test_deposit_severalMilestones();
         assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
-        // uint256 currentContractId = escrow.getCurrentContractId();
+        // uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(1), 3);
 
         (, bytes memory contractorSignature) = _getSubmitSignature();
@@ -1991,7 +1986,7 @@ contract EscrowMilestoneUnitTest is Test {
     function test_claimAll_whenResolvedAndCanceled_beforeWithdraw() public {
         test_deposit_severalMilestones();
         assertEq(paymentToken.balanceOf(address(escrow)), 6.23 ether);
-        // uint256 currentContractId = escrow.getCurrentContractId();
+        // uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(1), 3);
 
         (, bytes memory contractorSignature) = _getSubmitSignature();
@@ -2173,7 +2168,7 @@ contract EscrowMilestoneUnitTest is Test {
         usdt.approve(address(escrow), totalDepositAmount);
         escrow.deposit(deposit, _milestones); //0, address(usdt), _milestones
         vm.stopPrank();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         assertEq(usdt.balanceOf(address(escrow)), totalDepositAmount);
         assertEq(usdt.balanceOf(address(treasury)), 0 ether);
         assertEq(usdt.balanceOf(address(client)), 0 ether);
@@ -2216,7 +2211,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_claimAll_reverts_BlacklistedAccount() public {
         test_deposit_severalMilestones();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
         (, bytes memory contractorSignature) = _getSubmitSignature();
 
@@ -2241,7 +2236,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_claimAll_reverts_InvalidRange() public {
         test_deposit_severalMilestones();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
         (, bytes memory contractorSignature) = _getSubmitSignature();
 
@@ -2275,7 +2270,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_withdraw_whenRefundApprovedByOwner() public {
         test_approveReturn_by_owner();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,, uint256 _amountToWithdraw,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2314,7 +2309,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_withdraw_whenRefundApprovedByContractor() public {
         test_approveReturn_by_contractor();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,, uint256 _amountToWithdraw,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2353,7 +2348,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_withdraw_whenDisputeResolved() public {
         test_resolveDispute_winnerClient();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (, uint256 _amount,, uint256 _amountToWithdraw,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2389,7 +2384,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_withdraw_whenDisputeResolvedSplit() public {
         test_resolveDispute_winnerSplit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, 0);
         assertEq(_amount, 1 ether);
@@ -2425,7 +2420,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_withdraw_reverts_UnauthorizedAccount() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         address notClient = makeAddr("notClient");
         vm.prank(notClient);
@@ -2435,7 +2430,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_withdraw_reverts_InvalidStatusForWithdraw() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusToWithdraw.selector);
@@ -2445,7 +2440,7 @@ contract EscrowMilestoneUnitTest is Test {
     function test_withdraw_reverts_NoFundsAvailableForWithdraw() public {
         test_requestReturn_whenActive();
         assertEq(paymentToken.balanceOf(address(client)), 0);
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         (,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(client);
@@ -2466,7 +2461,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_withdraw_reverts_BlacklistedAccount() public {
         test_resolveDispute_winnerClient();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         vm.prank(owner);
         registry.addToBlacklist(client);
         vm.prank(client);
@@ -2480,7 +2475,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_requestReturn_whenActive() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2499,7 +2494,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_requestReturn_whenSubmitted() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2518,7 +2513,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_requestReturn_whenApproved() public {
         test_approve();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2537,7 +2532,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_requestReturn_whenCompleted() public {
         test_claim_clientCoversOnly();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2556,7 +2551,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_requestReturn_reverts_UnauthorizedAccount() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2574,7 +2569,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_requestReturn_reverts_ReturnNotAllowed() public {
         test_requestReturn_whenActive();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2592,7 +2587,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_requestReturn_reverts_submitted_UnauthorizedAccount() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2610,7 +2605,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approveReturn_by_owner() public {
         test_requestReturn_whenActive();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,, uint256 _amountToWithdraw,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2632,7 +2627,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approveReturn_by_contractor() public {
         test_requestReturn_whenSubmitted();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,, uint256 _amountToWithdraw,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2654,7 +2649,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approveReturn_reverts_UnauthorizedToApproveReturn() public {
         test_requestReturn_whenActive();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,, uint256 _amountToWithdraw,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2675,7 +2670,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approveReturn_reverts_NoReturnRequested() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(_contractor, address(0));
@@ -2690,7 +2685,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_approveReturn_reverts_submitted_NoReturnRequested() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(_contractor, contractor);
@@ -2705,7 +2700,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_cancelReturn() public {
         test_requestReturn_whenActive();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
@@ -2720,7 +2715,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_cancelReturn_submitted() public {
         test_requestReturn_whenSubmitted();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(_contractor, contractor);
@@ -2737,7 +2732,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_cancelReturn_reverts() public {
         test_requestReturn_whenActive();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
@@ -2757,7 +2752,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_cancelReturn_reverts_submitted() public {
         test_requestReturn_whenSubmitted();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2774,7 +2769,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_cancelReturn_reverts_submitted_NoReturnRequested() public {
         test_submit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(_contractor, contractor);
@@ -2794,7 +2789,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_createDispute_by_client() public {
         test_requestReturn_whenSubmitted();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2813,7 +2808,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_createDispute_by_contractor() public {
         test_requestReturn_whenSubmitted();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2832,7 +2827,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_createDispute_reverts_CreateDisputeNotAllowed() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2850,7 +2845,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_createDispute_reverts_UnauthorizedToApproveDispute() public {
         test_requestReturn_whenSubmitted();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (address _contractor, uint256 _amount,,,,, Enums.Status _status) =
             escrow.contractMilestones(currentContractId, --milestoneId);
@@ -2868,7 +2863,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_resolveDispute_winnerClient() public {
         test_createDispute_by_client();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,
@@ -2901,7 +2896,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_resolveDispute_winnerContractor() public {
         test_createDispute_by_contractor();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,
@@ -2934,7 +2929,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_resolveDispute_winnerSplit() public {
         test_createDispute_by_contractor();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,
@@ -2968,7 +2963,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_resolveDispute_winnerSplit_ZeroAllocationToEachParty() public {
         test_createDispute_by_contractor();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,
@@ -3000,7 +2995,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_resolveDispute_reverts_DisputeNotActiveForThisDeposit() public {
         test_deposit();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(uint256(_status), 1); //Status.ACTIVE
@@ -3013,7 +3008,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_resolveDispute_reverts_UnauthorizedToApproveDispute() public {
         test_createDispute_by_client();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (,,,,,, Enums.Status _status) = escrow.contractMilestones(currentContractId, --milestoneId);
         assertEq(uint256(_status), 6); //Status.DISPUTED
@@ -3026,7 +3021,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_resolveDispute_reverts_winnerClient_ResolutionExceedsDepositedAmount() public {
         test_createDispute_by_contractor();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,
@@ -3056,7 +3051,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_resolveDispute_reverts_winnerContractor_ResolutionExceedsDepositedAmount() public {
         test_createDispute_by_contractor();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,
@@ -3086,7 +3081,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_resolveDispute_reverts_winnerSplit_ResolutionExceedsDepositedAmount() public {
         test_createDispute_by_contractor();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,
@@ -3116,7 +3111,7 @@ contract EscrowMilestoneUnitTest is Test {
 
     function test_resolveDispute_reverts_InvalidWinnerSpecified() public {
         test_createDispute_by_contractor();
-        uint256 currentContractId = escrow.getCurrentContractId();
+        uint256 currentContractId = 1;
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         (
             address _contractor,

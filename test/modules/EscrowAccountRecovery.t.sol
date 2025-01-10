@@ -36,6 +36,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     address new_contractor;
     uint256 ownerPrKey;
     uint256 milestoneId;
+    uint256 contractId = 1;
 
     bytes32 salt;
     bytes32 contractorData;
@@ -95,23 +96,6 @@ contract EscrowAccountRecoveryUnitTest is Test {
         contractorData = keccak256(abi.encodePacked(contractData, salt));
     }
 
-    function test_setUpState() public view {
-        assertTrue(address(recovery).code.length > 0);
-        assertEq(address(recovery.adminManager()), address(adminManager));
-        assertEq(address(recovery.registry()), address(registry));
-        assertEq(recovery.MIN_RECOVERY_PERIOD(), 3 days);
-    }
-
-    function test_deployRecovery_reverts() public {
-        vm.expectRevert(EscrowAccountRecovery.ZeroAddressProvided.selector);
-        EscrowAccountRecovery newRecovery = new EscrowAccountRecovery(address(0), address(registry));
-        vm.expectRevert(EscrowAccountRecovery.ZeroAddressProvided.selector);
-        newRecovery = new EscrowAccountRecovery(address(adminManager), address(0));
-        vm.expectRevert(EscrowAccountRecovery.ZeroAddressProvided.selector);
-        newRecovery = new EscrowAccountRecovery(address(0), address(0));
-        assertFalse(address(newRecovery).code.length > 0);
-    }
-
     // Helpers
     function _getSignatureFixed(address _proxy, address _token, uint256 _amount, Enums.FeeConfig _feeConfig)
         internal
@@ -138,6 +122,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     }
 
     function _getSignatureHourly(
+        uint256 _contractId,
         address _contractor,
         address _proxy,
         address _token,
@@ -150,6 +135,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
             keccak256(
                 abi.encodePacked(
                     client,
+                    _contractId,
                     address(_contractor),
                     address(_token),
                     uint256(_prepaymentAmount),
@@ -203,6 +189,24 @@ contract EscrowAccountRecoveryUnitTest is Test {
         return keccak256(abi.encodePacked(hashes));
     }
 
+    // Tests
+    function test_setUpState() public view {
+        assertTrue(address(recovery).code.length > 0);
+        assertEq(address(recovery.adminManager()), address(adminManager));
+        assertEq(address(recovery.registry()), address(registry));
+        assertEq(recovery.MIN_RECOVERY_PERIOD(), 3 days);
+    }
+
+    function test_deployRecovery_reverts() public {
+        vm.expectRevert(EscrowAccountRecovery.ZeroAddressProvided.selector);
+        EscrowAccountRecovery newRecovery = new EscrowAccountRecovery(address(0), address(registry));
+        vm.expectRevert(EscrowAccountRecovery.ZeroAddressProvided.selector);
+        newRecovery = new EscrowAccountRecovery(address(adminManager), address(0));
+        vm.expectRevert(EscrowAccountRecovery.ZeroAddressProvided.selector);
+        newRecovery = new EscrowAccountRecovery(address(0), address(0));
+        assertFalse(address(newRecovery).code.length > 0);
+    }
+
     function initializeEscrowFixedPrice() public {
         assertFalse(escrow.initialized());
         escrow.initialize(client, address(adminManager), address(registry));
@@ -249,12 +253,12 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
         bytes32 milestonesHash = _hashMilestones(milestones);
         depositMilestone = IEscrowMilestone.DepositRequest({
-            contractId: 0,
+            contractId: 1,
             paymentToken: address(paymentToken),
             milestonesHash: milestonesHash,
             escrow: address(escrowMilestone),
             expiration: uint256(block.timestamp + 3 hours),
-            signature: _getSignatureMilestone(address(escrowMilestone), client, 0, address(paymentToken), milestonesHash)
+            signature: _getSignatureMilestone(address(escrowMilestone), client, 1, address(paymentToken), milestonesHash)
         });
 
         uint256 depositAmount = 1.03 ether;
@@ -268,6 +272,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     function initializeEscrowHourly() public {
         uint256 depositAmount = 1 ether;
         depositHourly = IEscrowHourly.DepositRequest({
+            contractId: 1,
             contractor: contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: depositAmount,
@@ -276,6 +281,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
             escrow: address(escrowHourly),
             expiration: uint256(block.timestamp + 3 hours),
             signature: _getSignatureHourly(
+                uint256(1),
                 address(contractor),
                 address(escrowHourly),
                 address(paymentToken),
@@ -293,13 +299,13 @@ contract EscrowAccountRecoveryUnitTest is Test {
         vm.startPrank(address(client));
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrowHourly), totalDepositAmount);
-        escrowHourly.deposit(0, depositHourly);
+        escrowHourly.deposit(depositHourly);
         vm.stopPrank();
     }
 
     function test_initiateRecovery_fixed_price_client() public {
         initializeEscrowFixedPrice();
-        uint256 contractId = 1;
+
         Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
         bytes32 recoveryHash =
@@ -331,7 +337,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_initiateRecovery_reverts_Unauthorized() public {
         initializeEscrowFixedPrice();
-        uint256 contractId = 1;
+
         Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
         bytes32 recoveryHash =
@@ -345,7 +351,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_initiateRecovery_reverts_RecoveryAlreadyExecuted() public {
         test_executeRecovery_fixed_price_client();
-        uint256 contractId = 1;
+
         bytes32 recoveryHash = recovery.getRecoveryHash(
             address(escrow), contractId, milestoneId, client, new_client, Enums.AccountTypeRecovery.CLIENT
         );
@@ -368,7 +374,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_initiateRecovery_reverts_ZeroAddressProvided() public {
         initializeEscrowFixedPrice();
-        uint256 contractId = 1;
+
         Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
         bytes32 recoveryHash =
@@ -382,7 +388,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_initiateRecovery_reverts_SameAccountProvided() public {
         initializeEscrowFixedPrice();
-        uint256 contractId = 1;
+
         Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
         bytes32 recoveryHash =
@@ -396,24 +402,27 @@ contract EscrowAccountRecoveryUnitTest is Test {
         assertFalse(_executed);
     }
 
-    // function test_initiateRecovery_reverts_InvalidContractId() public {
-    //     initializeEscrowFixedPrice();
-    //     uint256 contractId = 1;
-    //     Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
-    //     Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
-    //     bytes32 recoveryHash =
-    //         recovery.getRecoveryHash(address(escrow), ++contractId, milestoneId, client, new_client, accountType);
-    //     vm.prank(guardian);
-    //     vm.expectRevert(EscrowAccountRecovery.InvalidContractId.selector);
-    //     recovery.initiateRecovery(address(escrow), contractId, milestoneId, client, new_client, escrowType,
-    // accountType);
-    //     (,,,,, bool _executed,,) = recovery.recoveryData(recoveryHash);
-    //     assertFalse(_executed);
-    // }
+    function test_initiateRecovery_reverts_InvalidContractId() public {
+        initializeEscrowFixedPrice();
+        uint256 invalidContractId = 2;
+        assertFalse(escrow.contractExists(invalidContractId));
+
+        Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
+        Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
+        bytes32 recoveryHash =
+            recovery.getRecoveryHash(address(escrow), invalidContractId, milestoneId, client, new_client, accountType);
+        vm.prank(guardian);
+        vm.expectRevert(EscrowAccountRecovery.InvalidContractId.selector);
+        recovery.initiateRecovery(
+            address(escrow), invalidContractId, milestoneId, client, new_client, escrowType, accountType
+        );
+        (,,,,, bool _executed,,) = recovery.recoveryData(recoveryHash);
+        assertFalse(_executed);
+    }
 
     function test_initiateRecovery_reverts_MilestoneNotSupported() public {
         initializeEscrowFixedPrice();
-        uint256 contractId = 1;
+
         Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
         bytes32 recoveryHash =
@@ -429,7 +438,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_cancelRecovery() public {
         test_initiateRecovery_fixed_price_client();
-        uint256 contractId = 1;
+
         bytes32 recoveryHash = recovery.getRecoveryHash(
             address(escrow), contractId, milestoneId, client, new_client, Enums.AccountTypeRecovery.CLIENT
         );
@@ -450,7 +459,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_cancelRecovery_reverts_when_blacklisted() public {
         test_initiateRecovery_fixed_price_client();
-        uint256 contractId = 1;
+
         bytes32 recoveryHash = recovery.getRecoveryHash(
             address(escrow), contractId, milestoneId, client, new_client, Enums.AccountTypeRecovery.CLIENT
         );
@@ -465,7 +474,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     function test_executeRecovery_fixed_price_client() public {
         test_initiateRecovery_fixed_price_client();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
-        uint256 contractId = 1;
+
         bytes32 recoveryHash =
             recovery.getRecoveryHash(address(escrow), contractId, milestoneId, client, new_client, accountType);
         (
@@ -532,7 +541,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_initiateRecovery_fixed_price_contractor() public {
         initializeEscrowFixedPrice();
-        uint256 contractId = 1;
+
         Enums.EscrowType escrowType = Enums.EscrowType.FIXED_PRICE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
         bytes32 recoveryHash =
@@ -565,7 +574,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     function test_executeRecovery_fixed_price_contractor() public {
         test_initiateRecovery_fixed_price_contractor();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
-        uint256 contractId = 1;
+
         bytes32 recoveryHash =
             recovery.getRecoveryHash(address(escrow), contractId, milestoneId, contractor, new_contractor, accountType);
         (
@@ -628,7 +637,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_executeRecovery_fixed_price_contractor_reverts_ZeroAddressProvided() public {
         test_initiateRecovery_fixed_price_contractor();
-        uint256 contractId = 1;
+
         vm.prank(owner);
         registry.setAccountRecovery(address(recovery));
         vm.prank(address(recovery));
@@ -638,7 +647,6 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_initiateRecovery_milestone_client() public {
         initializeEscrowMilestone();
-        uint256 contractId = escrowMilestone.getCurrentContractId();
         uint256 milestoneId_ = escrowMilestone.getMilestoneCount(contractId);
         Enums.EscrowType escrowType = Enums.EscrowType.MILESTONE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
@@ -672,7 +680,6 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_initiateRecovery_milestone_reverts_InvalidMilestoneId() public {
         initializeEscrowMilestone();
-        uint256 contractId = escrowMilestone.getCurrentContractId();
         uint256 milestoneId_ = escrowMilestone.getMilestoneCount(contractId);
         Enums.EscrowType escrowType = Enums.EscrowType.MILESTONE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
@@ -691,7 +698,6 @@ contract EscrowAccountRecoveryUnitTest is Test {
     function test_executeRecovery_milestone_client() public {
         test_initiateRecovery_milestone_client();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
-        uint256 contractId = escrowMilestone.getCurrentContractId();
         uint256 milestoneId_ = escrowMilestone.getMilestoneCount(contractId);
         bytes32 recoveryHash = recovery.getRecoveryHash(
             address(escrowMilestone), contractId, --milestoneId_, client, new_client, accountType
@@ -762,7 +768,6 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_initiateRecovery_milestone_contractor() public {
         initializeEscrowMilestone();
-        uint256 contractId = escrowMilestone.getCurrentContractId();
         Enums.EscrowType escrowType = Enums.EscrowType.MILESTONE;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
         bytes32 recoveryHash = recovery.getRecoveryHash(
@@ -798,7 +803,6 @@ contract EscrowAccountRecoveryUnitTest is Test {
     function test_executeRecovery_milestone_contractor() public {
         test_initiateRecovery_milestone_contractor();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
-        uint256 contractId = escrowMilestone.getCurrentContractId();
         uint256 milestoneId_ = escrowMilestone.getMilestoneCount(contractId);
         bytes32 recoveryHash = recovery.getRecoveryHash(
             address(escrowMilestone), contractId, --milestoneId_, contractor, new_contractor, accountType
@@ -863,7 +867,6 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_executeRecovery_milestone_contractor_reverts_ZeroAddressProvided() public {
         test_initiateRecovery_milestone_contractor();
-        uint256 contractId = escrowMilestone.getCurrentContractId();
         uint256 milestoneId_ = escrowMilestone.getMilestoneCount(contractId);
         vm.prank(owner);
         registry.setAccountRecovery(address(recovery));
@@ -874,7 +877,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_initiateRecovery_hourly_client() public {
         initializeEscrowHourly();
-        uint256 contractId = escrowHourly.getCurrentContractId();
+
         Enums.EscrowType escrowType = Enums.EscrowType.HOURLY;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
         bytes32 recoveryHash =
@@ -905,7 +908,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     function test_executeRecovery_hourly_client() public {
         test_initiateRecovery_hourly_client();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CLIENT;
-        uint256 contractId = escrowHourly.getCurrentContractId();
+
         bytes32 recoveryHash =
             recovery.getRecoveryHash(address(escrowHourly), contractId, milestoneId, client, new_client, accountType);
         (
@@ -974,7 +977,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_initiateRecovery_hourly_contractor() public {
         initializeEscrowHourly();
-        uint256 contractId = escrowHourly.getCurrentContractId();
+
         Enums.EscrowType escrowType = Enums.EscrowType.HOURLY;
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
         bytes32 recoveryHash = recovery.getRecoveryHash(
@@ -1010,7 +1013,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
     function test_executeRecovery_hourly_contractor() public {
         test_initiateRecovery_hourly_contractor();
         Enums.AccountTypeRecovery accountType = Enums.AccountTypeRecovery.CONTRACTOR;
-        uint256 contractId = escrowHourly.getCurrentContractId();
+
         bytes32 recoveryHash = recovery.getRecoveryHash(
             address(escrowHourly), contractId, milestoneId, contractor, new_contractor, accountType
         );
@@ -1074,7 +1077,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
 
     function test_executeRecovery_hourly_contractor_reverts_ZeroAddressProvided() public {
         test_initiateRecovery_hourly_contractor();
-        uint256 contractId = escrowHourly.getCurrentContractId();
+
         vm.prank(owner);
         registry.setAccountRecovery(address(recovery));
         vm.prank(address(recovery));
