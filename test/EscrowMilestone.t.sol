@@ -361,6 +361,7 @@ contract EscrowMilestoneUnitTest is Test {
             Enums.FeeConfig _feeConfig,
             Enums.Status _status
         ) = escrow.contractMilestones(currentContractId, 1);
+        contractorData = escrow.getContractorDataHash(contractor, contractData, salt);
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, 0 ether);
@@ -929,6 +930,74 @@ contract EscrowMilestoneUnitTest is Test {
         vm.stopPrank();
     }
 
+    function test_deposit_reverts_PaymentTokenMismatch() public {
+        test_deposit();
+        uint256 currentContractId = 1;
+        (address _paymentToken,,) = escrow.milestoneDetails(currentContractId, 0);
+        assertEq(address(_paymentToken), address(paymentToken));
+
+        newPaymentToken = new ERC20Mock();
+        vm.prank(owner);
+        registry.addPaymentToken(address(newPaymentToken));
+
+        bytes32 validMilestonesHash = _hashMilestones(milestones);
+        deposit = IEscrowMilestone.DepositRequest({
+            contractId: currentContractId,
+            paymentToken: address(newPaymentToken),
+            milestonesHash: validMilestonesHash,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getDepositSignature(
+                address(escrow), client, currentContractId, address(newPaymentToken), validMilestonesHash
+            )
+        });
+        vm.startPrank(client);
+        newPaymentToken.mint(client, 1.03 ether);
+        newPaymentToken.approve(address(escrow), 1.03 ether);
+        vm.expectRevert(IEscrow.Escrow__PaymentTokenMismatch.selector);
+        escrow.deposit(deposit, milestones);
+        vm.stopPrank();
+    }
+
+    function test_deposit_reverts_ContractIdAlreadyExists() public {
+        test_initialize();
+
+        // Calculate the storage slot for milestoneDetails[1][0].paymentToken
+        bytes32 baseSlot = keccak256(abi.encodePacked(uint256(1), uint256(6))); // Adjust slot 6 for milestoneDetails
+        bytes32 targetSlot = keccak256(abi.encodePacked(uint256(0), baseSlot));
+
+        // Debug: Confirm slot computation
+        // console2.log("Computed storage slot:", uint256(targetSlot));
+
+        // Set an invalid state
+        vm.store(address(escrow), targetSlot, bytes32(uint256(uint160(address(paymentToken)))));
+
+        // Verify state before proceeding
+        // address storedPaymentToken = address(uint160(uint256(vm.load(address(escrow), targetSlot))));
+        // assertEq(storedPaymentToken, address(paymentToken), "Storage not set correctly.");
+
+        // Prepare valid deposit payload
+        bytes32 validMilestonesHash = _hashMilestones(milestones);
+        deposit = IEscrowMilestone.DepositRequest({
+            contractId: 1, // Contract ID with invalid state
+            paymentToken: address(paymentToken),
+            milestonesHash: validMilestonesHash,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getDepositSignature(address(escrow), client, 1, address(paymentToken), validMilestonesHash)
+        });
+
+        // Act as client and attempt deposit
+        vm.startPrank(client);
+        paymentToken.mint(address(client), 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+
+        // Expect revert due to invalid contract state
+        vm.expectRevert(IEscrow.Escrow__ContractIdAlreadyExists.selector);
+        escrow.deposit(deposit, milestones);
+        vm.stopPrank();
+    }
+
     ///////////////////////////////////////////
     //             submit tests              //
     ///////////////////////////////////////////
@@ -1060,6 +1129,32 @@ contract EscrowMilestoneUnitTest is Test {
         vm.prank(contractor);
         vm.expectRevert(IEscrowMilestone.Escrow__InvalidMilestoneId.selector);
         escrow.submit(currentContractId, ++milestoneId, contractData, salt, contractorSignature);
+    }
+
+    function test_submit_reverts_InvalidSignature() public {
+        test_deposit();
+        uint256 currentContractId = 1;
+        (address _contractor, uint256 _amount,,, bytes32 _contractorData,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, address(0));
+        assertEq(_amount, 1 ether);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
+        escrow.submit(currentContractId, 0, contractData, salt, abi.encodePacked("invalidSignature"));
+
+        (, uint256 fakeAdminPrKey) = makeAddrAndKey("fakeAdmin");
+        bytes32 contractorDataHash = keccak256(abi.encodePacked(contractor, contractData, salt));
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(fakeAdminPrKey, ethSignedHash);
+        bytes memory fakeSignature = abi.encodePacked(r, s, v);
+
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
+        escrow.submit(currentContractId, 0, contractData, salt, fakeSignature);
     }
 
     ////////////////////////////////////////////
@@ -2153,7 +2248,7 @@ contract EscrowMilestoneUnitTest is Test {
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
             status: Enums.Status.ACTIVE
         });
-        bytes32 _milestonesHash = _hashMilestones(_milestones);
+        bytes32 _milestonesHash = escrow.hashMilestones(_milestones);
         deposit = IEscrowMilestone.DepositRequest({
             contractId: contractId,
             paymentToken: address(usdt),

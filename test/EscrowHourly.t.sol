@@ -579,6 +579,39 @@ contract EscrowHourlyUnitTest is Test {
         vm.stopPrank();
     }
 
+    function test_deposit_reverts_PaymentTokenMismatch() public {
+        test_deposit_prepayment();
+        newPaymentToken = new ERC20Mock();
+        vm.prank(owner);
+        registry.addPaymentToken(address(newPaymentToken));
+
+        deposit = IEscrowHourly.DepositRequest({
+            contractId: uint256(1),
+            contractor: contractor,
+            paymentToken: address(newPaymentToken),
+            prepaymentAmount: 1 ether,
+            amountToClaim: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: expirationTimestamp,
+            signature: _getSignature(
+                uint256(1),
+                contractor,
+                address(escrow),
+                address(newPaymentToken),
+                1 ether,
+                0,
+                Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
+        });
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        vm.expectRevert(IEscrow.Escrow__PaymentTokenMismatch.selector);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+    }
+
     function test_deposit_reverts_NotSetFeeManager() public {
         EscrowHourly escrow2 = new EscrowHourly();
         MockRegistry registry2 = new MockRegistry(owner);
@@ -687,6 +720,96 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         assertEq(escrow.getWeeksCount(currentContractId), 1);
+    }
+
+    function test_deposit_reverts_InvalidSignature() public {
+        test_initialize();
+        deposit = IEscrowHourly.DepositRequest({
+            contractId: uint256(1),
+            contractor: contractor,
+            paymentToken: address(paymentToken),
+            prepaymentAmount: 0,
+            amountToClaim: 1 ether,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: expirationTimestamp,
+            signature: abi.encodePacked("invalidSignature") // Set an intentionally invalid signature
+         });
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+    }
+
+    function test_deposit_reverts_InvalidSignature_DifferentSigner() public {
+        test_initialize();
+        (, uint256 fakeAdminPrKey) = makeAddrAndKey("fakeAdmin");
+        bytes32 fakeSignedHash = ECDSA.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    uint256(1),
+                    contractor,
+                    address(paymentToken),
+                    uint256(1 ether),
+                    uint256(0),
+                    Enums.FeeConfig.CLIENT_COVERS_ALL,
+                    expirationTimestamp,
+                    address(escrow)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(fakeAdminPrKey, fakeSignedHash);
+        bytes memory fakeSignature = abi.encodePacked(r, s, v);
+        deposit = IEscrowHourly.DepositRequest({
+            contractId: uint256(1),
+            contractor: contractor,
+            paymentToken: address(paymentToken),
+            prepaymentAmount: 0,
+            amountToClaim: 1 ether,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: expirationTimestamp,
+            signature: fakeSignature
+        });
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+    }
+
+    function test_deposit_reverts_AuthorizationExpired() public {
+        test_initialize();
+        deposit = IEscrowHourly.DepositRequest({
+            contractId: uint256(1),
+            contractor: contractor,
+            paymentToken: address(paymentToken),
+            prepaymentAmount: 0,
+            amountToClaim: 1 ether,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrow),
+            expiration: expirationTimestamp,
+            signature: _getSignature(
+                uint256(1),
+                address(contractor),
+                address(escrow),
+                address(paymentToken),
+                0,
+                1 ether,
+                Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
+        });
+        skip(4 hours);
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.03 ether);
+        paymentToken.approve(address(escrow), 1.03 ether);
+        vm.expectRevert(IEscrow.Escrow__AuthorizationExpired.selector);
+        escrow.deposit(deposit);
+        vm.stopPrank();
     }
 
     ////////////////////////////////////////////

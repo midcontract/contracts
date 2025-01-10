@@ -193,7 +193,7 @@ contract EscrowFixedPriceUnitTest is Test {
     //            deposit tests              //
     ///////////////////////////////////////////
 
-    function test_depositWithAuthorization() public {
+    function test_deposit() public {
         uint256 currentContractId = 1;
         // Create deposit request struct with authorization
         deposit = IEscrowFixedPrice.DepositRequest({
@@ -417,6 +417,236 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
+    function test_deposit_reverts_InvalidSignature() public {
+        test_initialize();
+        deposit = IEscrowFixedPrice.DepositRequest({
+            contractId: 1,
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            status: Enums.Status.ACTIVE,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: abi.encodePacked("invalidSignature") // Set an intentionally invalid signature
+         });
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.08 ether);
+        paymentToken.approve(address(escrow), 1.08 ether);
+        vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+    }
+
+    function test_deposit_reverts_InvalidSignature_DifferentSigner() public {
+        test_initialize();
+        // Use a different signer for the signature
+        (, uint256 fakeAdminPrKey) = makeAddrAndKey("fakeAdmin");
+        bytes32 fakeSignedHash = ECDSA.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    client,
+                    uint256(1),
+                    contractor,
+                    address(paymentToken),
+                    uint256(1 ether),
+                    Enums.FeeConfig.CLIENT_COVERS_ALL,
+                    contractorData,
+                    uint256(block.timestamp + 3 hours),
+                    address(escrow)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(fakeAdminPrKey, fakeSignedHash);
+        bytes memory fakeSignature = abi.encodePacked(r, s, v);
+
+        deposit = IEscrowFixedPrice.DepositRequest({
+            contractId: 1,
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            status: Enums.Status.ACTIVE,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: fakeSignature
+        });
+
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.08 ether);
+        paymentToken.approve(address(escrow), 1.08 ether);
+        vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+    }
+
+    function test_deposit_reverts_AuthorizationExpired() public {
+        test_initialize();
+        deposit = IEscrowFixedPrice.DepositRequest({
+            contractId: uint256(1),
+            contractor: contractor,
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            status: Enums.Status.ACTIVE,
+            escrow: address(escrow),
+            expiration: block.timestamp + 3 hours,
+            signature: _getSignature(
+                uint256(1), contractor, address(escrow), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            )
+        });
+        skip(4 hours);
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.08 ether);
+        paymentToken.approve(address(escrow), 1.08 ether);
+        vm.expectRevert(IEscrow.Escrow__AuthorizationExpired.selector);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+    }
+
+    function test_deposit_reverts_ContractIdZero() public {
+        test_initialize();
+
+        // Create deposit request with contractId set to 0
+        deposit = IEscrowFixedPrice.DepositRequest({
+            contractId: 0,
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            status: Enums.Status.NONE,
+            escrow: address(escrow),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: _getSignature(
+                0, address(0), address(escrow), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL
+            )
+        });
+
+        vm.startPrank(client);
+        paymentToken.mint(client, 1.08 ether);
+        paymentToken.approve(address(escrow), 1.08 ether);
+
+        // Expect revert due to contractId being 0
+        vm.expectRevert(IEscrow.Escrow__ContractIdAlreadyExists.selector);
+        escrow.deposit(deposit);
+        vm.stopPrank();
+    }
+
+    // function test_deposit_reverts_StatusNotNone() public {
+    //     test_initialize();
+
+    //     // Step 1: Compute storage slot for `deposits[1].status`
+    //     bytes32 baseSlot = keccak256(abi.encodePacked(uint256(1), uint256(4))); // Slot 4 for deposits[1]
+    //     bytes32 targetSlot = keccak256(abi.encodePacked(uint256(0), baseSlot)); // Nested mapping slot for status
+    //     console2.log("Computed storage slot for status:", uint256(targetSlot));
+
+    //     // Step 2: Simulate a contract with a non-NONE status
+    //     vm.store(address(escrow), targetSlot, bytes32(uint256(Enums.Status.ACTIVE)));
+
+    //     // Step 3: Verify the state before proceeding
+    //     uint256 storedStatusRaw = uint256(vm.load(address(escrow), targetSlot));
+    //     Enums.Status storedStatus = Enums.Status(storedStatusRaw);
+    //     console2.log("Stored status in slot as uint256:", storedStatusRaw);
+    //     console2.log("Stored status as Enums.Status:", uint256(storedStatus));
+    //     assertEq(uint256(storedStatus), uint256(Enums.Status.ACTIVE), "Storage not set correctly to ACTIVE.");
+
+    //     // Step 4: Prepare deposit request
+    //     deposit = IEscrowFixedPrice.DepositRequest({
+    //         contractId: 1,
+    //         contractor: address(0),
+    //         paymentToken: address(paymentToken),
+    //         amount: 1 ether,
+    //         amountToClaim: 0 ether,
+    //         amountToWithdraw: 0 ether,
+    //         contractorData: contractorData,
+    //         feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+    //         status: Enums.Status.NONE,
+    //         escrow: address(escrow),
+    //         expiration: uint256(block.timestamp + 3 hours),
+    //         signature: _getSignature(
+    //             1, address(0), address(escrow), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL
+    //         )
+    //     });
+
+    //     vm.startPrank(client);
+    //     paymentToken.mint(client, 1.08 ether);
+    //     paymentToken.approve(address(escrow), 1.08 ether);
+
+    //     // Expect revert due to status not being NONE
+    //     vm.expectRevert(IEscrow.Escrow__ContractIdAlreadyExists.selector);
+    //     escrow.deposit(deposit);
+    //     vm.stopPrank();
+    // }
+
+    // function test_deposit_reverts_PaymentTokenNonZero() public {
+    //     test_initialize();
+
+    //     // // Step 1: Compute storage slot for `deposits[1].status`
+    //     // bytes32 baseSlot = keccak256(abi.encodePacked(uint256(1), uint256(2))); // Mapping at slot 2
+    //     // bytes32 statusSlot = bytes32(uint256(baseSlot) + 7); // Offset for `status`
+    //     // console2.log("Computed storage slot for status:", uint256(statusSlot));
+
+    //     // // Step 2: Set `status` to ACTIVE
+    //     // vm.store(address(escrow), statusSlot, bytes32(uint256(Enums.Status.ACTIVE)));
+
+    //     // // Step 3: Verify the state
+    //     // bytes32 storedValue = vm.load(address(escrow), statusSlot);
+    //     // uint256 storedStatus = uint256(storedValue);
+    //     // console2.log("Stored status in slot as uint256:", storedStatus);
+    //     // assertEq(storedStatus, uint256(Enums.Status.ACTIVE), "Storage not set correctly to ACTIVE.");
+
+    //     vm.store(
+    //         address(escrow),
+    //         keccak256(abi.encodePacked(uint256(1), keccak256(abi.encodePacked(uint256(2))))), // paymentToken slot
+    //         bytes32(uint256(uint160(address(paymentToken))))
+    //     );
+
+    //     vm.store(
+    //         address(escrow),
+    //         keccak256(abi.encodePacked(uint256(1), uint256(4))), // status slot
+    //         bytes32(uint256(Enums.Status.ACTIVE))
+    //     );
+
+    //     // Prepare deposit request
+    //     deposit = IEscrowFixedPrice.DepositRequest({
+    //         contractId: 1,
+    //         contractor: address(0),
+    //         paymentToken: address(paymentToken),
+    //         amount: 1 ether,
+    //         amountToClaim: 0 ether,
+    //         amountToWithdraw: 0 ether,
+    //         contractorData: contractorData,
+    //         feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+    //         status: Enums.Status.NONE,
+    //         escrow: address(escrow),
+    //         expiration: uint256(block.timestamp + 3 hours),
+    //         signature: _getSignature(
+    //             1, address(0), address(escrow), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL
+    //         )
+    //     });
+
+    //     vm.startPrank(client);
+    //     paymentToken.mint(client, 1.08 ether);
+    //     paymentToken.approve(address(escrow), 1.08 ether);
+
+    //     // Expect revert due to payment token being non-zero
+    //     vm.expectRevert(IEscrow.Escrow__ContractIdAlreadyExists.selector);
+    //     escrow.deposit(deposit);
+    //     vm.stopPrank();
+    // }
+
     ///////////////////////////////////////////
     //           withdraw tests              //
     ///////////////////////////////////////////
@@ -564,7 +794,7 @@ contract EscrowFixedPriceUnitTest is Test {
     }
 
     function test_withdraw_reverts_UnauthorizedAccount() public {
-        test_depositWithAuthorization();
+        test_deposit();
         uint256 currentContractId = 1;
         address notClient = makeAddr("notClient");
         vm.prank(notClient);
@@ -645,8 +875,8 @@ contract EscrowFixedPriceUnitTest is Test {
     }
 
     function test_submit() public {
-        test_depositWithAuthorization();
-        uint256 currentContractId = 1; // escrow.getCurrentContractId();
+        test_deposit();
+        uint256 currentContractId = 1;
         (
             address _contractor,
             ,
@@ -672,7 +902,7 @@ contract EscrowFixedPriceUnitTest is Test {
     }
 
     function test_submit_reverts() public {
-        test_depositWithAuthorization();
+        test_deposit();
         uint256 currentContractId = 1;
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
@@ -756,6 +986,29 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
+    function test_submit_reverts_InvalidSignature() public {
+        test_deposit();
+        uint256 currentContractId = 1;
+        (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
+        escrow.submit(currentContractId, contractData, salt, abi.encodePacked("invalidSignature"));
+
+        (, uint256 fakeAdminPrKey) = makeAddrAndKey("fakeAdmin");
+        bytes32 contractorDataHash = keccak256(abi.encodePacked(contractor, contractData, salt));
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(fakeAdminPrKey, ethSignedHash);
+        bytes memory fakeSignature = abi.encodePacked(r, s, v);
+
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
+        escrow.submit(currentContractId, contractData, salt, fakeSignature);
+    }
+
     ////////////////////////////////////////////
     //             approve tests              //
     ////////////////////////////////////////////
@@ -828,7 +1081,7 @@ contract EscrowFixedPriceUnitTest is Test {
     }
 
     function test_approve_reverts_InvalidStatusForApprove() public {
-        test_depositWithAuthorization();
+        test_deposit();
         uint256 currentContractId = 1;
         (address _contractor,, uint256 _amount, uint256 _amountToClaim,,,, Enums.Status _status) =
             escrow.deposits(currentContractId);
@@ -912,7 +1165,7 @@ contract EscrowFixedPriceUnitTest is Test {
     ////////////////////////////////////////////
 
     function test_refill() public {
-        test_depositWithAuthorization();
+        test_deposit();
         uint256 currentContractId = 1;
         (
             address _contractor,
@@ -951,7 +1204,7 @@ contract EscrowFixedPriceUnitTest is Test {
     }
 
     function test_refill_reverts() public {
-        test_depositWithAuthorization();
+        test_deposit();
         uint256 currentContractId = 1;
         (
             address _contractor,
@@ -1727,7 +1980,7 @@ contract EscrowFixedPriceUnitTest is Test {
     ////////////////////////////////////////////
 
     function test_requestReturn_whenActive() public {
-        test_depositWithAuthorization();
+        test_deposit();
         uint256 currentContractId = 1;
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
@@ -1795,7 +2048,7 @@ contract EscrowFixedPriceUnitTest is Test {
     }
 
     function test_requestReturn_reverts_UnauthorizedAccount() public {
-        test_depositWithAuthorization();
+        test_deposit();
         uint256 currentContractId = 1;
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
@@ -1902,7 +2155,7 @@ contract EscrowFixedPriceUnitTest is Test {
     }
 
     function test_approveReturn_reverts_NoReturnRequested() public {
-        test_depositWithAuthorization();
+        test_deposit();
         uint256 currentContractId = 1;
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
@@ -2050,7 +2303,7 @@ contract EscrowFixedPriceUnitTest is Test {
     }
 
     function test_createDispute_reverts_CreateDisputeNotAllowed() public {
-        test_depositWithAuthorization();
+        test_deposit();
         uint256 currentContractId = 1;
         (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
@@ -2210,7 +2463,7 @@ contract EscrowFixedPriceUnitTest is Test {
     }
 
     function test_resolveDispute_reverts_DisputeNotActiveForThisDeposit() public {
-        test_depositWithAuthorization();
+        test_deposit();
         uint256 currentContractId = 1;
         (,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 1); //Status.ACTIVE
