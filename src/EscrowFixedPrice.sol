@@ -36,6 +36,9 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Maps each contract ID to its corresponding deposit details.
     mapping(uint256 contractId => DepositInfo) public deposits;
 
+    /// @dev Maps each contract ID to its previous status before the return request.
+    mapping(uint256 contractId => Enums.Status) public previousStatuses;
+
     /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
         if (msg.sender != client) revert Escrow__UnauthorizedAccount(msg.sender);
@@ -307,6 +310,9 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
                 && D.status != Enums.Status.COMPLETED
         ) revert Escrow__ReturnNotAllowed();
 
+        // Store the current status before changing it to RETURN_REQUESTED.
+        previousStatuses[_contractId] = D.status;
+
         D.status = Enums.Status.RETURN_REQUESTED;
         emit ReturnRequested(msg.sender, _contractId);
     }
@@ -325,20 +331,19 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         emit ReturnApproved(msg.sender, _contractId);
     }
 
-    /// @notice Cancels a previously requested return and resets the deposit's status.
-    /// @dev Allows reverting the deposit status from RETURN_REQUESTED to an active state.
+    /// @notice Cancels a previously requested return and resets the deposit's status to the previous one.
+    /// @dev Reverts the status from RETURN_REQUESTED to the previous status stored in `previousStatuses`.
     /// @param _contractId The unique identifier of the deposit for which the return is being cancelled.
-    /// @param _status The new status to set for the deposit, must be ACTIVE, SUBMITTED, APPROVED, or COMPLETED.
-    function cancelReturn(uint256 _contractId, Enums.Status _status) external onlyClient {
+    function cancelReturn(uint256 _contractId) external onlyClient {
         DepositInfo storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-        if (
-            _status != Enums.Status.ACTIVE && _status != Enums.Status.SUBMITTED && _status != Enums.Status.APPROVED
-                && _status != Enums.Status.COMPLETED
-        ) {
-            revert Escrow__InvalidStatusProvided();
-        }
-        D.status = _status;
+
+        // Reset the status to the previous state.
+        D.status = previousStatuses[_contractId];
+
+        // Remove the previous status mapping entry.
+        delete previousStatuses[_contractId];
+
         emit ReturnCanceled(msg.sender, _contractId);
     }
 

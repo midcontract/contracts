@@ -42,6 +42,9 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @dev Maps each contract and milestone ID pair to its corresponding MilestoneDetails.
     mapping(uint256 contractId => mapping(uint256 milestoneId => MilestoneDetails)) public milestoneDetails;
 
+    /// @dev Maps each contract ID and milestone ID pair to its previous status before the return request.
+    mapping(uint256 contractId => mapping(uint256 milestoneId => Enums.Status)) public previousStatuses;
+
     /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
         if (msg.sender != client) revert Escrow__UnauthorizedAccount(msg.sender);
@@ -447,6 +450,9 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
                 && M.status != Enums.Status.COMPLETED
         ) revert Escrow__ReturnNotAllowed();
 
+        // Store the current status before changing it to RETURN_REQUESTED.
+        previousStatuses[_contractId][_milestoneId] = M.status;
+
         M.status = Enums.Status.RETURN_REQUESTED;
         emit ReturnRequested(msg.sender, _contractId, _milestoneId);
     }
@@ -467,20 +473,16 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     }
 
     /// @notice Cancels a previously requested return and resets the milestone's status.
-    /// @dev Allows reverting the milestone status from RETURN_REQUESTED to an active state.
+    /// @dev Reverts the status from RETURN_REQUESTED to the previous status stored in `previousStatuses`.
     /// @param _contractId The unique identifier of the milestone for which the return is being cancelled.
     /// @param _milestoneId ID of the milestone for which the return is being cancelled.
-    /// @param _status The new status to set for the milestone, must be ACTIVE, SUBMITTED, APPROVED, or COMPLETED.
-    function cancelReturn(uint256 _contractId, uint256 _milestoneId, Enums.Status _status) external onlyClient {
+    function cancelReturn(uint256 _contractId, uint256 _milestoneId) external onlyClient {
         Milestone storage M = contractMilestones[_contractId][_milestoneId];
         if (M.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-        if (
-            _status != Enums.Status.ACTIVE && _status != Enums.Status.SUBMITTED && _status != Enums.Status.APPROVED
-                && _status != Enums.Status.COMPLETED
-        ) {
-            revert Escrow__InvalidStatusProvided();
-        }
-        M.status = _status;
+
+        M.status = previousStatuses[_contractId][_milestoneId];
+        delete previousStatuses[_contractId][_milestoneId];
+
         emit ReturnCanceled(msg.sender, _contractId, _milestoneId);
     }
 

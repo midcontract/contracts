@@ -544,109 +544,6 @@ contract EscrowFixedPriceUnitTest is Test {
         vm.stopPrank();
     }
 
-    // function test_deposit_reverts_StatusNotNone() public {
-    //     test_initialize();
-
-    //     // Step 1: Compute storage slot for `deposits[1].status`
-    //     bytes32 baseSlot = keccak256(abi.encodePacked(uint256(1), uint256(4))); // Slot 4 for deposits[1]
-    //     bytes32 targetSlot = keccak256(abi.encodePacked(uint256(0), baseSlot)); // Nested mapping slot for status
-    //     console2.log("Computed storage slot for status:", uint256(targetSlot));
-
-    //     // Step 2: Simulate a contract with a non-NONE status
-    //     vm.store(address(escrow), targetSlot, bytes32(uint256(Enums.Status.ACTIVE)));
-
-    //     // Step 3: Verify the state before proceeding
-    //     uint256 storedStatusRaw = uint256(vm.load(address(escrow), targetSlot));
-    //     Enums.Status storedStatus = Enums.Status(storedStatusRaw);
-    //     console2.log("Stored status in slot as uint256:", storedStatusRaw);
-    //     console2.log("Stored status as Enums.Status:", uint256(storedStatus));
-    //     assertEq(uint256(storedStatus), uint256(Enums.Status.ACTIVE), "Storage not set correctly to ACTIVE.");
-
-    //     // Step 4: Prepare deposit request
-    //     deposit = IEscrowFixedPrice.DepositRequest({
-    //         contractId: 1,
-    //         contractor: address(0),
-    //         paymentToken: address(paymentToken),
-    //         amount: 1 ether,
-    //         amountToClaim: 0 ether,
-    //         amountToWithdraw: 0 ether,
-    //         contractorData: contractorData,
-    //         feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-    //         status: Enums.Status.NONE,
-    //         escrow: address(escrow),
-    //         expiration: uint256(block.timestamp + 3 hours),
-    //         signature: _getSignature(
-    //             1, address(0), address(escrow), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL
-    //         )
-    //     });
-
-    //     vm.startPrank(client);
-    //     paymentToken.mint(client, 1.08 ether);
-    //     paymentToken.approve(address(escrow), 1.08 ether);
-
-    //     // Expect revert due to status not being NONE
-    //     vm.expectRevert(IEscrow.Escrow__ContractIdAlreadyExists.selector);
-    //     escrow.deposit(deposit);
-    //     vm.stopPrank();
-    // }
-
-    // function test_deposit_reverts_PaymentTokenNonZero() public {
-    //     test_initialize();
-
-    //     // // Step 1: Compute storage slot for `deposits[1].status`
-    //     // bytes32 baseSlot = keccak256(abi.encodePacked(uint256(1), uint256(2))); // Mapping at slot 2
-    //     // bytes32 statusSlot = bytes32(uint256(baseSlot) + 7); // Offset for `status`
-    //     // console2.log("Computed storage slot for status:", uint256(statusSlot));
-
-    //     // // Step 2: Set `status` to ACTIVE
-    //     // vm.store(address(escrow), statusSlot, bytes32(uint256(Enums.Status.ACTIVE)));
-
-    //     // // Step 3: Verify the state
-    //     // bytes32 storedValue = vm.load(address(escrow), statusSlot);
-    //     // uint256 storedStatus = uint256(storedValue);
-    //     // console2.log("Stored status in slot as uint256:", storedStatus);
-    //     // assertEq(storedStatus, uint256(Enums.Status.ACTIVE), "Storage not set correctly to ACTIVE.");
-
-    //     vm.store(
-    //         address(escrow),
-    //         keccak256(abi.encodePacked(uint256(1), keccak256(abi.encodePacked(uint256(2))))), // paymentToken slot
-    //         bytes32(uint256(uint160(address(paymentToken))))
-    //     );
-
-    //     vm.store(
-    //         address(escrow),
-    //         keccak256(abi.encodePacked(uint256(1), uint256(4))), // status slot
-    //         bytes32(uint256(Enums.Status.ACTIVE))
-    //     );
-
-    //     // Prepare deposit request
-    //     deposit = IEscrowFixedPrice.DepositRequest({
-    //         contractId: 1,
-    //         contractor: address(0),
-    //         paymentToken: address(paymentToken),
-    //         amount: 1 ether,
-    //         amountToClaim: 0 ether,
-    //         amountToWithdraw: 0 ether,
-    //         contractorData: contractorData,
-    //         feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-    //         status: Enums.Status.NONE,
-    //         escrow: address(escrow),
-    //         expiration: uint256(block.timestamp + 3 hours),
-    //         signature: _getSignature(
-    //             1, address(0), address(escrow), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL
-    //         )
-    //     });
-
-    //     vm.startPrank(client);
-    //     paymentToken.mint(client, 1.08 ether);
-    //     paymentToken.approve(address(escrow), 1.08 ether);
-
-    //     // Expect revert due to payment token being non-zero
-    //     vm.expectRevert(IEscrow.Escrow__ContractIdAlreadyExists.selector);
-    //     escrow.deposit(deposit);
-    //     vm.stopPrank();
-    // }
-
     ///////////////////////////////////////////
     //           withdraw tests              //
     ///////////////////////////////////////////
@@ -1986,6 +1883,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
         assertEq(uint256(_status), 1); //Status.ACTIVE
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 0); //Status.NONE
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnRequested(client, currentContractId);
@@ -1994,6 +1892,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_contractor, address(0));
         assertEq(_amount, 1 ether);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 1); //Status.ACTIVE
     }
 
     function test_requestReturn_whenSubmitted() public {
@@ -2185,77 +2084,58 @@ contract EscrowFixedPriceUnitTest is Test {
     function test_cancelReturn() public {
         test_requestReturn_whenActive();
         uint256 currentContractId = 1;
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 1); //Status.ACTIVE
         (,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
-        status = Enums.Status.ACTIVE;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnCanceled(client, currentContractId);
-        escrow.cancelReturn(currentContractId, status);
+        escrow.cancelReturn(currentContractId);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 1); //Status.ACTIVE
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 0); //Status.NONE
     }
 
     function test_cancelReturn_submitted() public {
         test_requestReturn_whenSubmitted();
         uint256 currentContractId = 1;
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 2); //Status.SUBMITTED
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
-        status = Enums.Status.SUBMITTED;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnCanceled(client, currentContractId);
-        escrow.cancelReturn(currentContractId, status);
+        escrow.cancelReturn(currentContractId);
         (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 0); //Status.NONE
     }
 
     function test_cancelReturn_reverts() public {
         test_requestReturn_whenActive();
         uint256 currentContractId = 1;
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 1); //Status.ACTIVE
         (,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
-        status = Enums.Status.ACTIVE;
         vm.prank(owner);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
-        escrow.cancelReturn(currentContractId, status);
+        escrow.cancelReturn(currentContractId);
         (,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
-        status = Enums.Status.CANCELED;
-        vm.prank(client);
-        vm.expectRevert(IEscrow.Escrow__InvalidStatusProvided.selector);
-        escrow.cancelReturn(currentContractId, status);
-        (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 1); //Status.ACTIVE
     }
 
-    function test_cancelReturn_reverts_submitted() public {
-        test_requestReturn_whenSubmitted();
-        uint256 currentContractId = 1;
-        (address _contractor,, uint256 _amount,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
-        assertEq(_contractor, contractor);
-        assertEq(_amount, 1 ether);
-        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
-        status = Enums.Status.RESOLVED;
-        vm.prank(client);
-        vm.expectRevert(IEscrow.Escrow__InvalidStatusProvided.selector);
-        escrow.cancelReturn(currentContractId, status);
-        (,,,,,,, _status) = escrow.deposits(currentContractId);
-        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
-    }
-
-    function test_cancelReturn_reverts_submitted_NoReturnRequested() public {
+    function test_cancelReturn_reverts_NoReturnRequested() public {
         test_submit();
         uint256 currentContractId = 1;
         (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
-        status = Enums.Status.ACTIVE;
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NoReturnRequested.selector);
-        escrow.cancelReturn(currentContractId, status);
+        escrow.cancelReturn(currentContractId);
         (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 2); //Status.SUBMITTED

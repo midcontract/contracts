@@ -3155,36 +3155,33 @@ contract EscrowHourlyUnitTest is Test {
     function test_cancelReturn() public {
         test_requestReturn_whenActive();
         uint256 currentContractId = 1;
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 1); //Status.ACTIVE
         (,, uint256 _prepaymentAmount,,, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
-        status = Enums.Status.ACTIVE;
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
         emit ReturnCanceled(client, currentContractId);
-        escrow.cancelReturn(currentContractId, status);
+        escrow.cancelReturn(currentContractId);
         (,, _prepaymentAmount,,, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
         assertEq(uint256(_status), 1); //Status.ACTIVE
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 0); //Status.NONE
     }
 
     function test_cancelReturn_reverts() public {
         test_requestReturn_whenActive();
         uint256 currentContractId = 1;
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 1); //Status.ACTIVE
         (,, uint256 _prepaymentAmount,,, Enums.Status _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(owner);
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
-        escrow.cancelReturn(currentContractId, status);
+        escrow.cancelReturn(currentContractId);
         (,,,,, _status) = escrow.contractDetails(currentContractId);
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
-        status = Enums.Status.CANCELED;
-        vm.prank(client);
-        vm.expectRevert(IEscrow.Escrow__InvalidStatusProvided.selector);
-        escrow.cancelReturn(currentContractId, status);
-        (,,,,, _status) = escrow.contractDetails(currentContractId);
-        assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
+        assertEq(uint256(escrow.previousStatuses(currentContractId)), 1); //Status.ACTIVE
     }
 
     function test_cancelReturn_reverts_NoReturnRequested() public {
@@ -3195,7 +3192,7 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(uint256(_status), 1); //Status.ACTIVE
         vm.prank(client);
         vm.expectRevert(IEscrow.Escrow__NoReturnRequested.selector);
-        escrow.cancelReturn(currentContractId, status);
+        escrow.cancelReturn(currentContractId);
         (,, _prepaymentAmount,,, _status) = escrow.contractDetails(currentContractId);
         assertEq(_prepaymentAmount, 1 ether);
         assertEq(uint256(_status), 1); //Status.ACTIVE
