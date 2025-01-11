@@ -306,7 +306,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         // Check if all weeks are completed and update the contract status if true.
         if (_verifyIfAllWeeksCompleted(_contractId)) C.status = Enums.Status.COMPLETED;
 
-        emit Claimed(msg.sender, _contractId, _weekId, claimAmount, feeAmount);
+        emit Claimed(msg.sender, _contractId, _weekId, claimAmount, feeAmount, client);
     }
 
     /// @notice Allows the contractor to claim for multiple weeks in a specified range if those weeks are approved.
@@ -359,7 +359,14 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (_verifyIfAllWeeksCompleted(_contractId)) C.status = Enums.Status.COMPLETED;
 
         emit BulkClaimed(
-            msg.sender, _contractId, _startWeekId, _endWeekId, totalClaimedAmount, totalFeeAmount, totalClientFee
+            msg.sender,
+            _contractId,
+            _startWeekId,
+            _endWeekId,
+            totalClaimedAmount,
+            totalFeeAmount,
+            totalClientFee,
+            client
         );
     }
 
@@ -431,7 +438,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         }
         C.amountToWithdraw = C.prepaymentAmount;
         C.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(msg.sender, _contractId);
+        emit ReturnApproved(msg.sender, _contractId, client);
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status to the previous one.
@@ -462,7 +469,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         C.status = Enums.Status.DISPUTED;
         weeklyEntries[_contractId][_weekId].weekStatus = Enums.Status.DISPUTED;
-        emit DisputeCreated(msg.sender, _contractId, _weekId);
+        emit DisputeCreated(msg.sender, _contractId, _weekId, client);
     }
 
     /// @notice Resolves a dispute over a specific contract.
@@ -505,7 +512,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
 
         C.status = Enums.Status.RESOLVED; // Resolve the contract status for all cases.
         W.weekStatus = Enums.Status.RESOLVED;
-        emit DisputeResolved(msg.sender, _contractId, _weekId, _winner, _clientAmount, _contractorAmount);
+        emit DisputeResolved(msg.sender, _contractId, _weekId, _winner, _clientAmount, _contractorAmount, client);
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -114,8 +114,14 @@ interface IEscrowHourly is IEscrow {
     /// @param weekId The ID of the week.
     /// @param amount The net amount claimed by the contractor, after deducting fees.
     /// @param feeAmount The fee amount paid by the contractor for the claim.
+    /// @param client The address of the client associated with the contract.
     event Claimed(
-        address indexed contractor, uint256 indexed contractId, uint256 weekId, uint256 amount, uint256 feeAmount
+        address indexed contractor,
+        uint256 indexed contractId,
+        uint256 weekId,
+        uint256 amount,
+        uint256 feeAmount,
+        address indexed client
     );
 
     /// @notice Emitted when a contractor claims amounts from multiple weeks in one transaction.
@@ -126,6 +132,7 @@ interface IEscrowHourly is IEscrow {
     /// @param totalClaimedAmount The total amount claimed across all weeks in the specified range.
     /// @param totalFeeAmount The total fee amount deducted from the claims.
     /// @param totalClientFee The total additional fee paid by the client related to the claims.
+    /// @param client The address of the client associated with the contract.
     event BulkClaimed(
         address indexed contractor,
         uint256 indexed contractId,
@@ -133,7 +140,8 @@ interface IEscrowHourly is IEscrow {
         uint256 endWeekId,
         uint256 totalClaimedAmount,
         uint256 totalFeeAmount,
-        uint256 totalClientFee
+        uint256 totalClientFee,
+        address indexed client
     );
 
     /// @notice Emitted when a withdrawal is made.
@@ -153,7 +161,8 @@ interface IEscrowHourly is IEscrow {
     /// @notice Emitted when a return is approved.
     /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
-    event ReturnApproved(address indexed approver, uint256 indexed contractId);
+    /// @param client The address of the client associated with the contract.
+    event ReturnApproved(address indexed approver, uint256 indexed contractId, address indexed client);
 
     /// @notice Emitted when a return is canceled.
     /// @param sender The address of the sender.
@@ -164,8 +173,8 @@ interface IEscrowHourly is IEscrow {
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param weekId The ID of the week.
-    /// @param sender The address of the sender.
-    event DisputeCreated(address indexed sender, uint256 indexed contractId, uint256 weekId);
+    /// @param client The address of the client associated with the contract.
+    event DisputeCreated(address indexed sender, uint256 indexed contractId, uint256 weekId, address indexed client);
 
     /// @notice Emitted when a dispute is resolved.
     /// @param approver The address of the approver.
@@ -174,13 +183,15 @@ interface IEscrowHourly is IEscrow {
     /// @param winner The winner of the dispute.
     /// @param clientAmount The amount awarded to the client.
     /// @param contractorAmount The amount awarded to the contractor.
+    /// @param client The address of the client associated with the contract.
     event DisputeResolved(
         address indexed approver,
         uint256 indexed contractId,
         uint256 weekId,
         Enums.Winner winner,
         uint256 clientAmount,
-        uint256 contractorAmount
+        uint256 contractorAmount,
+        address indexed client
     );
 
     /// @notice Emitted when the ownership of a contractor account is transferred to a new owner.

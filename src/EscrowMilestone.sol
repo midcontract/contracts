@@ -210,7 +210,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         M.status = Enums.Status.SUBMITTED;
 
         // Emit an event indicating successful submission of the milestone.
-        emit Submitted(msg.sender, _contractId, _milestoneId);
+        emit Submitted(msg.sender, _contractId, _milestoneId, client);
     }
 
     /// @notice Approves a milestone's submitted work, specifying the amount to release to the contractor.
@@ -315,7 +315,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         if (M.amount == 0) M.status = Enums.Status.COMPLETED;
 
         // Emit an event to log the claim.
-        emit Claimed(msg.sender, _contractId, _milestoneId, claimAmount, feeAmount);
+        emit Claimed(msg.sender, _contractId, _milestoneId, claimAmount, feeAmount, client);
     }
 
     /// @notice Claims all approved amounts by the contractor for a given contract.
@@ -381,7 +381,8 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
             _endMilestoneId,
             totalClaimedAmount,
             totalFeeAmount,
-            totalClientFee
+            totalClientFee,
+            client
         );
     }
 
@@ -469,7 +470,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         }
         M.amountToWithdraw = M.amount;
         M.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(msg.sender, _contractId, _milestoneId);
+        emit ReturnApproved(msg.sender, _contractId, _milestoneId, client);
     }
 
     /// @notice Cancels a previously requested return and resets the milestone's status.
@@ -500,7 +501,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         if (msg.sender != client && msg.sender != M.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         M.status = Enums.Status.DISPUTED;
-        emit DisputeCreated(msg.sender, _contractId, _milestoneId);
+        emit DisputeCreated(msg.sender, _contractId, _milestoneId, client);
     }
 
     /// @notice Resolves a dispute over a specific milestone.
@@ -540,7 +541,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
         milestoneDetails[_contractId][_milestoneId].winner = _winner;
 
-        emit DisputeResolved(msg.sender, _contractId, _milestoneId, _winner, _clientAmount, _contractorAmount);
+        emit DisputeResolved(msg.sender, _contractId, _milestoneId, _winner, _clientAmount, _contractorAmount, client);
     }
 
     /*//////////////////////////////////////////////////////////////

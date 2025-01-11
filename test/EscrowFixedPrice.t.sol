@@ -44,25 +44,32 @@ contract EscrowFixedPriceUnitTest is Test {
 
     event Deposited(address indexed depositor, uint256 indexed contractId, uint256 amount, address indexed contractor);
     event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
-    event Submitted(address indexed sender, uint256 indexed contractId);
+    event Submitted(address indexed sender, uint256 indexed contractId, address indexed client);
     event Approved(
         address indexed approver, uint256 indexed contractId, uint256 amountApprove, address indexed receiver
     );
     event Refilled(address indexed sender, uint256 indexed contractId, uint256 amountAdditional);
-    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
+    event Claimed(
+        address indexed contractor,
+        uint256 indexed contractId,
+        uint256 amount,
+        uint256 feeAmount,
+        address indexed client
+    );
     event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
     event RegistryUpdated(address registry);
     event AdminManagerUpdated(address adminManager);
     event ReturnRequested(address indexed sender, uint256 contractId);
-    event ReturnApproved(address indexed approver, uint256 contractId);
+    event ReturnApproved(address indexed approver, uint256 contractId, address indexed client);
     event ReturnCanceled(address indexed sender, uint256 contractId);
-    event DisputeCreated(address indexed sender, uint256 contractId);
+    event DisputeCreated(address indexed sender, uint256 contractId, address indexed client);
     event DisputeResolved(
         address indexed approver,
         uint256 contractId,
         Enums.Winner winner,
         uint256 clientAmount,
-        uint256 contractorAmount
+        uint256 contractorAmount,
+        address indexed client
     );
 
     function setUp() public {
@@ -790,7 +797,7 @@ contract EscrowFixedPriceUnitTest is Test {
         (bytes32 contractorDataHash, bytes memory contractorSignature) = _getSubmitSignature();
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit Submitted(contractor, currentContractId);
+        emit Submitted(contractor, currentContractId, client);
         escrow.submit(currentContractId, contractData, salt, contractorSignature);
         (_contractor,, _amount, _amountToClaim,,, _feeConfig, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -841,7 +848,7 @@ contract EscrowFixedPriceUnitTest is Test {
         escrow.submit(currentContractId, contractData, salt, contractorSignature);
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit Submitted(contractor, currentContractId);
+        emit Submitted(contractor, currentContractId, client);
         escrow.submit(currentContractId, contractData, salt, contractorSignature);
         (_contractor,,,,, _contractorData, _feeConfig, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -1176,7 +1183,7 @@ contract EscrowFixedPriceUnitTest is Test {
 
         vm.startPrank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit Claimed(contractor, currentContractId, _amountToClaim, feeAmount);
+        emit Claimed(contractor, currentContractId, _amountToClaim, feeAmount, client);
         escrow.claim(currentContractId);
         assertEq(paymentToken.balanceOf(address(escrow)), 0 ether);
         assertEq(paymentToken.balanceOf(address(treasury)), feeAmount + clientFee);
@@ -2005,7 +2012,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit ReturnApproved(owner, currentContractId);
+        emit ReturnApproved(owner, currentContractId, client);
         escrow.approveReturn(currentContractId);
         (_contractor,, _amount,, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, address(0));
@@ -2025,7 +2032,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit ReturnApproved(contractor, currentContractId);
+        emit ReturnApproved(contractor, currentContractId, client);
         escrow.approveReturn(currentContractId);
         (_contractor,, _amount,, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -2155,7 +2162,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(client);
         vm.expectEmit(true, true, true, true);
-        emit DisputeCreated(client, currentContractId);
+        emit DisputeCreated(client, currentContractId, client);
         escrow.createDispute(currentContractId);
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -2174,7 +2181,7 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(uint256(_status), 5); //Status.RETURN_REQUESTED
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
-        emit DisputeCreated(contractor, currentContractId);
+        emit DisputeCreated(contractor, currentContractId, client);
         escrow.createDispute(currentContractId);
         (_contractor,, _amount,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -2236,7 +2243,7 @@ contract EscrowFixedPriceUnitTest is Test {
         uint256 clientAmount = _amount;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(owner, currentContractId, _winner, clientAmount, 0);
+        emit DisputeResolved(owner, currentContractId, _winner, clientAmount, 0, client);
         escrow.resolveDispute(currentContractId, _winner, clientAmount, 0);
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -2268,7 +2275,7 @@ contract EscrowFixedPriceUnitTest is Test {
         uint256 contractorAmount = _amount;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(owner, currentContractId, _winner, 0, contractorAmount);
+        emit DisputeResolved(owner, currentContractId, _winner, 0, contractorAmount, client);
         escrow.resolveDispute(currentContractId, _winner, 0, contractorAmount);
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -2301,7 +2308,7 @@ contract EscrowFixedPriceUnitTest is Test {
         uint256 contractorAmount = _amount / 2;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(owner, currentContractId, _winner, clientAmount, contractorAmount);
+        emit DisputeResolved(owner, currentContractId, _winner, clientAmount, contractorAmount, client);
         escrow.resolveDispute(currentContractId, _winner, clientAmount, contractorAmount);
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
@@ -2332,7 +2339,7 @@ contract EscrowFixedPriceUnitTest is Test {
         Enums.Winner _winner = Enums.Winner.SPLIT;
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit DisputeResolved(owner, currentContractId, _winner, 0, 0);
+        emit DisputeResolved(owner, currentContractId, _winner, 0, 0, client);
         escrow.resolveDispute(currentContractId, _winner, 0, 0);
         (_contractor,, _amount, _amountToClaim, _amountToWithdraw,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);

@@ -90,7 +90,8 @@ interface IEscrowMilestone is IEscrow {
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    event Submitted(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
+    /// @param client The address of the client associated with the contract.
+    event Submitted(address indexed sender, uint256 indexed contractId, uint256 milestoneId, address indexed client);
 
     /// @notice Emitted when an approval is made.
     /// @param approver The address of the approver.
@@ -121,12 +122,14 @@ interface IEscrowMilestone is IEscrow {
     /// @param milestoneId The ID of the milestone.
     /// @param amount The net amount claimed by the contractor, after deducting fees.
     /// @param feeAmount The fee amount paid by the contractor for the claim.
+    /// @param client The address of the client associated with the contract.
     event Claimed(
         address indexed contractor,
         uint256 indexed contractId,
-        uint256 indexed milestoneId,
+        uint256 milestoneId,
         uint256 amount,
-        uint256 feeAmount
+        uint256 feeAmount,
+        address indexed client
     );
 
     /// @notice Emitted when a contractor claims amounts from multiple milestones in one transaction.
@@ -137,6 +140,7 @@ interface IEscrowMilestone is IEscrow {
     /// @param totalClaimedAmount The total amount claimed across all milestones in the specified range.
     /// @param totalFeeAmount The total fee amount deducted during the bulk claim process.
     /// @param totalClientFee The total client fee amount deducted, if applicable, during the bulk claim process.
+    /// @param client The address of the client associated with the contract.
     event BulkClaimed(
         address indexed contractor,
         uint256 indexed contractId,
@@ -144,7 +148,8 @@ interface IEscrowMilestone is IEscrow {
         uint256 endMilestoneId,
         uint256 totalClaimedAmount,
         uint256 totalFeeAmount,
-        uint256 totalClientFee
+        uint256 totalClientFee,
+        address indexed client
     );
 
     /// @notice Emitted when a withdrawal is made.
@@ -171,7 +176,10 @@ interface IEscrowMilestone is IEscrow {
     /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    event ReturnApproved(address indexed approver, uint256 indexed contractId, uint256 indexed milestoneId);
+    /// @param client The address of the client associated with the contract.
+    event ReturnApproved(
+        address indexed approver, uint256 indexed contractId, uint256 milestoneId, address indexed client
+    );
 
     /// @notice Emitted when a return is canceled.
     /// @param sender The address of the sender.
@@ -183,7 +191,10 @@ interface IEscrowMilestone is IEscrow {
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
     /// @param milestoneId The ID of the milestone.
-    event DisputeCreated(address indexed sender, uint256 indexed contractId, uint256 indexed milestoneId);
+    /// @param client The address of the client associated with the contract.
+    event DisputeCreated(
+        address indexed sender, uint256 indexed contractId, uint256 milestoneId, address indexed client
+    );
 
     /// @notice Emitted when a dispute is resolved.
     /// @param approver The address of the approver.
@@ -192,13 +203,15 @@ interface IEscrowMilestone is IEscrow {
     /// @param winner The winner of the dispute.
     /// @param clientAmount The amount awarded to the client.
     /// @param contractorAmount The amount awarded to the contractor.
+    /// @param client The address of the client associated with the contract.
     event DisputeResolved(
         address indexed approver,
         uint256 indexed contractId,
-        uint256 indexed milestoneId,
+        uint256 milestoneId,
         Enums.Winner winner,
         uint256 clientAmount,
-        uint256 contractorAmount
+        uint256 contractorAmount,
+        address indexed client
     );
 
     /// @notice Emitted when the ownership of a contractor account is transferred to a new owner.

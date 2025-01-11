@@ -71,7 +71,8 @@ interface IEscrowFixedPrice is IEscrow {
     /// @notice Emitted when a submission is made.
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
-    event Submitted(address indexed sender, uint256 indexed contractId);
+    /// @param client The address of the client associated with the contract.
+    event Submitted(address indexed sender, uint256 indexed contractId, address indexed client);
 
     /// @notice Emitted when an approval is made.
     /// @param approver The address of the approver.
@@ -93,7 +94,14 @@ interface IEscrowFixedPrice is IEscrow {
     /// @param contractId The ID of the contract associated with the claim.
     /// @param amount The net amount claimed by the contractor, after deducting fees.
     /// @param feeAmount The fee amount paid by the contractor for the claim.
-    event Claimed(address indexed contractor, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
+    /// @param client The address of the client associated with the contract.
+    event Claimed(
+        address indexed contractor,
+        uint256 indexed contractId,
+        uint256 amount,
+        uint256 feeAmount,
+        address indexed client
+    );
 
     /// @notice Emitted when a withdrawal is made by a withdrawer.
     /// @param withdrawer The address of the withdrawer executing the withdrawal.
@@ -110,7 +118,8 @@ interface IEscrowFixedPrice is IEscrow {
     /// @notice Emitted when a return is approved.
     /// @param approver The address of the approver.
     /// @param contractId The ID of the contract.
-    event ReturnApproved(address indexed approver, uint256 contractId);
+    /// @param client The address of the client associated with the contract.
+    event ReturnApproved(address indexed approver, uint256 contractId, address indexed client);
 
     /// @notice Emitted when a return is canceled.
     /// @param sender The address of the sender.
@@ -120,7 +129,8 @@ interface IEscrowFixedPrice is IEscrow {
     /// @notice Emitted when a dispute is created.
     /// @param sender The address of the sender.
     /// @param contractId The ID of the contract.
-    event DisputeCreated(address indexed sender, uint256 contractId);
+    /// @param client The address of the client associated with the contract.
+    event DisputeCreated(address indexed sender, uint256 contractId, address indexed client);
 
     /// @notice Emitted when a dispute is resolved.
     /// @param approver The address of the approver.
@@ -128,12 +138,14 @@ interface IEscrowFixedPrice is IEscrow {
     /// @param winner The winner of the dispute.
     /// @param clientAmount The amount awarded to the client.
     /// @param contractorAmount The amount awarded to the contractor.
+    /// @param client The address of the client associated with the contract.
     event DisputeResolved(
         address indexed approver,
         uint256 contractId,
         Enums.Winner winner,
         uint256 clientAmount,
-        uint256 contractorAmount
+        uint256 contractorAmount,
+        address indexed client
     );
 
     /// @notice Emitted when the ownership of a contractor account is transferred to a new owner.

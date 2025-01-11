@@ -144,7 +144,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         D.status = Enums.Status.SUBMITTED;
 
         // Emit an event to signal that the work has been successfully submitted.
-        emit Submitted(msg.sender, _contractId);
+        emit Submitted(msg.sender, _contractId, client);
     }
 
     /// @notice Approves a submitted deposit by the client or an administrator.
@@ -249,7 +249,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (D.amount == 0) D.status = Enums.Status.COMPLETED;
 
         // Emit an event to record the claim transaction.
-        emit Claimed(msg.sender, _contractId, claimAmount, feeAmount);
+        emit Claimed(msg.sender, _contractId, claimAmount, feeAmount, client);
     }
 
     /// @notice Withdraws funds from a deposit under specific conditions after a refund approval or resolution.
@@ -328,7 +328,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         }
         D.amountToWithdraw = D.amount; // Allows full withdrawal of the initial deposit.
         D.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(msg.sender, _contractId);
+        emit ReturnApproved(msg.sender, _contractId, client);
     }
 
     /// @notice Cancels a previously requested return and resets the deposit's status to the previous one.
@@ -360,7 +360,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         D.status = Enums.Status.DISPUTED;
-        emit DisputeCreated(msg.sender, _contractId);
+        emit DisputeCreated(msg.sender, _contractId, client);
     }
 
     /// @notice Resolves a dispute over a specific deposit.
@@ -394,7 +394,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
             D.amountToWithdraw = (_winner == Enums.Winner.CLIENT || _winner == Enums.Winner.SPLIT) ? _clientAmount : 0;
         }
 
-        emit DisputeResolved(msg.sender, _contractId, _winner, _clientAmount, _contractorAmount);
+        emit DisputeResolved(msg.sender, _contractId, _winner, _clientAmount, _contractorAmount, client);
     }
 
     /*//////////////////////////////////////////////////////////////
