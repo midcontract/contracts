@@ -736,16 +736,6 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(paymentToken.balanceOf(address(client)), 0);
     }
 
-    function test_withdraw_reverts_BlacklistedAccount() public {
-        test_resolveDispute_winnerClient();
-        uint256 currentContractId = 1;
-        vm.prank(owner);
-        registry.addToBlacklist(client);
-        vm.prank(client);
-        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.withdraw(currentContractId);
-    }
-
     ///////////////////////////////////////////
     //             submit tests              //
     ///////////////////////////////////////////
@@ -1224,12 +1214,6 @@ contract EscrowFixedPriceUnitTest is Test {
         assertEq(_amount, 1 ether);
         assertEq(_amountToClaim, amountApprove); //0
         assertEq(uint256(_status), 3); //Status.APPROVED
-
-        vm.prank(owner);
-        registry.addToBlacklist(contractor);
-        vm.prank(contractor);
-        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.claim(currentContractId);
 
         MockRegistry mockRegistry = new MockRegistry(owner);
         vm.startPrank(owner);

@@ -271,8 +271,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @param _contractId ID of the deposit from which to claim funds.
     /// @param _weekId ID of the week within the contract to be claimed.
     function claim(uint256 _contractId, uint256 _weekId) external {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
         ContractDetails storage C = contractDetails[_contractId];
         if (C.contractor != msg.sender) revert Escrow__UnauthorizedAccount(msg.sender);
 
@@ -315,7 +313,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     /// @param _startWeekId Starting week ID from which to begin claims.
     /// @param _endWeekId Ending week ID until which claims are made.
     function claimAll(uint256 _contractId, uint256 _startWeekId, uint256 _endWeekId) external {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_startWeekId > _endWeekId) revert Escrow__InvalidRange();
         if (_endWeekId >= weeklyEntries[_contractId].length) revert Escrow__OutOfRange();
 
@@ -375,8 +372,6 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
     ///     overall status are met.
     /// @param _contractId ID of the deposit from which funds are to be withdrawn.
     function withdraw(uint256 _contractId) external onlyClient {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
         ContractDetails storage C = contractDetails[_contractId];
         if (C.status == Enums.Status.CANCELED) revert Escrow__InvalidStatusToWithdraw();
         if (

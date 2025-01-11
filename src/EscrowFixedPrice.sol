@@ -210,8 +210,6 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Allows contractors to retrieve funds that have been approved for their work.
     /// @param _contractId Identifier of the deposit from which funds will be claimed.
     function claim(uint256 _contractId) external {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
         DepositInfo storage D = deposits[_contractId];
         // Verify that the deposit is in a state that allows claiming.
         if (D.status != Enums.Status.APPROVED && D.status != Enums.Status.RESOLVED && D.status != Enums.Status.CANCELED)
@@ -256,8 +254,6 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Handles the withdrawal process including fee deductions and state updates.
     /// @param _contractId Identifier of the deposit from which funds will be withdrawn.
     function withdraw(uint256 _contractId) external onlyClient {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
         DepositInfo storage D = deposits[_contractId];
         // Verify the deposit's status to ensure it's eligible for withdrawal.
         if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {

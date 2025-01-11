@@ -281,8 +281,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _contractId ID of the contract containing the milestone.
     /// @param _milestoneId ID of the milestone from which funds are to be claimed.
     function claim(uint256 _contractId, uint256 _milestoneId) external {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
         Milestone storage M = contractMilestones[_contractId][_milestoneId];
         if (msg.sender != M.contractor) revert Escrow__UnauthorizedAccount(msg.sender);
         if (M.status != Enums.Status.APPROVED && M.status != Enums.Status.RESOLVED && M.status != Enums.Status.CANCELED)
@@ -325,7 +323,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _endMilestoneId Ending milestone ID until which claims are made.
     /// This function mitigates gas exhaustion issues by allowing batch processing within a specified limit.
     function claimAll(uint256 _contractId, uint256 _startMilestoneId, uint256 _endMilestoneId) external {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_startMilestoneId > _endMilestoneId) revert Escrow__InvalidRange();
         if (_endMilestoneId >= contractMilestones[_contractId].length) revert Escrow__OutOfRange();
 
@@ -391,8 +388,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _contractId The identifier of the contract from which to withdraw funds.
     /// @param _milestoneId The identifier of the milestone within the contract from which to withdraw funds.
     function withdraw(uint256 _contractId, uint256 _milestoneId) external onlyClient {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
         Milestone storage M = contractMilestones[_contractId][_milestoneId];
         if (M.status != Enums.Status.REFUND_APPROVED && M.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw();

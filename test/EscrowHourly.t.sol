@@ -1895,12 +1895,6 @@ contract EscrowHourlyUnitTest is Test {
         assertEq(_prepaymentAmount, 1 ether);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        vm.prank(owner);
-        registry.addToBlacklist(contractor);
-        vm.prank(contractor);
-        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.claim(currentContractId, weekId);
-
         MockRegistry mockRegistry = new MockRegistry(owner);
         vm.startPrank(owner);
         mockRegistry.addPaymentToken(address(paymentToken));
@@ -1938,14 +1932,6 @@ contract EscrowHourlyUnitTest is Test {
         weekId = escrow.getWeeksCount(currentContractId);
         assertEq(weekId, 2);
         vm.stopPrank();
-
-        vm.prank(owner);
-        registry.addToBlacklist(contractor);
-        vm.prank(contractor);
-        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.claimAll(currentContractId, 1, 1);
-        vm.prank(owner);
-        registry.removeFromBlacklist(contractor);
 
         // vm.prank(contractor);
         // vm.expectRevert(IEscrow.Escrow__InvalidStatusToClaim.selector);
@@ -2993,16 +2979,6 @@ contract EscrowHourlyUnitTest is Test {
         (,,,,, _status) = escrow.contractDetails(currentContractId);
         assertEq(uint256(_status), 7); //Status.RESOLVED
         assertEq(paymentToken.balanceOf(address(client)), 0);
-    }
-
-    function test_withdraw_reverts_BlacklistedAccount() public {
-        test_resolveDispute_winnerClient();
-        uint256 currentContractId = 1;
-        vm.prank(owner);
-        registry.addToBlacklist(client);
-        vm.prank(client);
-        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.withdraw(currentContractId);
     }
 
     function test_withdraw_reverts_InvalidStatusForWithdraw_canceled() public {

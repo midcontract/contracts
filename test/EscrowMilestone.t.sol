@@ -1513,12 +1513,6 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(_amountToClaim, amountApprove); //0
         assertEq(uint256(_status), 3); //Status.APPROVED
 
-        vm.prank(owner);
-        registry.addToBlacklist(contractor);
-        vm.prank(contractor);
-        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.claim(currentContractId, milestoneId);
-
         MockRegistry mockRegistry = new MockRegistry(owner);
         vm.startPrank(owner);
         mockRegistry.addPaymentToken(address(paymentToken));
@@ -2312,31 +2306,6 @@ contract EscrowMilestoneUnitTest is Test {
         assertEq(usdt.balanceOf(address(client)), 0);
     }
 
-    function test_claimAll_reverts_BlacklistedAccount() public {
-        test_deposit_severalMilestones();
-        uint256 currentContractId = 1;
-        assertEq(escrow.getMilestoneCount(currentContractId), 3);
-        (, bytes memory contractorSignature) = _getSubmitSignature();
-
-        vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
-        vm.stopPrank();
-
-        vm.startPrank(client);
-        escrow.approve(currentContractId, 0, 1 ether, contractor);
-        escrow.approve(currentContractId, 1, 2 ether, contractor);
-        escrow.approve(currentContractId, 2, 3 ether, contractor);
-        vm.stopPrank();
-
-        vm.prank(owner);
-        registry.addToBlacklist(contractor);
-        vm.prank(contractor);
-        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.claimAll(currentContractId, 0, 2);
-    }
-
     function test_claimAll_reverts_InvalidRange() public {
         test_deposit_severalMilestones();
         uint256 currentContractId = 1;
@@ -2560,16 +2529,6 @@ contract EscrowMilestoneUnitTest is Test {
         (,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(uint256(_status), 7); //Status.RESOLVED
         assertEq(paymentToken.balanceOf(address(client)), 0);
-    }
-
-    function test_withdraw_reverts_BlacklistedAccount() public {
-        test_resolveDispute_winnerClient();
-        uint256 currentContractId = 1;
-        vm.prank(owner);
-        registry.addToBlacklist(client);
-        vm.prank(client);
-        vm.expectRevert(IEscrow.Escrow__BlacklistedAccount.selector);
-        escrow.withdraw(currentContractId, 0);
     }
 
     ////////////////////////////////////////////
