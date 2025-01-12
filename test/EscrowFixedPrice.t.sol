@@ -82,8 +82,8 @@ contract EscrowFixedPriceUnitTest is Test {
         escrow = new EscrowFixedPrice();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(300, 500, owner);
         adminManager = new EscrowAdminManager(owner);
+        feeManager = new EscrowFeeManager(address(adminManager), 300, 500);
 
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
@@ -324,7 +324,7 @@ contract EscrowFixedPriceUnitTest is Test {
         EscrowFixedPrice escrow2 = new EscrowFixedPrice();
         MockRegistry registry2 = new MockRegistry(owner);
         ERC20Mock paymentToken2 = new ERC20Mock();
-        EscrowFeeManager feeManager2 = new EscrowFeeManager(300, 500, owner);
+        EscrowFeeManager feeManager2 = new EscrowFeeManager(address(adminManager), 300, 500);
 
         deposit = IEscrowFixedPrice.DepositRequest({
             contractId: 1,

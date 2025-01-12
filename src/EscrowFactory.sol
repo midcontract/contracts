@@ -6,6 +6,7 @@ import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
 import { Pausable } from "@openzeppelin/utils/Pausable.sol";
 
 import { IEscrow } from "./interfaces/IEscrow.sol";
+import { IEscrowAdminManager } from "./interfaces/IEscrowAdminManager.sol";
 import { IEscrowFactory } from "./interfaces/IEscrowFactory.sol";
 import { IEscrowRegistry } from "./interfaces/IEscrowRegistry.sol";
 import { Enums } from "./common/Enums.sol";
@@ -13,7 +14,10 @@ import { Enums } from "./common/Enums.sol";
 /// @title EscrowFixedPrice Factory Contract
 /// @dev This contract is used for creating new escrow contract instances using the clone factory pattern.
 contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
-    /// @notice EscrowRegistry contract address storing escrow templates and configurations.
+    /// @notice Address of the adminManager contract managing platform administrators.
+    IEscrowAdminManager public adminManager;
+
+    /// @notice Address of the registry contract storing escrow templates and configurations.
     IEscrowRegistry public registry;
 
     /// @notice Tracks the number of escrows deployed per deployer to generate unique salts for clones.
@@ -22,13 +26,14 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
     /// @notice Tracks the addresses of deployed escrow contracts.
     mapping(address escrow => bool deployed) public existingEscrow;
 
-    /// @dev Sets the initial registry used for cloning escrow contracts.
+    /// @notice Initializes the factory contract with the adminManager, registry and owner.
+    /// @param _adminManager Address of the adminManager contract of the escrow platform.
     /// @param _registry Address of the registry contract.
-    /// @param _owner Address of the initial owner of the factory contract.
-    constructor(address _registry, address _owner) OwnedThreeStep(_owner) {
-        if (_registry == address(0) || _owner == address(0)) {
+    constructor(address _adminManager, address _registry, address _owner) OwnedThreeStep(_owner) {
+        if (_adminManager == address(0) || _registry == address(0) || _owner == address(0)) {
             revert Factory__ZeroAddressProvided();
         }
+        adminManager = IEscrowAdminManager(_adminManager);
         registry = IEscrowRegistry(_registry);
     }
 
@@ -43,10 +48,7 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
         bytes32 salt = keccak256(abi.encode(msg.sender, factoryNonce[msg.sender]));
         address clone = LibClone.cloneDeterministic(escrowImplement, salt);
 
-        address adminManager = registry.adminManager();
-        if (adminManager == address(0)) revert Factory__ZeroAddressProvided();
-
-        IEscrow(clone).initialize(msg.sender, adminManager, address(registry));
+        IEscrow(clone).initialize(msg.sender, address(adminManager), address(registry));
 
         deployedProxy = address(clone);
         existingEscrow[deployedProxy] = true;
@@ -82,6 +84,14 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
         return _getEscrowImplementation(_escrowType);
     }
 
+    /// @notice Updates the address of the admin manager contract.
+    /// @param _adminManager The new address of the AdminManager contract to be used.
+    function updateAdminManager(address _adminManager) external onlyOwner {
+        if (_adminManager == address(0)) revert Factory__ZeroAddressProvided();
+        adminManager = IEscrowAdminManager(_adminManager);
+        emit AdminManagerUpdated(_adminManager);
+    }
+
     /// @notice Updates the registry address used for fetching escrow implementations.
     /// @param _registry New registry address.
     function updateRegistry(address _registry) external onlyOwner {
@@ -98,5 +108,15 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
     /// @notice Unpauses the contract, allowing new escrows to be deployed.
     function unpause() public onlyOwner {
         _unpause();
+    }
+
+    /// @notice Withdraws any ETH accidentally sent to the contract.
+    /// @param _receiver The address that will receive the withdrawn ETH.
+    function withdrawETH(address _receiver) external onlyOwner {
+        if (_receiver == address(0)) revert Factory__ZeroAddressProvided();
+        uint256 balance = address(this).balance;
+        (bool success,) = payable(_receiver).call{ value: balance }("");
+        if (!success) revert Factory__ETHTransferFailed();
+        emit ETHWithdrawn(_receiver, balance);
     }
 }

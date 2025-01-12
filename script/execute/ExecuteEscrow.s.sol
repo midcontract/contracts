@@ -114,11 +114,11 @@ contract ExecuteEscrowScript is Script {
         // EscrowFixedPrice(escrow).transferOwnership(newOwner);
         // assert(address(EscrowFixedPrice(escrow).owner()) == newOwner);
 
-        assert(address(EscrowFactory(factory).owner()) == deployerPublicKey);
-        EscrowFactory(factory).transferOwnership(newOwner);
-        assert(address(EscrowFactory(factory).owner()) == newOwner);
+        // assert(address(EscrowFactory(factory).owner()) == deployerPublicKey);
+        // EscrowFactory(factory).transferOwnership(newOwner);
+        // assert(address(EscrowFactory(factory).owner()) == newOwner);
 
-        EscrowFeeManager(feeManager).transferOwnership(newOwner);
+        // EscrowFeeManager(feeManager).transferOwnership(newOwner);
 
         (bool sent,) = newOwner.call{ value: 0.055 ether }("");
         require(sent, "Failed to send Ether");

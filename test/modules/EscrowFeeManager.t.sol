@@ -7,7 +7,7 @@ import { ECDSA } from "@solbase/utils/ECDSA.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
-import { EscrowFeeManager, IEscrowFeeManager, OwnedThreeStep } from "src/modules/EscrowFeeManager.sol";
+import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
 import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
 import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
 import { EscrowRegistry } from "src/modules/EscrowRegistry.sol";
@@ -17,6 +17,7 @@ contract EscrowFeeManagerUnitTest is Test {
     EscrowFeeManager feeManager;
     EscrowFixedPrice escrow;
     EscrowRegistry registry;
+    EscrowAdminManager adminManager;
     ERC20Mock paymentToken;
     address owner;
     address client;
@@ -35,9 +36,10 @@ contract EscrowFeeManagerUnitTest is Test {
         (owner, ownerPrKey) = makeAddrAndKey("owner");
         client = makeAddr("client");
         contractor = makeAddr("contractor");
-        feeManager = new EscrowFeeManager(300, 500, owner);
         escrow = new EscrowFixedPrice();
         registry = new EscrowRegistry(owner);
+        adminManager = new EscrowAdminManager(owner);
+        feeManager = new EscrowFeeManager(address(adminManager), 300, 500);
     }
 
     ///////////////////////////////////////////
@@ -46,10 +48,10 @@ contract EscrowFeeManagerUnitTest is Test {
 
     function initialize_escrow() public {
         paymentToken = new ERC20Mock();
-        EscrowAdminManager adminManager = new EscrowAdminManager(owner);
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
         registry.updateFeeManager(address(feeManager));
+        registry.setAdminManager(address(adminManager));
         vm.stopPrank();
         escrow.initialize(client, address(adminManager), address(registry));
         assertTrue(escrow.initialized());
@@ -104,12 +106,17 @@ contract EscrowFeeManagerUnitTest is Test {
 
     function test_setUpState() public view {
         assertTrue(address(feeManager).code.length > 0);
-        assertEq(feeManager.owner(), address(owner));
+        assertEq(address(feeManager.adminManager()), address(adminManager));
         assertEq(feeManager.MAX_BPS(), 10_000);
         assertEq(feeManager.MAX_FEE_BPS(), 5000);
         (uint16 coverage, uint16 claim) = feeManager.defaultFees();
         assertEq(coverage, 300);
         assertEq(claim, 500);
+    }
+
+    function test_initialize_reverts() public {
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__ZeroAddressProvided.selector);
+        new EscrowFeeManager(address(0), 300, 500);
     }
 
     function test_setDefaultFees() public {
@@ -122,7 +129,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(claim, 500);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
         feeManager.setDefaultFees(0, 1000);
         vm.startPrank(address(owner)); //current owner
         vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
@@ -163,7 +170,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 500);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
         feeManager.setUserSpecificFees(client, 200, 350);
         vm.startPrank(address(owner)); //current owner
         vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
@@ -199,7 +206,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 350);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
         feeManager.setInstanceFees(address(escrow), 200, 350);
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
@@ -242,7 +249,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 450);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
         feeManager.setContractSpecificFees(address(escrow), contractId, 200, 350);
         vm.startPrank(address(owner));
         vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
@@ -299,7 +306,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 350);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
         feeManager.resetUserSpecificFees(client);
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
@@ -330,7 +337,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 450);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
         feeManager.resetInstanceSpecificFees(address(escrow));
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
@@ -365,7 +372,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 500);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
         feeManager.resetContractSpecificFees(address(escrow), contractId);
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
@@ -406,7 +413,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 500);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
         feeManager.resetAllToDefault(address(escrow), contractId, client);
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);

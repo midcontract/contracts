@@ -171,4 +171,14 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
         blacklist[_user] = false;
         emit Whitelisted(_user);
     }
+
+    /// @notice Withdraws any ETH accidentally sent to the contract.
+    /// @param _receiver The address that will receive the withdrawn ETH.
+    function withdrawETH(address _receiver) external onlyOwner {
+        if (_receiver == address(0)) revert Registry__ZeroAddressProvided();
+        uint256 balance = address(this).balance;
+        (bool success,) = payable(_receiver).call{ value: balance }("");
+        if (!success) revert Registry__ETHTransferFailed();
+        emit ETHWithdrawn(_receiver, balance);
+    }
 }

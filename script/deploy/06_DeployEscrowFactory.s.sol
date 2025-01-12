@@ -10,6 +10,7 @@ import { PolAmoyConfig } from "config/PolAmoyConfig.sol";
 
 contract DeployEscrowFactoryScript is Script {
     EscrowFactory factory;
+    address adminManager;
     address registry;
     address ownerPublicKey;
     uint256 ownerPrivateKey;
@@ -21,12 +22,13 @@ contract DeployEscrowFactoryScript is Script {
         ownerPrivateKey = vm.envUint("OWNER_PRIVATE_KEY");
         deployerPublicKey = vm.envAddress("DEPLOYER_PUBLIC_KEY");
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        adminManager = PolAmoyConfig.ADMIN_MANAGER;
         registry = PolAmoyConfig.REGISTRY;
     }
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        factory = new EscrowFactory(registry, ownerPublicKey);
+        factory = new EscrowFactory(adminManager, registry, ownerPublicKey);
         console.log("==factory addr=%s", address(factory));
         assert(address(factory) != address(0));
         vm.stopBroadcast();

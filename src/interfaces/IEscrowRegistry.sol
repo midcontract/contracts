@@ -14,6 +14,9 @@ interface IEscrowRegistry {
     /// @notice Thrown when attempting to remove or access a token that is not registered.
     error Registry__PaymentTokenNotRegistered();
 
+    /// @notice Thrown when an ETH transfer failed.
+    error Registry__ETHTransferFailed();
+
     /// @notice Emitted when a new payment token is added to the registry.
     /// @param token The address of the token that was added.
     event PaymentTokenAdded(address token);
@@ -53,6 +56,11 @@ interface IEscrowRegistry {
     /// @notice Emitted when an address is removed from the blacklist.
     /// @param user The address that has been removed from the blacklist.
     event Whitelisted(address indexed user);
+
+    /// @notice Emitted when ETH is successfully withdrawn from the contract.
+    /// @param receiver The address that received the withdrawn ETH.
+    /// @param amount The amount of ETH withdrawn from the contract.
+    event ETHWithdrawn(address receiver, uint256 amount);
 
     /// @notice Checks if a token is enabled as a payment token in the registry.
     /// @param token The address of the token to check.

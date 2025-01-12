@@ -78,7 +78,7 @@ contract EscrowAccountRecoveryUnitTest is Test {
         recovery = new EscrowAccountRecovery(address(adminManager), address(registry));
         escrow = new EscrowFixedPrice();
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(300, 500, owner);
+        feeManager = new EscrowFeeManager(address(adminManager), 300, 500);
         escrowMilestone = new EscrowMilestone();
         escrowHourly = new EscrowHourly();
 

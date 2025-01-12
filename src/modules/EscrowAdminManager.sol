@@ -2,13 +2,18 @@
 pragma solidity 0.8.25;
 
 import { OwnedRoles } from "@solbase/auth/OwnedRoles.sol";
+import { IEscrowAdminManager } from "../interfaces/IEscrowAdminManager.sol";
 
 /// @title Escrow Admin Manager
-/// @notice Manages administrative roles and permissions for the escrow system, using a role-based access control mechanism.
-/// @dev This contract extends OwnedRoles to utilize its role management functionalities and establishes predefined roles such as Admin, Guardian, and Strategist.
-/// It includes references to unused role constants defined in the OwnedRoles library, which are part of the library's design to accommodate potential future roles. 
-/// These constants do not affect the contract's functionality or gas efficiency but are retained for compatibility and future flexibility.
-contract EscrowAdminManager is OwnedRoles {
+/// @notice Manages administrative roles and permissions for the escrow system, using a role-based access control
+/// mechanism.
+/// @dev This contract extends OwnedRoles to utilize its role management functionalities and establishes predefined
+/// roles such as Admin, Guardian, and Strategist.
+/// It includes references to unused role constants defined in the OwnedRoles library, which are part of the library's
+/// design to accommodate potential future roles.
+/// These constants do not affect the contract's functionality or gas efficiency but are retained for compatibility and
+/// future flexibility.
+contract EscrowAdminManager is IEscrowAdminManager, OwnedRoles {
     // Define roles bitmask.
     uint256 private constant ADMIN_ROLE = 1 << 1;
     uint256 private constant GUARDIAN_ROLE = 1 << 2;
@@ -96,5 +101,21 @@ contract EscrowAdminManager is OwnedRoles {
     /// @return True if the address has the Dao role, otherwise false.
     function isDao(address _account) public view returns (bool) {
         return hasAnyRole(_account, DAO_ROLE);
+    }
+
+    /// @notice Resolves the conflict between `OwnedRoles` and `IEscrowAdminManager` for the `owner` function.
+    /// @return The address of the current owner.
+    function owner() public view override(OwnedRoles, IEscrowAdminManager) returns (address) {
+        return OwnedRoles.owner(); // Explicitly call the implementation from `OwnedRoles`.
+    }
+
+    /// @notice Withdraws any ETH accidentally sent to the contract.
+    /// @param _receiver The address that will receive the withdrawn ETH.
+    function withdrawETH(address _receiver) external onlyOwner {
+        if (_receiver == address(0)) revert ZeroAddressProvided();
+        uint256 balance = address(this).balance;
+        (bool success,) = payable(_receiver).call{ value: balance }("");
+        if (!success) revert ETHTransferFailed();
+        emit ETHWithdrawn(_receiver, balance);
     }
 }

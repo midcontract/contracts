@@ -46,9 +46,11 @@ contract EscrowFactoryUnitTest is Test {
     IEscrowMilestone.DepositRequest depositMilestone;
 
     event EscrowProxyDeployed(address sender, address deployedProxy, Enums.EscrowType escrowType);
+    event AdminManagerUpdated(address adminManager);
     event RegistryUpdated(address registry);
     event Paused(address account);
     event Unpaused(address account);
+    event ETHWithdrawn(address receiver, uint256 amount);
 
     function setUp() public {
         (owner, ownerPrKey) = makeAddrAndKey("owner");
@@ -60,8 +62,8 @@ contract EscrowFactoryUnitTest is Test {
         escrowMilestone = new EscrowMilestone();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(300, 500, owner);
         adminManager = new EscrowAdminManager(owner);
+        feeManager = new EscrowFeeManager(address(adminManager), 300, 500);
         escrowHourly = new EscrowHourly();
 
         vm.startPrank(owner);
@@ -79,7 +81,7 @@ contract EscrowFactoryUnitTest is Test {
 
         escrow.initialize(address(client), address(owner), address(registry));
 
-        factory = new EscrowFactory(address(registry), owner);
+        factory = new EscrowFactory(address(adminManager), address(registry), owner);
     }
 
     ///////////////////////////////////////////
@@ -204,17 +206,20 @@ contract EscrowFactoryUnitTest is Test {
         assertTrue(escrow.initialized());
         assertTrue(address(factory).code.length > 0);
         assertFalse(factory.paused());
-        assertEq(factory.owner(), address(owner));
+        assertEq(address(factory.owner()), owner);
+        assertEq(address(factory.adminManager()), address(adminManager));
         assertEq(address(factory.registry()), address(registry));
     }
 
     function test_deployFactory_reverts() public {
         vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        new EscrowFactory(address(0), owner);
+        new EscrowFactory(address(0), address(registry), address(0));
         vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        new EscrowFactory(address(0), address(0));
+        new EscrowFactory(address(0), address(0), address(0));
         vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        new EscrowFactory(address(registry), address(0));
+        new EscrowFactory(address(adminManager), address(0), address(0));
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        new EscrowFactory(address(0), address(0), address(owner));
     }
 
     function test_deployEscrow() public returns (address deployedEscrowProxy) {
@@ -525,15 +530,6 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(escrowProxyHourly.getWeeksCount(currentContractId), 1);
     }
 
-    function test_deployEscrow_reverts() public {
-        EscrowRegistry registry2 = new EscrowRegistry(owner);
-        assertTrue(registry2.adminManager() == address(0));
-        EscrowFactory factory2 = new EscrowFactory(address(registry2), owner);
-        vm.prank(client);
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        factory2.deployEscrow(Enums.EscrowType.FIXED_PRICE);
-    }
-
     function test_getEscrowImplementation() public {
         assertEq(factory.getEscrowImplementation(Enums.EscrowType.FIXED_PRICE), registry.escrowFixedPrice());
         assertEq(factory.getEscrowImplementation(Enums.EscrowType.MILESTONE), registry.escrowMilestone());
@@ -542,6 +538,24 @@ contract EscrowFactoryUnitTest is Test {
 
         vm.expectRevert(IEscrowFactory.Factory__InvalidEscrowType.selector);
         factory.getEscrowImplementation(Enums.EscrowType.INVALID);
+    }
+
+    function test_setAdminManager() public {
+        assertEq(address(factory.adminManager()), address(adminManager));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        factory.updateAdminManager(address(adminManager));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        factory.updateAdminManager(address(0));
+        assertEq(address(factory.adminManager()), address(adminManager));
+        EscrowAdminManager newAdminManager = new EscrowAdminManager(owner);
+        vm.expectEmit(true, false, false, true);
+        emit AdminManagerUpdated(address(newAdminManager));
+        factory.updateAdminManager(address(newAdminManager));
+        assertEq(address(factory.adminManager()), address(newAdminManager));
+        vm.stopPrank();
     }
 
     function test_updateRegistry() public {
@@ -593,5 +607,32 @@ contract EscrowFactoryUnitTest is Test {
         vm.prank(client);
         deployedEscrowProxy2 = factory.deployEscrow(escrowType);
         assertTrue(address(deployedEscrowProxy2).code.length > 0);
+    }
+
+    function test_withdraw_eth() public {
+        vm.deal(address(factory), 10 ether);
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        factory.withdrawETH(notOwner);
+        vm.startPrank(owner);
+        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        factory.withdrawETH(address(0));
+        vm.expectEmit(true, false, false, true);
+        emit ETHWithdrawn(owner, 10 ether);
+        factory.withdrawETH(owner);
+        assertEq(owner.balance, 10 ether, "Receiver did not receive the correct amount of ETH");
+        assertEq(address(factory).balance, 0, "Factory contract balance should be zero");
+        vm.deal(address(factory), 10 ether);
+        FailingReceiver failingReceiver = new FailingReceiver();
+        vm.expectRevert(IEscrowFactory.Factory__ETHTransferFailed.selector);
+        factory.withdrawETH(address(failingReceiver));
+        vm.stopPrank();
+    }
+}
+
+contract FailingReceiver {
+    receive() external payable {
+        revert("ETH transfer failed");
     }
 }

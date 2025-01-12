@@ -119,8 +119,8 @@ contract EscrowMilestoneUnitTest is Test {
         escrow = new EscrowMilestone();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(300, 500, owner);
         adminManager = new EscrowAdminManager(owner);
+        feeManager = new EscrowFeeManager(address(adminManager), 300, 500);
         recovery = new EscrowAccountRecovery(address(adminManager), address(registry));
 
         vm.startPrank(owner);
@@ -517,7 +517,7 @@ contract EscrowMilestoneUnitTest is Test {
         EscrowMilestone escrow2 = new EscrowMilestone();
         MockRegistry registry2 = new MockRegistry(owner);
         ERC20Mock paymentToken2 = new ERC20Mock();
-        EscrowFeeManager feeManager2 = new EscrowFeeManager(300, 500, owner);
+        EscrowFeeManager feeManager2 = new EscrowFeeManager(address(adminManager), 300, 500);
         deposit = IEscrowMilestone.DepositRequest({
             contractId: contractId,
             paymentToken: address(paymentToken2),
@@ -530,7 +530,7 @@ contract EscrowMilestoneUnitTest is Test {
         });
         vm.prank(owner);
         registry2.addPaymentToken(address(paymentToken2));
-        escrow2.initialize(client, address(feeManager), address(registry2));
+        escrow2.initialize(client, address(adminManager), address(registry2));
         vm.startPrank(address(client));
         paymentToken2.mint(address(client), 1.08 ether);
         paymentToken2.approve(address(escrow2), 1.08 ether);

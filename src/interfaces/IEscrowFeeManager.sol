@@ -25,6 +25,9 @@ interface IEscrowFeeManager {
     /// @dev Thrown when an operation includes or results in a zero address where it is not allowed.
     error EscrowFeeManager__ZeroAddressProvided();
 
+    /// @notice Thrown when an unauthorized account attempts an action.
+    error EscrowFeeManager__UnauthorizedAccount();
+
     /// @notice Emitted when the default fees are updated.
     /// @param coverage The new default coverage fee as a percentage in basis points.
     /// @param claim The new default claim fee as a percentage in basis points.

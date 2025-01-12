@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { OwnedThreeStep } from "@solbase/auth/OwnedThreeStep.sol";
+import { IEscrowAdminManager } from "../interfaces/IEscrowAdminManager.sol";
 import { IEscrowFeeManager } from "../interfaces/IEscrowFeeManager.sol";
 import { Enums } from "../common/Enums.sol";
 
 /// @title Escrow Fee Manager
 /// @notice Manages fee rates and calculations for escrow transactions.
-contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
+contract EscrowFeeManager is IEscrowFeeManager {
+    /// @notice Address of the adminManager contract managing platform administrators.
+    IEscrowAdminManager public adminManager;
+
     /// @notice The maximum allowable percentage in basis points (100%).
-    uint256 public constant MAX_BPS = 10000; // 100%
+    uint256 public constant MAX_BPS = 10_000; // 100%
 
     /// @notice The maximum allowable fee percentage in basis points (e.g., 50%).
     uint256 public constant MAX_FEE_BPS = 5000; // 50%
@@ -26,18 +29,26 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @notice Mapping from instance addresses to a mapping of contract IDs to their specific fee rates (1st priority).
     mapping(address instance => mapping(uint256 contractId => FeeRates)) public contractSpecificFees;
 
-    /// @dev Sets initial default fees on contract deployment.
+    /// @notice Restricts access to admin-only functions.
+    modifier onlyAdmin() {
+        if (!adminManager.isAdmin(msg.sender)) revert EscrowFeeManager__UnauthorizedAccount();
+        _;
+    }
+
+    /// @notice Initializes the fee manager contract with the adminManager and default fees.
+    /// @param _adminManager Address of the adminManager contract of the escrow platform.
     /// @param _coverage Initial default coverage fee percentage.
     /// @param _claim Initial default claim fee percentage.
-    /// @param _owner Address of the initial owner of the fee manager contract.
-    constructor(uint16 _coverage, uint16 _claim, address _owner) OwnedThreeStep(_owner) {
+    constructor(address _adminManager, uint16 _coverage, uint16 _claim) {
+        if (_adminManager == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
+        adminManager = IEscrowAdminManager(_adminManager);
         _setDefaultFees(_coverage, _claim);
     }
 
     /// @notice Updates the default coverage and claim fees.
     /// @param _coverage New default coverage fee percentage.
     /// @param _claim New default claim fee percentage.
-    function setDefaultFees(uint16 _coverage, uint16 _claim) external onlyOwner {
+    function setDefaultFees(uint16 _coverage, uint16 _claim) external onlyAdmin {
         _setDefaultFees(_coverage, _claim);
     }
 
@@ -45,7 +56,7 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @param _user The address of the user for whom to set specific fees.
     /// @param _coverage Specific coverage fee percentage for the user.
     /// @param _claim Specific claim fee percentage for the user.
-    function setUserSpecificFees(address _user, uint16 _coverage, uint16 _claim) external onlyOwner {
+    function setUserSpecificFees(address _user, uint16 _coverage, uint16 _claim) external onlyAdmin {
         if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
         if (_user == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
         userSpecificFees[_user] = FeeRates({ coverage: _coverage, claim: _claim });
@@ -56,7 +67,7 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @param _instance The address of the instance for which to set specific fees.
     /// @param _coverage Specific coverage fee percentage for the instance.
     /// @param _claim Specific claim fee percentage for the instance.
-    function setInstanceFees(address _instance, uint16 _coverage, uint16 _claim) external onlyOwner {
+    function setInstanceFees(address _instance, uint16 _coverage, uint16 _claim) external onlyAdmin {
         if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
         if (_instance == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
         instanceFees[_instance] = FeeRates({ coverage: _coverage, claim: _claim });
@@ -70,7 +81,7 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @param _claim Specific claim fee percentage for the contract.
     function setContractSpecificFees(address _instance, uint256 _contractId, uint16 _coverage, uint16 _claim)
         external
-        onlyOwner
+        onlyAdmin
     {
         if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
         if (_instance == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
@@ -81,21 +92,21 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @notice Resets contract-specific fees to default by removing the fee entry for a given contract ID.
     /// @param _instance The address of the instance under which the contract falls.
     /// @param _contractId The unique identifier for the contract whose fees are being reset.
-    function resetContractSpecificFees(address _instance, uint256 _contractId) external onlyOwner {
+    function resetContractSpecificFees(address _instance, uint256 _contractId) external onlyAdmin {
         delete contractSpecificFees[_instance][_contractId];
         emit ContractSpecificFeesReset(_instance, _contractId);
     }
 
     /// @notice Resets instance-specific fees to default by removing the fee entry for the given instance.
     /// @param _instance The address of the instance for which fees are being reset.
-    function resetInstanceSpecificFees(address _instance) external onlyOwner {
+    function resetInstanceSpecificFees(address _instance) external onlyAdmin {
         delete instanceFees[_instance];
         emit InstanceSpecificFeesReset(_instance);
     }
 
     /// @notice Resets user-specific fees to default by removing the fee entry for the specified user.
     /// @param _user The address of the user whose fees are being reset.
-    function resetUserSpecificFees(address _user) external onlyOwner {
+    function resetUserSpecificFees(address _user) external onlyAdmin {
         delete userSpecificFees[_user];
         emit UserSpecificFeesReset(_user);
     }
@@ -105,7 +116,7 @@ contract EscrowFeeManager is IEscrowFeeManager, OwnedThreeStep {
     /// @param _instance The address of the instance containing the contract to be reset.
     /// @param _contractId The unique identifier for the contract whose fees are being reset.
     /// @param _user The address of the user whose fees are being reset.
-    function resetAllToDefault(address _instance, uint256 _contractId, address _user) external onlyOwner {
+    function resetAllToDefault(address _instance, uint256 _contractId, address _user) external onlyAdmin {
         delete contractSpecificFees[_instance][_contractId];
         delete instanceFees[_instance];
         delete userSpecificFees[_user];

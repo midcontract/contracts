@@ -99,8 +99,8 @@ contract EscrowHourlyUnitTest is Test {
         escrow = new EscrowHourly();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(300, 500, owner);
         adminManager = new EscrowAdminManager(owner);
+        feeManager = new EscrowFeeManager(address(adminManager), 300, 500);
 
         vm.startPrank(owner);
         registry.addPaymentToken(address(paymentToken));
@@ -623,7 +623,7 @@ contract EscrowHourlyUnitTest is Test {
         EscrowHourly escrow2 = new EscrowHourly();
         MockRegistry registry2 = new MockRegistry(owner);
         ERC20Mock paymentToken2 = new ERC20Mock();
-        EscrowFeeManager feeManager2 = new EscrowFeeManager(300, 500, owner);
+        EscrowFeeManager feeManager2 = new EscrowFeeManager(address(adminManager), 300, 500);
 
         vm.prank(owner);
         registry2.addPaymentToken(address(paymentToken2));
