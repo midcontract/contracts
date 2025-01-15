@@ -9,6 +9,7 @@ import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
 import { EscrowFactory } from "src/EscrowFactory.sol";
 import { EscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { MockFailingReceiver } from "test/mocks/MockFailingReceiver.sol";
 
 contract EscrowRegistryUnitTest is Test {
     EscrowFixedPrice escrow;
@@ -376,15 +377,9 @@ contract EscrowRegistryUnitTest is Test {
         assertEq(owner.balance, 10 ether, "Receiver did not receive the correct amount of ETH");
         assertEq(address(registry).balance, 0, "Registry contract balance should be zero");
         vm.deal(address(registry), 10 ether);
-        FailingReceiver failingReceiver = new FailingReceiver();
+        MockFailingReceiver failingReceiver = new MockFailingReceiver();
         vm.expectRevert(IEscrowRegistry.Registry__ETHTransferFailed.selector);
         registry.withdrawETH(address(failingReceiver));
         vm.stopPrank();
-    }
-}
-
-contract FailingReceiver {
-    receive() external payable {
-        revert("ETH transfer failed");
     }
 }

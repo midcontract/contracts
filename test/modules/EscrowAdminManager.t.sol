@@ -4,6 +4,7 @@ pragma solidity 0.8.25;
 import { Test, console2 } from "forge-std/Test.sol";
 
 import { EscrowAdminManager, IEscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
+import { MockFailingReceiver } from "test/mocks/MockFailingReceiver.sol";
 
 contract EscrowAdminManagerUnitTest is Test {
     EscrowAdminManager adminManager;
@@ -215,15 +216,9 @@ contract EscrowAdminManagerUnitTest is Test {
         assertEq(initialOwner.balance, 10 ether, "Receiver did not receive the correct amount of ETH");
         assertEq(address(adminManager).balance, 0, "AdminManager contract balance should be zero");
         vm.deal(address(adminManager), 10 ether);
-        FailingReceiver failingReceiver = new FailingReceiver();
+        MockFailingReceiver failingReceiver = new MockFailingReceiver();
         vm.expectRevert(IEscrowAdminManager.ETHTransferFailed.selector);
         adminManager.withdrawETH(address(failingReceiver));
         vm.stopPrank();
-    }
-}
-
-contract FailingReceiver {
-    receive() external payable {
-        revert("ETH transfer failed");
     }
 }

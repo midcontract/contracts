@@ -15,8 +15,10 @@ import { EscrowMilestone, IEscrowMilestone } from "src/EscrowMilestone.sol";
 import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
 import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
 import { Enums } from "src/common/Enums.sol";
+import { MockFailingReceiver } from "test/mocks/MockFailingReceiver.sol";
+import { TestUtils } from "test/utils/TestUtils.sol";
 
-contract EscrowFactoryUnitTest is Test {
+contract EscrowFactoryUnitTest is Test, TestUtils {
     EscrowFactory factory;
     EscrowFixedPrice escrow;
     EscrowRegistry registry;
@@ -85,120 +87,6 @@ contract EscrowFactoryUnitTest is Test {
     }
 
     ///////////////////////////////////////////
-    //               helpers                 //
-    ///////////////////////////////////////////
-
-    function _computeDepositAndFeeAmount(
-        address _escrow,
-        uint256 _contractId,
-        address _client,
-        uint256 _depositAmount,
-        Enums.FeeConfig _feeConfig
-    ) internal view returns (uint256, uint256) {
-        address feeManagerAddress = registry.feeManager();
-        IEscrowFeeManager _feeManager = IEscrowFeeManager(feeManagerAddress);
-        (uint256 totalDepositAmount, uint256 feeApplied) =
-            _feeManager.computeDepositAmountAndFee(_escrow, _contractId, _client, _depositAmount, _feeConfig);
-
-        return (totalDepositAmount, feeApplied);
-    }
-
-    function _getSignatureFixed(
-        uint256 _contractId,
-        address _proxy,
-        address _token,
-        uint256 _amount,
-        Enums.FeeConfig _feeConfig
-    ) internal returns (bytes memory) {
-        // Sign deposit authorization
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
-            keccak256(
-                abi.encodePacked(
-                    client,
-                    _contractId,
-                    address(0),
-                    address(_token),
-                    uint256(_amount),
-                    _feeConfig,
-                    contractorData,
-                    uint256(block.timestamp + 3 hours),
-                    address(_proxy)
-                )
-            )
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
-        return signature = abi.encodePacked(r, s, v);
-    }
-
-    function _getSignatureHourly(
-        uint256 _contractId,
-        address _contractor,
-        address _proxy,
-        address _token,
-        uint256 _prepaymentAmount,
-        uint256 _amountToClaim,
-        Enums.FeeConfig _feeConfig
-    ) internal returns (bytes memory) {
-        // Sign deposit authorization
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
-            keccak256(
-                abi.encodePacked(
-                    client,
-                    _contractId,
-                    address(_contractor),
-                    address(_token),
-                    uint256(_prepaymentAmount),
-                    uint256(_amountToClaim),
-                    _feeConfig,
-                    uint256(block.timestamp + 3 hours),
-                    address(_proxy)
-                )
-            )
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
-        return signature = abi.encodePacked(r, s, v);
-    }
-
-    function _getSignatureMilestone(
-        address _proxy,
-        address _client,
-        uint256 _contractId,
-        address _token,
-        bytes32 _milestonesHash
-    ) internal returns (bytes memory) {
-        // Sign deposit authorization
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
-            keccak256(
-                abi.encodePacked(
-                    _client,
-                    _contractId,
-                    address(_token),
-                    _milestonesHash,
-                    uint256(block.timestamp + 3 hours),
-                    address(_proxy)
-                )
-            )
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
-        return signature = abi.encodePacked(r, s, v);
-    }
-
-    function _hashMilestones(IEscrowMilestone.Milestone[] memory _milestones) internal pure returns (bytes32) {
-        bytes32[] memory hashes = new bytes32[](_milestones.length);
-        for (uint256 i = 0; i < _milestones.length; i++) {
-            hashes[i] = keccak256(
-                abi.encode(
-                    _milestones[i].contractor,
-                    _milestones[i].amount,
-                    _milestones[i].contractorData,
-                    _milestones[i].feeConfig
-                )
-            );
-        }
-        return keccak256(abi.encodePacked(hashes));
-    }
-
-    ///////////////////////////////////////////
     //        setup & functional tests       //
     ///////////////////////////////////////////
 
@@ -250,12 +138,24 @@ contract EscrowFactoryUnitTest is Test {
         assertTrue(escrowProxy.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxy)));
-        (uint256 totalDepositAmount,) =
-            _computeDepositAndFeeAmount(address(escrowProxy), 0, client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        (uint256 totalDepositAmount,) = computeDepositAndFeeAmount(
+            address(registry), address(escrowProxy), 0, client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL
+        );
         // 2. mint, approve payment token
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrowProxy), totalDepositAmount);
         // 3. deposit
+        TestUtils.FixedPriceSignatureParams memory params = FixedPriceSignatureParams({
+            contractId: 1,
+            contractor: address(0),
+            proxy: address(escrowProxy),
+            token: address(paymentToken),
+            amount: 1 ether,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            contractorData: contractorData,
+            client: client,
+            ownerPrKey: ownerPrKey
+        });
         deposit = IEscrowFixedPrice.DepositRequest({
             contractId: 1,
             contractor: address(0),
@@ -268,10 +168,9 @@ contract EscrowFactoryUnitTest is Test {
             status: Enums.Status.ACTIVE,
             escrow: address(escrowProxy),
             expiration: block.timestamp + 3 hours,
-            signature: _getSignatureFixed(
-                1, address(escrowProxy), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL
-            )
+            signature: getSignatureFixed(params)
         });
+
         escrowProxy.deposit(deposit);
         uint256 currentContractId = 1;
         assertEq(paymentToken.balanceOf(address(escrowProxy)), totalDepositAmount);
@@ -301,6 +200,18 @@ contract EscrowFactoryUnitTest is Test {
     function test_deposit_next() public {
         EscrowFixedPrice escrowProxy = test_deploy_and_deposit();
 
+        TestUtils.FixedPriceSignatureParams memory params = FixedPriceSignatureParams({
+            contractId: 2,
+            contractor: address(0),
+            proxy: address(escrowProxy),
+            token: address(paymentToken),
+            amount: 2 ether,
+            feeConfig: Enums.FeeConfig.NO_FEES,
+            contractorData: contractorData,
+            client: client,
+            ownerPrKey: ownerPrKey
+        });
+
         EscrowFixedPrice.DepositRequest memory deposit2 = IEscrowFixedPrice.DepositRequest({
             contractId: 2,
             contractor: address(0),
@@ -313,11 +224,12 @@ contract EscrowFactoryUnitTest is Test {
             status: Enums.Status.ACTIVE,
             escrow: address(escrowProxy),
             expiration: block.timestamp + 3 hours,
-            signature: _getSignatureFixed(2, address(escrowProxy), address(paymentToken), 2 ether, Enums.FeeConfig.NO_FEES)
+            signature: getSignatureFixed(params)
         });
 
-        (uint256 totalDepositAmount,) =
-            _computeDepositAndFeeAmount(address(escrowProxy), 1, client, 2 ether, Enums.FeeConfig.NO_FEES);
+        (uint256 totalDepositAmount,) = computeDepositAndFeeAmount(
+            address(registry), address(escrowProxy), 1, client, 2 ether, Enums.FeeConfig.NO_FEES
+        );
 
         vm.startPrank(address(this));
         paymentToken.mint(address(this), totalDepositAmount);
@@ -398,8 +310,13 @@ contract EscrowFactoryUnitTest is Test {
 
         // 2. mint, approve payment token
         uint256 depositMilestoneAmount = 1 ether;
-        (uint256 totalDepositMilestoneAmount,) = _computeDepositAndFeeAmount(
-            address(escrowProxy), 1, client, depositMilestoneAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+        (uint256 totalDepositMilestoneAmount,) = computeDepositAndFeeAmount(
+            address(registry),
+            address(escrowProxy),
+            1,
+            client,
+            depositMilestoneAmount,
+            Enums.FeeConfig.CLIENT_COVERS_ONLY
         );
         paymentToken.mint(address(client), totalDepositMilestoneAmount);
         paymentToken.approve(address(escrowProxy), totalDepositMilestoneAmount);
@@ -417,16 +334,22 @@ contract EscrowFactoryUnitTest is Test {
         });
 
         uint256 currentContractId = 1;
-        bytes32 milestonesHash = _hashMilestones(milestones);
+        bytes32 milestonesHash = hashMilestones(milestones);
+        TestUtils.MilestoneSignatureParams memory milestoneInput = MilestoneSignatureParams({
+            proxy: address(escrowProxy),
+            client: client,
+            contractId: currentContractId,
+            token: address(paymentToken),
+            milestonesHash: milestonesHash,
+            ownerPrKey: ownerPrKey
+        });
         depositMilestone = IEscrowMilestone.DepositRequest({
             contractId: currentContractId,
             paymentToken: address(paymentToken),
             milestonesHash: milestonesHash,
-            escrow: address(escrow),
+            escrow: address(escrowProxy),
             expiration: uint256(block.timestamp + 3 hours),
-            signature: _getSignatureMilestone(
-                address(escrowProxy), client, currentContractId, address(paymentToken), milestonesHash
-            )
+            signature: getSignatureMilestone(milestoneInput)
         });
 
         escrowProxy.deposit(depositMilestone, milestones);
@@ -474,14 +397,30 @@ contract EscrowFactoryUnitTest is Test {
 
         // 2. mint, approve payment token
         uint256 depositHourlyAmount = 1 ether;
-        (uint256 totalDepositHourlyAmount,) = _computeDepositAndFeeAmount(
-            address(escrowProxyHourly), 1, client, depositHourlyAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+        (uint256 totalDepositHourlyAmount,) = computeDepositAndFeeAmount(
+            address(registry),
+            address(escrowProxyHourly),
+            1,
+            client,
+            depositHourlyAmount,
+            Enums.FeeConfig.CLIENT_COVERS_ONLY
         );
         paymentToken.mint(address(client), totalDepositHourlyAmount);
         paymentToken.approve(address(escrowProxyHourly), totalDepositHourlyAmount);
 
         // 3. deposit
         uint256 currentContractId = 1;
+        TestUtils.HourlySignatureParams memory hourlyInput = HourlySignatureParams({
+            contractId: currentContractId,
+            contractor: contractor,
+            proxy: address(escrowProxyHourly),
+            token: address(paymentToken),
+            prepaymentAmount: depositHourlyAmount,
+            amountToClaim: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            client: client,
+            ownerPrKey: ownerPrKey
+        });
         depositHourly = IEscrowHourly.DepositRequest({
             contractId: currentContractId,
             contractor: contractor,
@@ -491,16 +430,9 @@ contract EscrowFactoryUnitTest is Test {
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
             escrow: address(escrowProxyHourly),
             expiration: uint256(block.timestamp + 3 hours),
-            signature: _getSignatureHourly(
-                currentContractId,
-                address(contractor),
-                address(escrowProxyHourly),
-                address(paymentToken),
-                depositHourlyAmount,
-                0,
-                Enums.FeeConfig.CLIENT_COVERS_ONLY
-            )
+            signature: getSignatureHourly(hourlyInput)
         });
+
         assertFalse(escrowProxyHourly.contractExists(currentContractId));
 
         escrowProxyHourly.deposit(depositHourly);
@@ -624,15 +556,9 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(owner.balance, 10 ether, "Receiver did not receive the correct amount of ETH");
         assertEq(address(factory).balance, 0, "Factory contract balance should be zero");
         vm.deal(address(factory), 10 ether);
-        FailingReceiver failingReceiver = new FailingReceiver();
+        MockFailingReceiver failingReceiver = new MockFailingReceiver();
         vm.expectRevert(IEscrowFactory.Factory__ETHTransferFailed.selector);
         factory.withdrawETH(address(failingReceiver));
         vm.stopPrank();
-    }
-}
-
-contract FailingReceiver {
-    receive() external payable {
-        revert("ETH transfer failed");
     }
 }

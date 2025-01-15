@@ -14,10 +14,11 @@ import { EscrowMilestone, IEscrowMilestone } from "src/EscrowMilestone.sol";
 import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
 import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
 import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
-import { IEscrow } from "src/interfaces/IEscrow.sol";
 import { Enums } from "src/common/Enums.sol";
+import { IEscrow } from "src/interfaces/IEscrow.sol";
+import { TestUtils } from "test/utils/TestUtils.sol";
 
-contract EscrowAccountRecoveryUnitTest is Test {
+contract EscrowAccountRecoveryUnitTest is Test, TestUtils {
     EscrowAccountRecovery recovery;
     EscrowFixedPrice escrow;
     EscrowMilestone escrowMilestone;
@@ -96,100 +97,6 @@ contract EscrowAccountRecoveryUnitTest is Test {
         contractorData = keccak256(abi.encodePacked(contractData, salt));
     }
 
-    // Helpers
-    function _getSignatureFixed(address _proxy, address _token, uint256 _amount, Enums.FeeConfig _feeConfig)
-        internal
-        returns (bytes memory)
-    {
-        // Sign deposit authorization
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
-            keccak256(
-                abi.encodePacked(
-                    client,
-                    uint256(1),
-                    contractor,
-                    address(_token),
-                    uint256(_amount),
-                    _feeConfig,
-                    contractorData,
-                    uint256(block.timestamp + 3 hours),
-                    address(_proxy)
-                )
-            )
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
-        return signature = abi.encodePacked(r, s, v);
-    }
-
-    function _getSignatureHourly(
-        uint256 _contractId,
-        address _contractor,
-        address _proxy,
-        address _token,
-        uint256 _prepaymentAmount,
-        uint256 _amountToClaim,
-        Enums.FeeConfig _feeConfig
-    ) internal returns (bytes memory) {
-        // Sign deposit authorization
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
-            keccak256(
-                abi.encodePacked(
-                    client,
-                    _contractId,
-                    address(_contractor),
-                    address(_token),
-                    uint256(_prepaymentAmount),
-                    uint256(_amountToClaim),
-                    _feeConfig,
-                    uint256(block.timestamp + 3 hours),
-                    address(_proxy)
-                )
-            )
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
-        return signature = abi.encodePacked(r, s, v);
-    }
-
-    function _getSignatureMilestone(
-        address _proxy,
-        address _client,
-        uint256 _contractId,
-        address _token,
-        bytes32 _milestonesHash
-    ) internal returns (bytes memory) {
-        // Sign deposit authorization
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
-            keccak256(
-                abi.encodePacked(
-                    _client,
-                    _contractId,
-                    address(_token),
-                    _milestonesHash,
-                    uint256(block.timestamp + 3 hours),
-                    address(_proxy)
-                )
-            )
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, ethSignedHash); // Admin signs
-        return signature = abi.encodePacked(r, s, v);
-    }
-
-    function _hashMilestones(IEscrowMilestone.Milestone[] memory _milestones) internal pure returns (bytes32) {
-        bytes32[] memory hashes = new bytes32[](_milestones.length);
-        for (uint256 i = 0; i < _milestones.length; i++) {
-            hashes[i] = keccak256(
-                abi.encode(
-                    _milestones[i].contractor,
-                    _milestones[i].amount,
-                    _milestones[i].contractorData,
-                    _milestones[i].feeConfig
-                )
-            );
-        }
-        return keccak256(abi.encodePacked(hashes));
-    }
-
-    // Tests
     function test_setUpState() public view {
         assertTrue(address(recovery).code.length > 0);
         assertEq(address(recovery.adminManager()), address(adminManager));
@@ -227,10 +134,21 @@ contract EscrowAccountRecoveryUnitTest is Test {
             status: Enums.Status.ACTIVE,
             escrow: address(escrow),
             expiration: block.timestamp + 3 hours,
-            signature: _getSignatureFixed(
-                address(escrow), address(paymentToken), 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY
+            signature: getSignatureFixed(
+                FixedPriceSignatureParams({
+                    contractId: 1,
+                    contractor: contractor,
+                    proxy: address(escrow),
+                    token: address(paymentToken),
+                    amount: 1 ether,
+                    feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+                    contractorData: contractorData,
+                    client: client,
+                    ownerPrKey: ownerPrKey
+                })
             )
         });
+
         escrow.deposit(deposit);
         vm.stopPrank();
     }
@@ -251,14 +169,23 @@ contract EscrowAccountRecoveryUnitTest is Test {
         escrowMilestone.initialize(client, address(adminManager), address(registry));
         assertTrue(escrowMilestone.initialized());
 
-        bytes32 milestonesHash = _hashMilestones(milestones);
+        bytes32 milestonesHash = hashMilestones(milestones);
         depositMilestone = IEscrowMilestone.DepositRequest({
             contractId: 1,
             paymentToken: address(paymentToken),
             milestonesHash: milestonesHash,
             escrow: address(escrowMilestone),
             expiration: uint256(block.timestamp + 3 hours),
-            signature: _getSignatureMilestone(address(escrowMilestone), client, 1, address(paymentToken), milestonesHash)
+            signature: getSignatureMilestone(
+                MilestoneSignatureParams({
+                    proxy: address(escrowMilestone),
+                    client: client,
+                    contractId: 1,
+                    token: address(paymentToken),
+                    milestonesHash: milestonesHash,
+                    ownerPrKey: ownerPrKey
+                })
+            )
         });
 
         uint256 depositAmount = 1.03 ether;
@@ -280,14 +207,18 @@ contract EscrowAccountRecoveryUnitTest is Test {
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
             escrow: address(escrowHourly),
             expiration: uint256(block.timestamp + 3 hours),
-            signature: _getSignatureHourly(
-                uint256(1),
-                address(contractor),
-                address(escrowHourly),
-                address(paymentToken),
-                depositAmount,
-                0,
-                Enums.FeeConfig.CLIENT_COVERS_ONLY
+            signature: getSignatureHourly(
+                HourlySignatureParams({
+                    contractId: 1,
+                    contractor: contractor,
+                    proxy: address(escrowHourly),
+                    token: address(paymentToken),
+                    prepaymentAmount: depositAmount,
+                    amountToClaim: 0 ether,
+                    feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+                    client: client,
+                    ownerPrKey: ownerPrKey
+                })
             )
         });
 
