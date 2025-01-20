@@ -115,7 +115,7 @@ contract EscrowFeeManagerUnitTest is Test {
     }
 
     function test_initialize_reverts() public {
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFeeManager.ZeroAddressProvided.selector);
         new EscrowFeeManager(address(0), 300, 500);
     }
 
@@ -129,14 +129,14 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(claim, 500);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
+        vm.expectRevert(IEscrowFeeManager.UnauthorizedAccount.selector);
         feeManager.setDefaultFees(0, 1000);
         vm.startPrank(address(owner)); //current owner
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setDefaultFees(5100, 5000);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setDefaultFees(5000, 5100);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setDefaultFees(5100, 5100);
         (coverage, claim) = feeManager.defaultFees();
         assertEq(coverage, 300);
@@ -170,16 +170,16 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 500);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
+        vm.expectRevert(IEscrowFeeManager.UnauthorizedAccount.selector);
         feeManager.setUserSpecificFees(client, 200, 350);
         vm.startPrank(address(owner)); //current owner
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setUserSpecificFees(client, 5100, 350);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setUserSpecificFees(client, 350, 5100);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setUserSpecificFees(client, 5100, 5100);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFeeManager.ZeroAddressProvided.selector);
         feeManager.setUserSpecificFees(address(0), 200, 350);
         (coverage, claim) = feeManager.userSpecificFees(client);
         assertEq(coverage, 0);
@@ -206,16 +206,16 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 350);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
+        vm.expectRevert(IEscrowFeeManager.UnauthorizedAccount.selector);
         feeManager.setInstanceFees(address(escrow), 200, 350);
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setInstanceFees(address(escrow), 5100, 350);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setInstanceFees(address(escrow), 350, 5100);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setInstanceFees(address(escrow), 5100, 5100);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFeeManager.ZeroAddressProvided.selector);
         feeManager.setInstanceFees(address(0), 200, 350);
         (coverage, claim) = feeManager.instanceFees(address(escrow));
         assertEq(coverage, 0);
@@ -249,16 +249,16 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 450);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
+        vm.expectRevert(IEscrowFeeManager.UnauthorizedAccount.selector);
         feeManager.setContractSpecificFees(address(escrow), contractId, 200, 350);
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setContractSpecificFees(address(escrow), contractId, 5100, 350);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setContractSpecificFees(address(escrow), contractId, 350, 5100);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__FeeTooHigh.selector);
+        vm.expectRevert(IEscrowFeeManager.FeeTooHigh.selector);
         feeManager.setContractSpecificFees(address(escrow), contractId, 5100, 5100);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFeeManager.ZeroAddressProvided.selector);
         feeManager.setContractSpecificFees(address(0), contractId, 200, 350);
         (coverage, claim) = feeManager.contractSpecificFees(address(escrow), contractId);
         assertEq(coverage, 0);
@@ -306,7 +306,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 350);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
+        vm.expectRevert(IEscrowFeeManager.UnauthorizedAccount.selector);
         feeManager.resetUserSpecificFees(client);
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
@@ -337,7 +337,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 450);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
+        vm.expectRevert(IEscrowFeeManager.UnauthorizedAccount.selector);
         feeManager.resetInstanceSpecificFees(address(escrow));
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
@@ -372,7 +372,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 500);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
+        vm.expectRevert(IEscrowFeeManager.UnauthorizedAccount.selector);
         feeManager.resetContractSpecificFees(address(escrow), contractId);
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
@@ -413,7 +413,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(rates.claim, 500);
         address notOwner = makeAddr("notOwner");
         vm.prank(notOwner);
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnauthorizedAccount.selector);
+        vm.expectRevert(IEscrowFeeManager.UnauthorizedAccount.selector);
         feeManager.resetAllToDefault(address(escrow), contractId, client);
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
@@ -460,7 +460,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(feeApplied, feeAmount);
         // CONTRACTOR_COVERS_CLAIM
         feeConfig = Enums.FeeConfig.CONTRACTOR_COVERS_CLAIM;
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnsupportedFeeConfiguration.selector);
+        vm.expectRevert(IEscrowFeeManager.UnsupportedFeeConfiguration.selector);
         (totalDepositAmount, feeApplied) =
             feeManager.computeDepositAmountAndFee(address(escrow), 1, client, depositAmount, feeConfig);
         assertEq(totalDepositAmount, 0);
@@ -496,7 +496,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(feeApplied, feeAmount);
         // CONTRACTOR_COVERS_CLAIM
         feeConfig = Enums.FeeConfig.CONTRACTOR_COVERS_CLAIM;
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnsupportedFeeConfiguration.selector);
+        vm.expectRevert(IEscrowFeeManager.UnsupportedFeeConfiguration.selector);
         (totalDepositAmount, feeApplied) =
             feeManager.computeDepositAmountAndFee(address(escrow), 1, client, depositAmount, feeConfig);
         assertEq(totalDepositAmount, 0);
@@ -548,7 +548,7 @@ contract EscrowFeeManagerUnitTest is Test {
         assertEq(clientFee, 0);
         // INVALID
         feeConfig = Enums.FeeConfig.INVALID;
-        vm.expectRevert(IEscrowFeeManager.EscrowFeeManager__UnsupportedFeeConfiguration.selector);
+        vm.expectRevert(IEscrowFeeManager.UnsupportedFeeConfiguration.selector);
         (claimableAmount, feeDeducted, clientFee) =
             feeManager.computeClaimableAmountAndFee(address(escrow), 1, contractor, claimedAmount, feeConfig);
         assertEq(claimableAmount, 0);

@@ -69,14 +69,14 @@ contract EscrowRegistryUnitTest is Test {
         registry.addPaymentToken(address(paymentToken));
         assertFalse(registry.paymentTokens(address(paymentToken)));
         vm.startPrank(address(owner)); //current owner
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.addPaymentToken(address(0));
         assertFalse(registry.paymentTokens(address(paymentToken)));
         vm.expectEmit(true, false, false, true);
         emit PaymentTokenAdded(address(paymentToken));
         registry.addPaymentToken(address(paymentToken));
         assertTrue(registry.paymentTokens(address(paymentToken)));
-        vm.expectRevert(IEscrowRegistry.Registry__TokenAlreadyAdded.selector);
+        vm.expectRevert(IEscrowRegistry.TokenAlreadyAdded.selector);
         registry.addPaymentToken(address(paymentToken));
         vm.stopPrank();
     }
@@ -93,7 +93,7 @@ contract EscrowRegistryUnitTest is Test {
         emit PaymentTokenRemoved(address(paymentToken));
         registry.removePaymentToken(address(paymentToken));
         assertFalse(registry.paymentTokens(address(paymentToken)));
-        vm.expectRevert(IEscrowRegistry.Registry__PaymentTokenNotRegistered.selector);
+        vm.expectRevert(IEscrowRegistry.PaymentTokenNotRegistered.selector);
         registry.removePaymentToken(address(newPaymentToken));
         vm.stopPrank();
     }
@@ -162,7 +162,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.updateEscrowFixedPrice(address(escrow));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.updateEscrowFixedPrice(address(0));
         assertEq(registry.escrowFixedPrice(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -179,7 +179,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.updateEscrowMilestone(address(escrow));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.updateEscrowMilestone(address(0));
         assertEq(registry.escrowMilestone(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -196,7 +196,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.updateEscrowHourly(address(escrow));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.updateEscrowHourly(address(0));
         assertEq(registry.escrowHourly(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -213,7 +213,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.updateFactory(address(factory));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.updateFactory(address(0));
         assertEq(registry.factory(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -230,7 +230,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.setFixedTreasury(address(fixedTreasury));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.setFixedTreasury(address(0));
         assertEq(registry.fixedTreasury(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -247,7 +247,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.setHourlyTreasury(address(hourlyTreasury));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.setHourlyTreasury(address(0));
         assertEq(registry.hourlyTreasury(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -264,7 +264,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.setMilestoneTreasury(address(milestoneTreasury));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.setMilestoneTreasury(address(0));
         assertEq(registry.milestoneTreasury(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -281,7 +281,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.updateFeeManager(address(feeManager));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.updateFeeManager(address(0));
         assertEq(registry.feeManager(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -298,7 +298,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.setAccountRecovery(address(accountRecovery));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.setAccountRecovery(address(0));
         assertEq(registry.accountRecovery(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -315,7 +315,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.setAdminManager(address(adminManager));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.setAdminManager(address(0));
         assertEq(registry.adminManager(), address(0));
         vm.expectEmit(true, false, false, true);
@@ -334,7 +334,7 @@ contract EscrowRegistryUnitTest is Test {
         registry.addToBlacklist(owner);
         assertFalse(registry.blacklist(owner));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.addToBlacklist(address(0));
         vm.expectEmit(true, false, false, true);
         emit Blacklisted(malicious_user);
@@ -353,7 +353,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.removeFromBlacklist(malicious_user);
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.removeFromBlacklist(address(0));
         vm.expectEmit(true, false, false, true);
         emit Whitelisted(malicious_user);
@@ -369,7 +369,7 @@ contract EscrowRegistryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         registry.withdrawETH(notOwner);
         vm.startPrank(owner);
-        vm.expectRevert(IEscrowRegistry.Registry__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowRegistry.ZeroAddressProvided.selector);
         registry.withdrawETH(address(0));
         vm.expectEmit(true, false, false, true);
         emit ETHWithdrawn(owner, 10 ether);
@@ -378,7 +378,7 @@ contract EscrowRegistryUnitTest is Test {
         assertEq(address(registry).balance, 0, "Registry contract balance should be zero");
         vm.deal(address(registry), 10 ether);
         MockFailingReceiver failingReceiver = new MockFailingReceiver();
-        vm.expectRevert(IEscrowRegistry.Registry__ETHTransferFailed.selector);
+        vm.expectRevert(IEscrowRegistry.ETHTransferFailed.selector);
         registry.withdrawETH(address(failingReceiver));
         vm.stopPrank();
     }

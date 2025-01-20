@@ -100,13 +100,13 @@ contract EscrowFactoryUnitTest is Test, TestUtils {
     }
 
     function test_deployFactory_reverts() public {
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
         new EscrowFactory(address(0), address(registry), address(0));
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
         new EscrowFactory(address(0), address(0), address(0));
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
         new EscrowFactory(address(adminManager), address(0), address(0));
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
         new EscrowFactory(address(0), address(0), address(owner));
     }
 
@@ -381,7 +381,7 @@ contract EscrowFactoryUnitTest is Test, TestUtils {
         address deployedEscrowProxy;
         escrowType = Enums.EscrowType.HOURLY;
         vm.startPrank(client);
-        vm.expectRevert(IEscrowFactory.Factory__InvalidEscrowType.selector);
+        vm.expectRevert(IEscrowFactory.InvalidEscrowType.selector);
         deployedEscrowProxy = factory.deployEscrow(Enums.EscrowType.INVALID);
         vm.expectEmit(true, true, false, false);
         emit EscrowProxyDeployed(client, deployedEscrowProxy, escrowType);
@@ -468,7 +468,7 @@ contract EscrowFactoryUnitTest is Test, TestUtils {
         assertEq(factory.getEscrowImplementation(Enums.EscrowType.HOURLY), registry.escrowHourly());
         assertNotEq(factory.getEscrowImplementation(Enums.EscrowType.FIXED_PRICE), registry.escrowHourly());
 
-        vm.expectRevert(IEscrowFactory.Factory__InvalidEscrowType.selector);
+        vm.expectRevert(IEscrowFactory.InvalidEscrowType.selector);
         factory.getEscrowImplementation(Enums.EscrowType.INVALID);
     }
 
@@ -479,7 +479,7 @@ contract EscrowFactoryUnitTest is Test, TestUtils {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         factory.updateAdminManager(address(adminManager));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
         factory.updateAdminManager(address(0));
         assertEq(address(factory.adminManager()), address(adminManager));
         EscrowAdminManager newAdminManager = new EscrowAdminManager(owner);
@@ -497,7 +497,7 @@ contract EscrowFactoryUnitTest is Test, TestUtils {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         factory.updateRegistry(address(registry));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
         factory.updateRegistry(address(0));
         assertEq(address(factory.registry()), address(registry));
         EscrowRegistry newRegistry = new EscrowRegistry(owner);
@@ -548,7 +548,7 @@ contract EscrowFactoryUnitTest is Test, TestUtils {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         factory.withdrawETH(notOwner);
         vm.startPrank(owner);
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
         factory.withdrawETH(address(0));
         vm.expectEmit(true, false, false, true);
         emit ETHWithdrawn(owner, 10 ether);
@@ -557,7 +557,7 @@ contract EscrowFactoryUnitTest is Test, TestUtils {
         assertEq(address(factory).balance, 0, "Factory contract balance should be zero");
         vm.deal(address(factory), 10 ether);
         MockFailingReceiver failingReceiver = new MockFailingReceiver();
-        vm.expectRevert(IEscrowFactory.Factory__ETHTransferFailed.selector);
+        vm.expectRevert(IEscrowFactory.ETHTransferFailed.selector);
         factory.withdrawETH(address(failingReceiver));
         vm.stopPrank();
     }

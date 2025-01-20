@@ -6,14 +6,12 @@ import { Enums } from "../common/Enums.sol";
 /// @title Interface for the Escrow Factory
 /// @dev Interface defining the functionality for an escrow factory, responsible for deploying new escrow contracts.
 interface IEscrowFactory {
-    /// @notice Thrown when an unauthorized account attempts an action.
-    error Factory__UnauthorizedAccount();
     /// @notice Thrown when an operation involves a zero address where a valid address is required.
-    error Factory__ZeroAddressProvided();
+    error ZeroAddressProvided();
     /// @notice Thrown when an invalid escrow type is used in operations requiring a specific escrow type.
-    error Factory__InvalidEscrowType();
+    error InvalidEscrowType();
     /// @notice Thrown when an ETH transfer failed.
-    error Factory__ETHTransferFailed();
+    error ETHTransferFailed();
 
     /// @notice Emitted when a new escrow proxy is successfully deployed.
     /// @param sender The address of the sender who initiated the escrow deployment.

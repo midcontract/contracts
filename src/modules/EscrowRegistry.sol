@@ -62,8 +62,8 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Adds a new ERC20 token to the list of accepted payment tokens.
     /// @param _token The address of the ERC20 token to enable.
     function addPaymentToken(address _token) external onlyOwner {
-        if (_token == address(0)) revert Registry__ZeroAddressProvided();
-        if (paymentTokens[_token]) revert Registry__TokenAlreadyAdded();
+        if (_token == address(0)) revert ZeroAddressProvided();
+        if (paymentTokens[_token]) revert TokenAlreadyAdded();
         paymentTokens[_token] = true;
         emit PaymentTokenAdded(_token);
     }
@@ -71,7 +71,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Removes an ERC20 token from the list of accepted payment tokens.
     /// @param _token The address of the ERC20 token to disable.
     function removePaymentToken(address _token) external onlyOwner {
-        if (!paymentTokens[_token]) revert Registry__PaymentTokenNotRegistered();
+        if (!paymentTokens[_token]) revert PaymentTokenNotRegistered();
         delete paymentTokens[_token];
         emit PaymentTokenRemoved(_token);
     }
@@ -79,7 +79,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Updates the address of the escrow fixed price contract.
     /// @param _escrowFixedPrice The new address of the EscrowFixedPrice contract to be used.
     function updateEscrowFixedPrice(address _escrowFixedPrice) external onlyOwner {
-        if (_escrowFixedPrice == address(0)) revert Registry__ZeroAddressProvided();
+        if (_escrowFixedPrice == address(0)) revert ZeroAddressProvided();
         escrowFixedPrice = _escrowFixedPrice;
         emit EscrowUpdated(_escrowFixedPrice);
     }
@@ -87,7 +87,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Updates the address of the escrow milestone contract.
     /// @param _escrowMilestone The new address of the EscrowMilestone contract to be used.
     function updateEscrowMilestone(address _escrowMilestone) external onlyOwner {
-        if (_escrowMilestone == address(0)) revert Registry__ZeroAddressProvided();
+        if (_escrowMilestone == address(0)) revert ZeroAddressProvided();
         escrowMilestone = _escrowMilestone;
         emit EscrowUpdated(_escrowMilestone);
     }
@@ -95,7 +95,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Updates the address of the escrow hourly contract.
     /// @param _escrowHourly The new address of the EscrowHourly contract to be used.
     function updateEscrowHourly(address _escrowHourly) external onlyOwner {
-        if (_escrowHourly == address(0)) revert Registry__ZeroAddressProvided();
+        if (_escrowHourly == address(0)) revert ZeroAddressProvided();
         escrowHourly = _escrowHourly;
         emit EscrowUpdated(_escrowHourly);
     }
@@ -103,7 +103,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Updates the address of the factory contract.
     /// @param _factory The new address of the Factory contract to be used.
     function updateFactory(address _factory) external onlyOwner {
-        if (_factory == address(0)) revert Registry__ZeroAddressProvided();
+        if (_factory == address(0)) revert ZeroAddressProvided();
         factory = _factory;
         emit FactoryUpdated(_factory);
     }
@@ -111,7 +111,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Updates the address of the fee manager contract.
     /// @param _feeManager The new address of the FeeManager contract to be used.
     function updateFeeManager(address _feeManager) external onlyOwner {
-        if (_feeManager == address(0)) revert Registry__ZeroAddressProvided();
+        if (_feeManager == address(0)) revert ZeroAddressProvided();
         feeManager = _feeManager;
         emit FeeManagerUpdated(_feeManager);
     }
@@ -119,7 +119,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Sets the treasury address designated for fixed-price escrow contracts.
     /// @param _fixedTreasury The new address of the fixed-price escrow treasury.
     function setFixedTreasury(address _fixedTreasury) external onlyOwner {
-        if (_fixedTreasury == address(0)) revert Registry__ZeroAddressProvided();
+        if (_fixedTreasury == address(0)) revert ZeroAddressProvided();
         fixedTreasury = _fixedTreasury;
         emit TreasurySet(_fixedTreasury);
     }
@@ -127,7 +127,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Sets the treasury address designated for hourly escrow contracts.
     /// @param _hourlyTreasury The new address of the hourly escrow treasury.
     function setHourlyTreasury(address _hourlyTreasury) external onlyOwner {
-        if (_hourlyTreasury == address(0)) revert Registry__ZeroAddressProvided();
+        if (_hourlyTreasury == address(0)) revert ZeroAddressProvided();
         hourlyTreasury = _hourlyTreasury;
         emit TreasurySet(_hourlyTreasury);
     }
@@ -135,7 +135,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Sets the treasury address designated for milestone escrow contracts.
     /// @param _milestoneTreasury The new address of the milestone escrow treasury.
     function setMilestoneTreasury(address _milestoneTreasury) external onlyOwner {
-        if (_milestoneTreasury == address(0)) revert Registry__ZeroAddressProvided();
+        if (_milestoneTreasury == address(0)) revert ZeroAddressProvided();
         milestoneTreasury = _milestoneTreasury;
         emit TreasurySet(_milestoneTreasury);
     }
@@ -143,7 +143,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Updates the address of the account recovery module contract.
     /// @param _accountRecovery The new address of the AccountRecovery module contract to be used.
     function setAccountRecovery(address _accountRecovery) external onlyOwner {
-        if (_accountRecovery == address(0)) revert Registry__ZeroAddressProvided();
+        if (_accountRecovery == address(0)) revert ZeroAddressProvided();
         accountRecovery = _accountRecovery;
         emit AccountRecoverySet(_accountRecovery);
     }
@@ -151,7 +151,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Updates the address of the admin manager contract.
     /// @param _adminManager The new address of the AdminManager contract to be used.
     function setAdminManager(address _adminManager) external onlyOwner {
-        if (_adminManager == address(0)) revert Registry__ZeroAddressProvided();
+        if (_adminManager == address(0)) revert ZeroAddressProvided();
         adminManager = _adminManager;
         emit AdminManagerSet(_adminManager);
     }
@@ -159,7 +159,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Adds an address to the blacklist.
     /// @param _user The address to add to the blacklist.
     function addToBlacklist(address _user) external onlyOwner {
-        if (_user == address(0)) revert Registry__ZeroAddressProvided();
+        if (_user == address(0)) revert ZeroAddressProvided();
         blacklist[_user] = true;
         emit Blacklisted(_user);
     }
@@ -167,7 +167,7 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Removes an address from the blacklist.
     /// @param _user The address to remove from the blacklist.
     function removeFromBlacklist(address _user) external onlyOwner {
-        if (_user == address(0)) revert Registry__ZeroAddressProvided();
+        if (_user == address(0)) revert ZeroAddressProvided();
         blacklist[_user] = false;
         emit Whitelisted(_user);
     }
@@ -175,10 +175,10 @@ contract EscrowRegistry is IEscrowRegistry, OwnedThreeStep {
     /// @notice Withdraws any ETH accidentally sent to the contract.
     /// @param _receiver The address that will receive the withdrawn ETH.
     function withdrawETH(address _receiver) external onlyOwner {
-        if (_receiver == address(0)) revert Registry__ZeroAddressProvided();
+        if (_receiver == address(0)) revert ZeroAddressProvided();
         uint256 balance = address(this).balance;
         (bool success,) = payable(_receiver).call{ value: balance }("");
-        if (!success) revert Registry__ETHTransferFailed();
+        if (!success) revert ETHTransferFailed();
         emit ETHWithdrawn(_receiver, balance);
     }
 }

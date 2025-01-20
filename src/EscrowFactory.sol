@@ -31,7 +31,7 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
     /// @param _registry Address of the registry contract.
     constructor(address _adminManager, address _registry, address _owner) OwnedThreeStep(_owner) {
         if (_adminManager == address(0) || _registry == address(0) || _owner == address(0)) {
-            revert Factory__ZeroAddressProvided();
+            revert ZeroAddressProvided();
         }
         adminManager = IEscrowAdminManager(_adminManager);
         registry = IEscrowRegistry(_registry);
@@ -73,7 +73,7 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
         } else if (_escrowType == Enums.EscrowType.HOURLY) {
             return IEscrowRegistry(registry).escrowHourly();
         } else {
-            revert Factory__InvalidEscrowType();
+            revert InvalidEscrowType();
         }
     }
 
@@ -87,7 +87,7 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
     /// @notice Updates the address of the admin manager contract.
     /// @param _adminManager The new address of the AdminManager contract to be used.
     function updateAdminManager(address _adminManager) external onlyOwner {
-        if (_adminManager == address(0)) revert Factory__ZeroAddressProvided();
+        if (_adminManager == address(0)) revert ZeroAddressProvided();
         adminManager = IEscrowAdminManager(_adminManager);
         emit AdminManagerUpdated(_adminManager);
     }
@@ -95,28 +95,28 @@ contract EscrowFactory is IEscrowFactory, OwnedThreeStep, Pausable {
     /// @notice Updates the registry address used for fetching escrow implementations.
     /// @param _registry New registry address.
     function updateRegistry(address _registry) external onlyOwner {
-        if (_registry == address(0)) revert Factory__ZeroAddressProvided();
+        if (_registry == address(0)) revert ZeroAddressProvided();
         registry = IEscrowRegistry(_registry);
         emit RegistryUpdated(_registry);
     }
 
     /// @notice Pauses the contract, preventing new escrows from being deployed.
-    function pause() public onlyOwner {
+    function pause() external onlyOwner {
         _pause();
     }
 
     /// @notice Unpauses the contract, allowing new escrows to be deployed.
-    function unpause() public onlyOwner {
+    function unpause() external onlyOwner {
         _unpause();
     }
 
     /// @notice Withdraws any ETH accidentally sent to the contract.
     /// @param _receiver The address that will receive the withdrawn ETH.
     function withdrawETH(address _receiver) external onlyOwner {
-        if (_receiver == address(0)) revert Factory__ZeroAddressProvided();
+        if (_receiver == address(0)) revert ZeroAddressProvided();
         uint256 balance = address(this).balance;
         (bool success,) = payable(_receiver).call{ value: balance }("");
-        if (!success) revert Factory__ETHTransferFailed();
+        if (!success) revert ETHTransferFailed();
         emit ETHWithdrawn(_receiver, balance);
     }
 }

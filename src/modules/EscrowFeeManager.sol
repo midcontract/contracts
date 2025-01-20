@@ -31,7 +31,7 @@ contract EscrowFeeManager is IEscrowFeeManager {
 
     /// @notice Restricts access to admin-only functions.
     modifier onlyAdmin() {
-        if (!adminManager.isAdmin(msg.sender)) revert EscrowFeeManager__UnauthorizedAccount();
+        if (!adminManager.isAdmin(msg.sender)) revert UnauthorizedAccount();
         _;
     }
 
@@ -40,7 +40,7 @@ contract EscrowFeeManager is IEscrowFeeManager {
     /// @param _coverage Initial default coverage fee percentage.
     /// @param _claim Initial default claim fee percentage.
     constructor(address _adminManager, uint16 _coverage, uint16 _claim) {
-        if (_adminManager == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
+        if (_adminManager == address(0)) revert ZeroAddressProvided();
         adminManager = IEscrowAdminManager(_adminManager);
         _setDefaultFees(_coverage, _claim);
     }
@@ -57,8 +57,8 @@ contract EscrowFeeManager is IEscrowFeeManager {
     /// @param _coverage Specific coverage fee percentage for the user.
     /// @param _claim Specific claim fee percentage for the user.
     function setUserSpecificFees(address _user, uint16 _coverage, uint16 _claim) external onlyAdmin {
-        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
-        if (_user == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
+        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert FeeTooHigh();
+        if (_user == address(0)) revert ZeroAddressProvided();
         userSpecificFees[_user] = FeeRates({ coverage: _coverage, claim: _claim });
         emit UserSpecificFeesSet(_user, _coverage, _claim);
     }
@@ -68,8 +68,8 @@ contract EscrowFeeManager is IEscrowFeeManager {
     /// @param _coverage Specific coverage fee percentage for the instance.
     /// @param _claim Specific claim fee percentage for the instance.
     function setInstanceFees(address _instance, uint16 _coverage, uint16 _claim) external onlyAdmin {
-        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
-        if (_instance == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
+        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert FeeTooHigh();
+        if (_instance == address(0)) revert ZeroAddressProvided();
         instanceFees[_instance] = FeeRates({ coverage: _coverage, claim: _claim });
         emit InstanceFeesSet(_instance, _coverage, _claim);
     }
@@ -83,8 +83,8 @@ contract EscrowFeeManager is IEscrowFeeManager {
         external
         onlyAdmin
     {
-        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
-        if (_instance == address(0)) revert EscrowFeeManager__ZeroAddressProvided();
+        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert FeeTooHigh();
+        if (_instance == address(0)) revert ZeroAddressProvided();
         contractSpecificFees[_instance][_contractId] = FeeRates({ coverage: _coverage, claim: _claim });
         emit ContractSpecificFeesSet(_instance, _contractId, _coverage, _claim);
     }
@@ -160,7 +160,7 @@ contract EscrowFeeManager is IEscrowFeeManager {
             totalDepositAmount = _depositAmount;
             feeApplied = 0;
         } else {
-            revert EscrowFeeManager__UnsupportedFeeConfiguration();
+            revert UnsupportedFeeConfiguration();
         }
 
         return (totalDepositAmount, feeApplied);
@@ -208,7 +208,7 @@ contract EscrowFeeManager is IEscrowFeeManager {
             clientFee = 0;
             claimableAmount = _claimedAmount;
         } else {
-            revert EscrowFeeManager__UnsupportedFeeConfiguration();
+            revert UnsupportedFeeConfiguration();
         }
 
         return (claimableAmount, feeDeducted, clientFee);
@@ -253,7 +253,7 @@ contract EscrowFeeManager is IEscrowFeeManager {
     /// @param _coverage New default coverage fee percentage.
     /// @param _claim New default claim fee percentage.
     function _setDefaultFees(uint16 _coverage, uint16 _claim) internal {
-        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert EscrowFeeManager__FeeTooHigh();
+        if (_coverage > MAX_FEE_BPS || _claim > MAX_FEE_BPS) revert FeeTooHigh();
         defaultFees = FeeRates({ coverage: _coverage, claim: _claim });
         emit DefaultFeesSet(_coverage, _claim);
     }

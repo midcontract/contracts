@@ -6,16 +6,16 @@ pragma solidity 0.8.25;
 /// for an escrow system.
 interface IEscrowRegistry {
     /// @notice Thrown when a zero address is provided where a valid address is required.
-    error Registry__ZeroAddressProvided();
+    error ZeroAddressProvided();
 
     /// @notice Thrown when attempting to add a token that has already been added to the registry.
-    error Registry__TokenAlreadyAdded();
+    error TokenAlreadyAdded();
 
     /// @notice Thrown when attempting to remove or access a token that is not registered.
-    error Registry__PaymentTokenNotRegistered();
+    error PaymentTokenNotRegistered();
 
     /// @notice Thrown when an ETH transfer failed.
-    error Registry__ETHTransferFailed();
+    error ETHTransferFailed();
 
     /// @notice Emitted when a new payment token is added to the registry.
     /// @param token The address of the token that was added.
