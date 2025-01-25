@@ -1,10 +1,31 @@
 # IEscrow
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/interfaces/IEscrow.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/interfaces/IEscrow.sol)
 
 Provides the foundational escrow functionalities common across various types of escrow contracts.
 
 
 ## Functions
+### contractExists
+
+Checks if a given contract ID exists.
+
+
+```solidity
+function contractExists(uint256 contractId) external view returns (bool);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`contractId`|`uint256`|The contract ID to check.|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bool`|bool True if the contract exists, false otherwise.|
+
+
 ### initialize
 
 Initializes the escrow contract.
@@ -336,5 +357,37 @@ Thrown when the specified contractor does not match the initial contractor set f
 
 ```solidity
 error Escrow__ContractorMismatch();
+```
+
+### Escrow__AuthorizationExpired
+Thrown when the authorization for a deposit has expired.
+
+
+```solidity
+error Escrow__AuthorizationExpired();
+```
+
+### Escrow__InvalidSignature
+Thrown when the provided signature is invalid during deposit validation.
+
+
+```solidity
+error Escrow__InvalidSignature();
+```
+
+### Escrow__ContractIdAlreadyExists
+Thrown when the provided `contractId` already exists in storage.
+
+
+```solidity
+error Escrow__ContractIdAlreadyExists();
+```
+
+### Escrow__PaymentTokenMismatch
+Thrown when the provided payment token does not match the existing contract's payment token.
+
+
+```solidity
+error Escrow__PaymentTokenMismatch();
 ```
 

@@ -1,5 +1,5 @@
 # EscrowAccountRecovery
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/modules/EscrowAccountRecovery.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/modules/EscrowAccountRecovery.sol)
 
 Provides mechanisms for recovering access to the client or contractor accounts
 in an escrow contract in case of lost credentials, using a guardian-based recovery process.
@@ -15,12 +15,30 @@ IEscrowAdminManager public adminManager;
 ```
 
 
+### registry
+*Address of the registry contract.*
+
+
+```solidity
+IEscrowRegistry public registry;
+```
+
+
 ### MIN_RECOVERY_PERIOD
 *Recovery period after which recovery can be executed.*
 
 
 ```solidity
 uint256 public constant MIN_RECOVERY_PERIOD = 3 days;
+```
+
+
+### MAX_RECOVERY_PERIOD
+*Maximum allowed recovery period to prevent indefinite blocking of recovery actions.*
+
+
+```solidity
+uint256 public constant MAX_RECOVERY_PERIOD = 30 days;
 ```
 
 
@@ -49,13 +67,14 @@ mapping(bytes32 recoveryHash => RecoveryData) public recoveryData;
 
 
 ```solidity
-constructor(address _adminManager);
+constructor(address _adminManager, address _registry);
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
 |`_adminManager`|`address`|Address of the adminManager contract of the escrow platform.|
+|`_registry`|`address`|Address of the registry contract.|
 
 
 ### initiateRecovery
@@ -70,7 +89,8 @@ function initiateRecovery(
     uint256 _milestoneId,
     address _oldAccount,
     address _newAccount,
-    Enums.EscrowType _escrowType
+    Enums.EscrowType _escrowType,
+    Enums.AccountTypeRecovery _accountType
 ) external;
 ```
 **Parameters**
@@ -83,6 +103,7 @@ function initiateRecovery(
 |`_oldAccount`|`address`|Current account address that needs recovery.|
 |`_newAccount`|`address`|New account address to replace the old one.|
 |`_escrowType`|`Enums.EscrowType`|Type of the escrow contract involved.|
+|`_accountType`|`Enums.AccountTypeRecovery`|Type of the account for recovery.|
 
 
 ### executeRecovery
@@ -94,7 +115,13 @@ executing it.*
 
 
 ```solidity
-function executeRecovery(Enums.AccountTypeRecovery _accountType, address _escrow, address _oldAccount) external;
+function executeRecovery(
+    Enums.AccountTypeRecovery _accountType,
+    address _escrow,
+    uint256 _contractId,
+    uint256 _milestoneId,
+    address _oldAccount
+) external;
 ```
 **Parameters**
 
@@ -102,6 +129,8 @@ function executeRecovery(Enums.AccountTypeRecovery _accountType, address _escrow
 |----|----|-----------|
 |`_accountType`|`Enums.AccountTypeRecovery`|Type of the account being recovered, either CLIENT or CONTRACTOR.|
 |`_escrow`|`address`|Address of the escrow involved in the recovery.|
+|`_contractId`|`uint256`|Contract identifier within the escrow.|
+|`_milestoneId`|`uint256`|Milestone identifier within the contract.|
 |`_oldAccount`|`address`|Old account address being replaced in the recovery.|
 
 
@@ -127,49 +156,39 @@ function cancelRecovery(bytes32 _recoveryHash) external;
 
 ```solidity
 function _transferContractOwnership(
-    Enums.EscrowType escrowType,
-    address escrow,
-    uint256 contractId,
-    uint256 milestoneId,
-    Enums.AccountTypeRecovery accountType
+    Enums.EscrowType _escrowType,
+    address _escrow,
+    uint256 _contractId,
+    uint256 _milestoneId,
+    Enums.AccountTypeRecovery _accountType
 ) internal;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`escrowType`|`Enums.EscrowType`|The type of escrow contract involved in the transfer.|
-|`escrow`|`address`|The address of the escrow contract.|
-|`contractId`|`uint256`|The identifier of the contract within the escrow, relevant for contractor transfers.|
-|`milestoneId`|`uint256`|The identifier of the milestone within the contract, relevant for milestone-specific contractor transfers.|
-|`accountType`|`Enums.AccountTypeRecovery`|The type of account to be transferred, can be either CLIENT or CONTRACTOR.|
+|`_escrowType`|`Enums.EscrowType`|The type of escrow contract involved in the transfer.|
+|`_escrow`|`address`|The address of the escrow contract.|
+|`_contractId`|`uint256`|The identifier of the contract within the escrow, relevant for contractor transfers.|
+|`_milestoneId`|`uint256`|The identifier of the milestone within the contract, relevant for milestone-specific contractor transfers.|
+|`_accountType`|`Enums.AccountTypeRecovery`|The type of account to be transferred, can be either CLIENT or CONTRACTOR.|
 
 
 ### _encodeRecoveryHash
 
-*Generates the recovery hash based on the escrow, old account, and new account addresses.*
+*Encodes recovery details into a hash (used internally).*
 
 
 ```solidity
-function _encodeRecoveryHash(address _escrow, address _oldAccount, address _newAccount)
-    internal
-    pure
-    returns (bytes32);
+function _encodeRecoveryHash(
+    address _escrow,
+    uint256 _contractId,
+    uint256 _milestoneId,
+    address _oldAccount,
+    address _newAccount,
+    Enums.AccountTypeRecovery _accountType
+) internal pure returns (bytes32);
 ```
-**Parameters**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`_escrow`|`address`|Address of the escrow contract involved in the recovery.|
-|`_oldAccount`|`address`|Address of the old account being replaced.|
-|`_newAccount`|`address`|Address of the new account replacing the old.|
-
-**Returns**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`<none>`|`bytes32`|Hash of the recovery details.|
-
 
 ### getRecoveryHash
 
@@ -177,15 +196,25 @@ function _encodeRecoveryHash(address _escrow, address _oldAccount, address _newA
 
 
 ```solidity
-function getRecoveryHash(address _escrow, address _oldAccount, address _newAccount) external pure returns (bytes32);
+function getRecoveryHash(
+    address _escrow,
+    uint256 _contractId,
+    uint256 _milestoneId,
+    address _oldAccount,
+    address _newAccount,
+    Enums.AccountTypeRecovery _accountType
+) external pure returns (bytes32);
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_escrow`|`address`||
+|`_escrow`|`address`|Address of the escrow contract related to the recovery.|
+|`_contractId`|`uint256`|Contract identifier within the escrow.|
+|`_milestoneId`|`uint256`|Milestone identifier within the contract.|
 |`_oldAccount`|`address`|Address of the user being replaced.|
 |`_newAccount`|`address`|Address of the new user.|
+|`_accountType`|`Enums.AccountTypeRecovery`|Type of the account being recovered, either CLIENT or CONTRACTOR.|
 
 **Returns**
 
@@ -294,12 +323,12 @@ error RecoveryAlreadyExecuted();
 error RecoveryPeriodStillPending();
 ```
 
-### RecoveryNotConfirmed
-*Thrown when trying to execute a recovery that has not been confirmed.*
+### RecoveryNotInitiated
+*Thrown when trying to execute a recovery that has not been initiated.*
 
 
 ```solidity
-error RecoveryNotConfirmed();
+error RecoveryNotInitiated();
 ```
 
 ### UnauthorizedAccount
@@ -310,12 +339,44 @@ error RecoveryNotConfirmed();
 error UnauthorizedAccount();
 ```
 
-### RecoveryPeriodTooSmall
+### RecoveryPeriodNotValid
 *Thrown indicates an attempt to set the recovery period below the minimum required or to zero.*
 
 
 ```solidity
-error RecoveryPeriodTooSmall();
+error RecoveryPeriodNotValid();
+```
+
+### InvalidContractId
+*Thrown if the provided contract ID is invalid or uninitialized.*
+
+
+```solidity
+error InvalidContractId();
+```
+
+### InvalidMilestoneId
+*Thrown if the provided milestone ID does not exist for the specified contract.*
+
+
+```solidity
+error InvalidMilestoneId();
+```
+
+### MilestoneNotSupported
+*Thrown if a milestone ID is provided for non-milestone escrows.*
+
+
+```solidity
+error MilestoneNotSupported();
+```
+
+### SameAccountProvided
+*Thrown if the old and new account addresses provided for recovery are identical.*
+
+
+```solidity
+error SameAccountProvided();
 ```
 
 ## Structs
@@ -331,8 +392,8 @@ struct RecoveryData {
     uint256 milestoneId;
     uint64 executeAfter;
     bool executed;
-    bool confirmed;
     Enums.EscrowType escrowType;
+    Enums.AccountTypeRecovery accountType;
 }
 ```
 

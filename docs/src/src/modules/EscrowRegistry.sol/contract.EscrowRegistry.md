@@ -1,5 +1,5 @@
 # EscrowRegistry
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/modules/EscrowRegistry.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/modules/EscrowRegistry.sol)
 
 **Inherits:**
 [IEscrowRegistry](/src/interfaces/IEscrowRegistry.sol/interface.IEscrowRegistry.md), OwnedThreeStep
@@ -28,21 +28,21 @@ address public escrowFixedPrice;
 ```
 
 
-### escrowMilestone
-Address of the escrow milestone contract currently in use.
-
-
-```solidity
-address public escrowMilestone;
-```
-
-
 ### escrowHourly
 Address of the escrow hourly contract currently in use.
 
 
 ```solidity
 address public escrowHourly;
+```
+
+
+### escrowMilestone
+Address of the escrow milestone contract currently in use.
+
+
+```solidity
+address public escrowMilestone;
 ```
 
 
@@ -68,12 +68,30 @@ address public feeManager;
 ```
 
 
-### treasury
-Address of the treasury where fees and other payments are collected.
+### fixedTreasury
+Address of the treasury designated for fixed-price escrow contracts.
 
 
 ```solidity
-address public treasury;
+address public fixedTreasury;
+```
+
+
+### hourlyTreasury
+Address of the treasury designated for hourly escrow contracts.
+
+
+```solidity
+address public hourlyTreasury;
+```
+
+
+### milestoneTreasury
+Address of the treasury designated for milestone escrow contracts.
+
+
+```solidity
+address public milestoneTreasury;
 ```
 
 
@@ -99,7 +117,8 @@ address public adminManager;
 Mapping of token addresses allowed for use as payment in escrows.
 
 *Initially includes ERC20 stablecoins and optionally wrapped native tokens.
-This setting can be updated to reflect changes in allowed payment methods, adhering to security and usability standards.*
+This setting can be updated to reflect changes in allowed payment methods, adhering to security and usability
+standards.*
 
 
 ```solidity
@@ -241,19 +260,49 @@ function updateFeeManager(address _feeManager) external onlyOwner;
 |`_feeManager`|`address`|The new address of the FeeManager contract to be used.|
 
 
-### setTreasury
+### setFixedTreasury
 
-Sets the treasury address where collected fees and other payments will be sent.
+Sets the treasury address designated for fixed-price escrow contracts.
 
 
 ```solidity
-function setTreasury(address _treasury) external onlyOwner;
+function setFixedTreasury(address _fixedTreasury) external onlyOwner;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_treasury`|`address`|New treasury address.|
+|`_fixedTreasury`|`address`|The new address of the fixed-price escrow treasury.|
+
+
+### setHourlyTreasury
+
+Sets the treasury address designated for hourly escrow contracts.
+
+
+```solidity
+function setHourlyTreasury(address _hourlyTreasury) external onlyOwner;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_hourlyTreasury`|`address`|The new address of the hourly escrow treasury.|
+
+
+### setMilestoneTreasury
+
+Sets the treasury address designated for milestone escrow contracts.
+
+
+```solidity
+function setMilestoneTreasury(address _milestoneTreasury) external onlyOwner;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_milestoneTreasury`|`address`|The new address of the milestone escrow treasury.|
 
 
 ### setAccountRecovery
@@ -314,5 +363,20 @@ function removeFromBlacklist(address _user) external onlyOwner;
 |Name|Type|Description|
 |----|----|-----------|
 |`_user`|`address`|The address to remove from the blacklist.|
+
+
+### withdrawETH
+
+Withdraws any ETH accidentally sent to the contract.
+
+
+```solidity
+function withdrawETH(address _receiver) external onlyOwner;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_receiver`|`address`|The address that will receive the withdrawn ETH.|
 
 

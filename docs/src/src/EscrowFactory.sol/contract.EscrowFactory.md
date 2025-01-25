@@ -1,5 +1,5 @@
 # EscrowFactory
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/EscrowFactory.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/EscrowFactory.sol)
 
 **Inherits:**
 [IEscrowFactory](/src/interfaces/IEscrowFactory.sol/interface.IEscrowFactory.md), OwnedThreeStep, Pausable
@@ -8,8 +8,17 @@
 
 
 ## State Variables
+### adminManager
+Address of the adminManager contract managing platform administrators.
+
+
+```solidity
+IEscrowAdminManager public adminManager;
+```
+
+
 ### registry
-EscrowRegistry contract address storing escrow templates and configurations.
+Address of the registry contract storing escrow templates and configurations.
 
 
 ```solidity
@@ -38,18 +47,19 @@ mapping(address escrow => bool deployed) public existingEscrow;
 ## Functions
 ### constructor
 
-*Sets the initial registry used for cloning escrow contracts.*
+Initializes the factory contract with the adminManager, registry and owner.
 
 
 ```solidity
-constructor(address _registry, address _owner) OwnedThreeStep(_owner);
+constructor(address _adminManager, address _registry, address _owner) OwnedThreeStep(_owner);
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
+|`_adminManager`|`address`|Address of the adminManager contract of the escrow platform.|
 |`_registry`|`address`|Address of the registry contract.|
-|`_owner`|`address`|Address of the initial owner of the factory contract.|
+|`_owner`|`address`||
 
 
 ### deployEscrow
@@ -57,25 +67,18 @@ constructor(address _registry, address _owner) OwnedThreeStep(_owner);
 Deploys a new escrow contract clone with unique settings for each project.
 
 *This function clones the specified escrow template and initializes it with specific parameters for the
-project.
-It uses the clone factory pattern for deployment to minimize gas costs and manage multiple escrow contract
-versions.*
+project. It uses the clone factory pattern for deployment to minimize gas costs and manage multiple escrow
+contract versions.*
 
 
 ```solidity
-function deployEscrow(Enums.EscrowType _escrowType, address _client, address _adminManager, address _registry)
-    external
-    whenNotPaused
-    returns (address deployedProxy);
+function deployEscrow(Enums.EscrowType _escrowType) external whenNotPaused returns (address deployedProxy);
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
 |`_escrowType`|`Enums.EscrowType`|The type of escrow to deploy, which determines the template used for cloning.|
-|`_client`|`address`|The client's address who initiates the escrow, msg.sender.|
-|`_adminManager`|`address`|Address of the adminManager contract of the escrow platform.|
-|`_registry`|`address`|Address of the registry contract to fetch escrow implementation.|
 
 **Returns**
 
@@ -129,6 +132,21 @@ function getEscrowImplementation(Enums.EscrowType _escrowType) external view ret
 |`escrowImpl`|`address`|The address of the escrow implementation.|
 
 
+### updateAdminManager
+
+Updates the address of the admin manager contract.
+
+
+```solidity
+function updateAdminManager(address _adminManager) external onlyOwner;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_adminManager`|`address`|The new address of the AdminManager contract to be used.|
+
+
 ### updateRegistry
 
 Updates the registry address used for fetching escrow implementations.
@@ -150,7 +168,7 @@ Pauses the contract, preventing new escrows from being deployed.
 
 
 ```solidity
-function pause() public onlyOwner;
+function pause() external onlyOwner;
 ```
 
 ### unpause
@@ -159,6 +177,21 @@ Unpauses the contract, allowing new escrows to be deployed.
 
 
 ```solidity
-function unpause() public onlyOwner;
+function unpause() external onlyOwner;
 ```
+
+### withdrawETH
+
+Withdraws any ETH accidentally sent to the contract.
+
+
+```solidity
+function withdrawETH(address _receiver) external onlyOwner;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_receiver`|`address`|The address that will receive the withdrawn ETH.|
+
 

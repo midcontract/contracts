@@ -1,5 +1,5 @@
 # EscrowFixedPrice
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/EscrowFixedPrice.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/EscrowFixedPrice.sol)
 
 **Inherits:**
 [IEscrowFixedPrice](/src/interfaces/IEscrowFixedPrice.sol/interface.IEscrowFixedPrice.md), [ERC1271](/src/common/ERC1271.sol/abstract.ERC1271.md)
@@ -36,15 +36,6 @@ address public client;
 ```
 
 
-### currentContractId
-*Tracks the last issued contract ID, incrementing with each new contract creation.*
-
-
-```solidity
-uint256 private currentContractId;
-```
-
-
 ### initialized
 *Indicates that the contract has been initialized.*
 
@@ -59,7 +50,16 @@ bool public initialized;
 
 
 ```solidity
-mapping(uint256 contractId => Deposit) public deposits;
+mapping(uint256 contractId => DepositInfo) public deposits;
+```
+
+
+### previousStatuses
+*Maps each contract ID to its previous status before the return request.*
+
+
+```solidity
+mapping(uint256 contractId => Enums.Status) public previousStatuses;
 ```
 
 
@@ -96,32 +96,33 @@ Creates a new deposit for a fixed-price contract within the escrow system.
 
 
 ```solidity
-function deposit(Deposit calldata _deposit) external onlyClient;
+function deposit(DepositRequest calldata _deposit) external onlyClient;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_deposit`|`Deposit`|Details of the deposit to be created.|
+|`_deposit`|`DepositRequest`|Details of the deposit to be created.|
 
 
 ### submit
 
 Submits work for a contract by the contractor.
 
-*This function allows the contractor to submit their work details for a contract.*
+*Uses ECDSA signature to ensure the data originates from the contractor.*
 
 
 ```solidity
-function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt) external;
+function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt, bytes calldata _signature) external;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
 |`_contractId`|`uint256`|ID of the deposit to be submitted.|
-|`_data`|`bytes`|Contractor’s details or work summary.|
-|`_salt`|`bytes32`|Unique salt for cryptographic operations.|
+|`_data`|`bytes`|Contractor-specific data.|
+|`_salt`|`bytes32`|Unique salt value.|
+|`_signature`|`bytes`|Signature proving the contractor’s authorization.|
 
 
 ### approve
@@ -231,20 +232,19 @@ function approveReturn(uint256 _contractId) external;
 
 ### cancelReturn
 
-Cancels a previously requested return and resets the deposit's status.
+Cancels a previously requested return and resets the deposit's status to the previous one.
 
-*Allows reverting the deposit status from RETURN_REQUESTED to an active state.*
+*Reverts the status from RETURN_REQUESTED to the previous status stored in `previousStatuses`.*
 
 
 ```solidity
-function cancelReturn(uint256 _contractId, Enums.Status _status) external onlyClient;
+function cancelReturn(uint256 _contractId) external onlyClient;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
 |`_contractId`|`uint256`|The unique identifier of the deposit for which the return is being cancelled.|
-|`_status`|`Enums.Status`|The new status to set for the deposit, must be ACTIVE, SUBMITTED, APPROVED, or COMPLETED.|
 
 
 ### createDispute
@@ -354,55 +354,75 @@ function updateAdminManager(address _adminManager) external;
 |`_adminManager`|`address`|The new address of the admin manager contract.|
 
 
-### getCurrentContractId
+### contractExists
 
-Retrieves the current contract ID.
-
-
-```solidity
-function getCurrentContractId() external view returns (uint256);
-```
-**Returns**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`<none>`|`uint256`|The current contract ID.|
-
-
-### getContractorDataHash
-
-Generates a hash for the contractor data.
-
-*This external function computes the hash value for the contractor data using the provided data and salt.*
+Checks if a given contract ID exists.
 
 
 ```solidity
-function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32);
+function contractExists(uint256 _contractId) external view returns (bool);
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_data`|`bytes`|Contractor data.|
-|`_salt`|`bytes32`|Salt value for generating the hash.|
+|`_contractId`|`uint256`|The contract ID to check.|
 
 **Returns**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`<none>`|`bytes32`|Hash value of the contractor data.|
+|`<none>`|`bool`|bool True if the contract exists, false otherwise.|
+
+
+### getContractorDataHash
+
+Generates a hash for the contractor data with address binding.
+
+*External function to compute a hash value tied to the contractor's identity.*
+
+
+```solidity
+function getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+    external
+    pure
+    returns (bytes32);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_contractor`|`address`|Address of the contractor.|
+|`_data`|`bytes`|Contractor-specific data.|
+|`_salt`|`bytes32`|A unique salt value.|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bytes32`|Hash value bound to the contractor's address, data, and salt.|
 
 
 ### _getContractorDataHash
 
-Generates a hash for the contractor data.
+Generates a unique hash for verifying contractor data.
 
-*This internal function computes the hash value for the contractor data using the provided data and salt.*
+*Computes a hash that combines the contractor's address, data, and a salt value to securely bind the data
+to the contractor. This approach prevents impersonation and front-running attacks.*
 
 
 ```solidity
-function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32);
+function _getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+    internal
+    pure
+    returns (bytes32);
 ```
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bytes32`|A keccak256 hash combining the contractor's address, data, and salt for verification.|
+
 
 ### _computeDepositAmountAndFee
 
@@ -512,5 +532,20 @@ function _isValidSignature(bytes32 _hash, bytes calldata _signature) internal vi
 |Name|Type|Description|
 |----|----|-----------|
 |`<none>`|`bool`|True if the signature is valid, false otherwise.|
+
+
+### _validateDepositAuthorization
+
+Validates deposit fields against admin-signed approval.
+
+
+```solidity
+function _validateDepositAuthorization(DepositRequest calldata _deposit) internal view;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_deposit`|`DepositRequest`|The deposit details including signature and expiration.|
 
 

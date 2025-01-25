@@ -1,5 +1,5 @@
 # EscrowMilestone
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/EscrowMilestone.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/EscrowMilestone.sol)
 
 **Inherits:**
 [IEscrowMilestone](/src/interfaces/IEscrowMilestone.sol/interface.IEscrowMilestone.md), [ERC1271](/src/common/ERC1271.sol/abstract.ERC1271.md)
@@ -33,15 +33,6 @@ IEscrowRegistry public registry;
 
 ```solidity
 address public client;
-```
-
-
-### currentContractId
-*Tracks the last issued contract ID, incrementing with each new contract creation.*
-
-
-```solidity
-uint256 private currentContractId;
 ```
 
 
@@ -81,6 +72,15 @@ mapping(uint256 contractId => mapping(uint256 milestoneId => MilestoneDetails)) 
 ```
 
 
+### previousStatuses
+*Maps each contract ID and milestone ID pair to its previous status before the return request.*
+
+
+```solidity
+mapping(uint256 contractId => mapping(uint256 milestoneId => Enums.Status)) public previousStatuses;
+```
+
+
 ## Functions
 ### onlyClient
 
@@ -114,19 +114,19 @@ Creates multiple milestones for a new or existing contract.
 
 *This function allows the initialization of multiple milestones in a single transaction,
 either by creating a new contract or adding to an existing one. Uses the adjustable limit `maxMilestones`
-to prevent gas limit issues.*
+to prevent gas limit issues.
+Uses authorization validation to prevent tampering or unauthorized deposits.*
 
 
 ```solidity
-function deposit(uint256 _contractId, address _paymentToken, Milestone[] calldata _milestones) external onlyClient;
+function deposit(DepositRequest calldata _deposit, Milestone[] calldata _milestones) external onlyClient;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_contractId`|`uint256`|ID of the contract for which the deposits are made; if zero, a new contract is initialized.|
-|`_paymentToken`|`address`| The address of the payment token for the contractId.|
-|`_milestones`|`Milestone[]`|Array of details for each new milestone.|
+|`_deposit`|`DepositRequest`|DepositRequest struct containing all deposit details.|
+|`_milestones`|`Milestone[]`||
 
 
 ### submit
@@ -137,7 +137,13 @@ Submits work for a milestone by the contractor.
 
 
 ```solidity
-function submit(uint256 _contractId, uint256 _milestoneId, bytes calldata _data, bytes32 _salt) external;
+function submit(
+    uint256 _contractId,
+    uint256 _milestoneId,
+    bytes calldata _data,
+    bytes32 _salt,
+    bytes calldata _signature
+) external;
 ```
 **Parameters**
 
@@ -147,6 +153,7 @@ function submit(uint256 _contractId, uint256 _milestoneId, bytes calldata _data,
 |`_milestoneId`|`uint256`|ID of the milestone to submit work for.|
 |`_data`|`bytes`|Contractor’s details or work summary.|
 |`_salt`|`bytes32`|Unique salt for cryptographic operations.|
+|`_signature`|`bytes`|Signature proving the contractor’s authorization.|
 
 
 ### approve
@@ -285,11 +292,11 @@ function approveReturn(uint256 _contractId, uint256 _milestoneId) external;
 
 Cancels a previously requested return and resets the milestone's status.
 
-*Allows reverting the milestone status from RETURN_REQUESTED to an active state.*
+*Reverts the status from RETURN_REQUESTED to the previous status stored in `previousStatuses`.*
 
 
 ```solidity
-function cancelReturn(uint256 _contractId, uint256 _milestoneId, Enums.Status _status) external onlyClient;
+function cancelReturn(uint256 _contractId, uint256 _milestoneId) external onlyClient;
 ```
 **Parameters**
 
@@ -297,7 +304,6 @@ function cancelReturn(uint256 _contractId, uint256 _milestoneId, Enums.Status _s
 |----|----|-----------|
 |`_contractId`|`uint256`|The unique identifier of the milestone for which the return is being cancelled.|
 |`_milestoneId`|`uint256`|ID of the milestone for which the return is being cancelled.|
-|`_status`|`Enums.Status`|The new status to set for the milestone, must be ACTIVE, SUBMITTED, APPROVED, or COMPLETED.|
 
 
 ### createDispute
@@ -432,19 +438,25 @@ function setMaxMilestones(uint256 _maxMilestones) external;
 |`_maxMilestones`|`uint256`|The new maximum number of milestones.|
 
 
-### getCurrentContractId
+### contractExists
 
-Retrieves the current contract ID.
+Checks if a given contract ID exists.
 
 
 ```solidity
-function getCurrentContractId() external view returns (uint256);
+function contractExists(uint256 _contractId) external view returns (bool);
 ```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_contractId`|`uint256`|The contract ID to check.|
+
 **Returns**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`<none>`|`uint256`|The current contract ID.|
+|`<none>`|`bool`|bool True if the contract exists, false otherwise.|
 
 
 ### getMilestoneCount
@@ -470,38 +482,73 @@ function getMilestoneCount(uint256 _contractId) external view returns (uint256);
 
 ### getContractorDataHash
 
-Generates a hash for the contractor data.
+Generates a hash for the contractor data with address binding.
 
-*This external function computes the hash value for the contractor data using the provided data and salt.*
+*External function to compute a hash value tied to the contractor's identity.*
 
 
 ```solidity
-function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32);
+function getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+    external
+    pure
+    returns (bytes32);
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_data`|`bytes`|Contractor data.|
-|`_salt`|`bytes32`|Salt value for generating the hash.|
+|`_contractor`|`address`|Address of the contractor.|
+|`_data`|`bytes`|Contractor-specific data.|
+|`_salt`|`bytes32`|A unique salt value.|
 
 **Returns**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`<none>`|`bytes32`|Hash value of the contractor data.|
+|`<none>`|`bytes32`|Hash value bound to the contractor's address, data, and salt.|
+
+
+### hashMilestones
+
+Computes a hash for the given array of milestones.
+
+
+```solidity
+function hashMilestones(Milestone[] calldata _milestones) public pure returns (bytes32);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_milestones`|`Milestone[]`|The array of milestones to hash.|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bytes32`|bytes32 The combined hash of all the milestones.|
 
 
 ### _getContractorDataHash
 
-Generates a hash for the contractor data.
+Generates a unique hash for verifying contractor data.
 
-*This internal function computes the hash value for the contractor data using the provided data and salt.*
+*Computes a hash that combines the contractor's address, data, and a salt value to securely bind the data
+to the contractor. This approach prevents impersonation and front-running attacks.*
 
 
 ```solidity
-function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32);
+function _getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+    internal
+    pure
+    returns (bytes32);
 ```
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bytes32`|A keccak256 hash combining the contractor's address, data, and salt for verification.|
+
 
 ### _computeDepositAmountAndFee
 
@@ -611,5 +658,45 @@ function _isValidSignature(bytes32 _hash, bytes calldata _signature) internal vi
 |Name|Type|Description|
 |----|----|-----------|
 |`<none>`|`bool`|True if the signature is valid, false otherwise.|
+
+
+### _validateDepositAuthorization
+
+Validates the deposit request using a single signature.
+
+*Ensures the signature is signed off-chain and matches the provided parameters.*
+
+
+```solidity
+function _validateDepositAuthorization(DepositRequest calldata _deposit) internal view;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_deposit`|`DepositRequest`|The deposit details including signature, expiration, and milestones hash.|
+
+
+### _hashMilestones
+
+Hashes all milestones into a single bytes32 hash.
+
+*Used internally to compute a unique identifier for an array of milestones.*
+
+
+```solidity
+function _hashMilestones(Milestone[] calldata _milestones) internal pure returns (bytes32);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_milestones`|`Milestone[]`|Array of milestones to hash.|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bytes32`|bytes32 Combined hash of all milestones.|
 
 

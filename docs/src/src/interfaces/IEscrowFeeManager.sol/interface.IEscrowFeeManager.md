@@ -1,5 +1,5 @@
 # IEscrowFeeManager
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/interfaces/IEscrowFeeManager.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/interfaces/IEscrowFeeManager.sol)
 
 Defines the standard functions and events for an escrow fee management system.
 
@@ -224,28 +224,36 @@ event UserSpecificFeesReset(address indexed user);
 |`user`|`address`|The address of the user whose fees were reset.|
 
 ## Errors
-### EscrowFeeManager__FeeTooHigh
+### FeeTooHigh
 *Thrown when the specified fee exceeds the maximum allowed basis points.*
 
 
 ```solidity
-error EscrowFeeManager__FeeTooHigh();
+error FeeTooHigh();
 ```
 
-### EscrowFeeManager__UnsupportedFeeConfiguration
+### UnsupportedFeeConfiguration
 *Thrown when an unsupported fee configuration is used.*
 
 
 ```solidity
-error EscrowFeeManager__UnsupportedFeeConfiguration();
+error UnsupportedFeeConfiguration();
 ```
 
-### EscrowFeeManager__ZeroAddressProvided
+### ZeroAddressProvided
 *Thrown when an operation includes or results in a zero address where it is not allowed.*
 
 
 ```solidity
-error EscrowFeeManager__ZeroAddressProvided();
+error ZeroAddressProvided();
+```
+
+### UnauthorizedAccount
+Thrown when an unauthorized account attempts an action.
+
+
+```solidity
+error UnauthorizedAccount();
 ```
 
 ## Structs

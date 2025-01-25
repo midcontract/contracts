@@ -1,5 +1,5 @@
 # IEscrowHourly
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/interfaces/IEscrowHourly.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/interfaces/IEscrowHourly.sol)
 
 **Inherits:**
 [IEscrow](/src/interfaces/IEscrow.sol/interface.IEscrow.md)
@@ -110,7 +110,12 @@ Emitted when a claim is made.
 
 ```solidity
 event Claimed(
-    address indexed contractor, uint256 indexed contractId, uint256 weekId, uint256 amount, uint256 feeAmount
+    address indexed contractor,
+    uint256 indexed contractId,
+    uint256 weekId,
+    uint256 amount,
+    uint256 feeAmount,
+    address indexed client
 );
 ```
 
@@ -123,6 +128,7 @@ event Claimed(
 |`weekId`|`uint256`|The ID of the week.|
 |`amount`|`uint256`|The net amount claimed by the contractor, after deducting fees.|
 |`feeAmount`|`uint256`|The fee amount paid by the contractor for the claim.|
+|`client`|`address`|The address of the client associated with the contract.|
 
 ### BulkClaimed
 Emitted when a contractor claims amounts from multiple weeks in one transaction.
@@ -136,7 +142,8 @@ event BulkClaimed(
     uint256 endWeekId,
     uint256 totalClaimedAmount,
     uint256 totalFeeAmount,
-    uint256 totalClientFee
+    uint256 totalClientFee,
+    address indexed client
 );
 ```
 
@@ -151,6 +158,7 @@ event BulkClaimed(
 |`totalClaimedAmount`|`uint256`|The total amount claimed across all weeks in the specified range.|
 |`totalFeeAmount`|`uint256`|The total fee amount deducted from the claims.|
 |`totalClientFee`|`uint256`|The total additional fee paid by the client related to the claims.|
+|`client`|`address`|The address of the client associated with the contract.|
 
 ### Withdrawn
 Emitted when a withdrawal is made.
@@ -192,7 +200,7 @@ Emitted when a return is approved.
 
 
 ```solidity
-event ReturnApproved(address indexed approver, uint256 indexed contractId);
+event ReturnApproved(address indexed approver, uint256 indexed contractId, address indexed client);
 ```
 
 **Parameters**
@@ -201,6 +209,7 @@ event ReturnApproved(address indexed approver, uint256 indexed contractId);
 |----|----|-----------|
 |`approver`|`address`|The address of the approver.|
 |`contractId`|`uint256`|The ID of the contract.|
+|`client`|`address`|The address of the client associated with the contract.|
 
 ### ReturnCanceled
 Emitted when a return is canceled.
@@ -222,7 +231,7 @@ Emitted when a dispute is created.
 
 
 ```solidity
-event DisputeCreated(address indexed sender, uint256 indexed contractId, uint256 weekId);
+event DisputeCreated(address indexed sender, uint256 indexed contractId, uint256 weekId, address indexed client);
 ```
 
 **Parameters**
@@ -232,6 +241,7 @@ event DisputeCreated(address indexed sender, uint256 indexed contractId, uint256
 |`sender`|`address`|The address of the sender.|
 |`contractId`|`uint256`|The ID of the contract.|
 |`weekId`|`uint256`|The ID of the week.|
+|`client`|`address`|The address of the client associated with the contract.|
 
 ### DisputeResolved
 Emitted when a dispute is resolved.
@@ -244,7 +254,8 @@ event DisputeResolved(
     uint256 weekId,
     Enums.Winner winner,
     uint256 clientAmount,
-    uint256 contractorAmount
+    uint256 contractorAmount,
+    address indexed client
 );
 ```
 
@@ -258,6 +269,7 @@ event DisputeResolved(
 |`winner`|`Enums.Winner`|The winner of the dispute.|
 |`clientAmount`|`uint256`|The amount awarded to the client.|
 |`contractorAmount`|`uint256`|The amount awarded to the contractor.|
+|`client`|`address`|The address of the client associated with the contract.|
 
 ### ContractorOwnershipTransferred
 Emitted when the ownership of a contractor account is transferred to a new owner.
@@ -311,17 +323,25 @@ error Escrow__InsufficientPrepayment();
 ```
 
 ## Structs
-### Deposit
-Represents the payload for initializing or adding to a deposit within a contract.
+### DepositRequest
+Represents the input parameters required for initializing or adding to a deposit with authorization in
+the hourly escrow.
+
+*This struct is used as a payload to authorize deposit requests and validate them against admin-signed
+approvals.*
 
 
 ```solidity
-struct Deposit {
+struct DepositRequest {
+    uint256 contractId;
     address contractor;
     address paymentToken;
     uint256 prepaymentAmount;
     uint256 amountToClaim;
     Enums.FeeConfig feeConfig;
+    address escrow;
+    uint256 expiration;
+    bytes signature;
 }
 ```
 
@@ -329,11 +349,15 @@ struct Deposit {
 
 |Name|Type|Description|
 |----|----|-----------|
-|`contractor`|`address`|The address of the contractor responsible for the work.|
-|`paymentToken`|`address`|The address of the payment token used for the deposit.|
-|`prepaymentAmount`|`uint256`|The amount paid upfront for the contract.|
+|`contractId`|`uint256`|The ID of the contract associated with the deposit.|
+|`contractor`|`address`|The address of the contractor responsible for fulfilling the contract work.|
+|`paymentToken`|`address`|The address of the ERC20 token used as payment in the deposit.|
+|`prepaymentAmount`|`uint256`|The upfront payment amount made as part of the contract deposit.|
 |`amountToClaim`|`uint256`|The amount that can be claimed by the contractor upon completion.|
-|`feeConfig`|`Enums.FeeConfig`|Configuration setting that determines how fees are handled within the deposit.|
+|`feeConfig`|`Enums.FeeConfig`|Configuration specifying how platform fees are applied to the deposit.|
+|`escrow`|`address`|The address of the escrow contract managing this deposit.|
+|`expiration`|`uint256`|The UNIX timestamp after which the deposit request is considered invalid and cannot be processed.|
+|`signature`|`bytes`|The cryptographic signature generated by the admin to authorize and validate the deposit request.|
 
 ### ContractDetails
 Holds detailed information about a contract's settings and status.

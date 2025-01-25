@@ -1,7 +1,8 @@
 # IEscrowRegistry
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/interfaces/IEscrowRegistry.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/interfaces/IEscrowRegistry.sol)
 
-*Interface for the registry that manages configuration settings such as payment tokens and contract addresses for an escrow system.*
+*Interface for the registry that manages configuration settings such as payment tokens and contract addresses
+for an escrow system.*
 
 
 ## Functions
@@ -101,19 +102,55 @@ function feeManager() external view returns (address);
 |`<none>`|`address`|The address of the feeManager contract.|
 
 
-### treasury
+### fixedTreasury
 
-Retrieves the current treasury account address stored in the registry.
+Retrieves the treasury address used for fixed-price escrow contracts.
+
+*Used to isolate funds collected from fixed-price contracts.*
 
 
 ```solidity
-function treasury() external view returns (address);
+function fixedTreasury() external view returns (address);
 ```
 **Returns**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`<none>`|`address`|The address of the treasury account.|
+|`<none>`|`address`|The address of the fixed-price escrow treasury.|
+
+
+### hourlyTreasury
+
+Retrieves the treasury address used for hourly escrow contracts.
+
+*Used to isolate funds collected from hourly-based contracts.*
+
+
+```solidity
+function hourlyTreasury() external view returns (address);
+```
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`address`|The address of the hourly escrow treasury.|
+
+
+### milestoneTreasury
+
+Retrieves the treasury address used for milestone escrow contracts.
+
+*Used to isolate funds collected from milestone-based contracts.*
+
+
+```solidity
+function milestoneTreasury() external view returns (address);
+```
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`address`|The address of the milestone escrow treasury.|
 
 
 ### accountRecovery
@@ -370,28 +407,51 @@ event Whitelisted(address indexed user);
 |----|----|-----------|
 |`user`|`address`|The address that has been removed from the blacklist.|
 
+### ETHWithdrawn
+Emitted when ETH is successfully withdrawn from the contract.
+
+
+```solidity
+event ETHWithdrawn(address receiver, uint256 amount);
+```
+
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`receiver`|`address`|The address that received the withdrawn ETH.|
+|`amount`|`uint256`|The amount of ETH withdrawn from the contract.|
+
 ## Errors
-### Registry__ZeroAddressProvided
+### ZeroAddressProvided
 Thrown when a zero address is provided where a valid address is required.
 
 
 ```solidity
-error Registry__ZeroAddressProvided();
+error ZeroAddressProvided();
 ```
 
-### Registry__TokenAlreadyAdded
+### TokenAlreadyAdded
 Thrown when attempting to add a token that has already been added to the registry.
 
 
 ```solidity
-error Registry__TokenAlreadyAdded();
+error TokenAlreadyAdded();
 ```
 
-### Registry__PaymentTokenNotRegistered
+### PaymentTokenNotRegistered
 Thrown when attempting to remove or access a token that is not registered.
 
 
 ```solidity
-error Registry__PaymentTokenNotRegistered();
+error PaymentTokenNotRegistered();
+```
+
+### ETHTransferFailed
+Thrown when an ETH transfer failed.
+
+
+```solidity
+error ETHTransferFailed();
 ```
 

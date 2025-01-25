@@ -1,19 +1,37 @@
 # EscrowFeeManager
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/modules/EscrowFeeManager.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/modules/EscrowFeeManager.sol)
 
 **Inherits:**
-[IEscrowFeeManager](/src/interfaces/IEscrowFeeManager.sol/interface.IEscrowFeeManager.md), OwnedThreeStep
+[IEscrowFeeManager](/src/interfaces/IEscrowFeeManager.sol/interface.IEscrowFeeManager.md)
 
 Manages fee rates and calculations for escrow transactions.
 
 
 ## State Variables
+### adminManager
+Address of the adminManager contract managing platform administrators.
+
+
+```solidity
+IEscrowAdminManager public adminManager;
+```
+
+
 ### MAX_BPS
 The maximum allowable percentage in basis points (100%).
 
 
 ```solidity
 uint256 public constant MAX_BPS = 10_000;
+```
+
+
+### MAX_FEE_BPS
+The maximum allowable fee percentage in basis points (e.g., 50%).
+
+
+```solidity
+uint256 public constant MAX_FEE_BPS = 5000;
 ```
 
 
@@ -54,21 +72,30 @@ mapping(address instance => mapping(uint256 contractId => FeeRates)) public cont
 
 
 ## Functions
-### constructor
+### onlyAdmin
 
-*Sets initial default fees on contract deployment.*
+Restricts access to admin-only functions.
 
 
 ```solidity
-constructor(uint16 _coverage, uint16 _claim, address _owner) OwnedThreeStep(_owner);
+modifier onlyAdmin();
+```
+
+### constructor
+
+Initializes the fee manager contract with the adminManager and default fees.
+
+
+```solidity
+constructor(address _adminManager, uint16 _coverage, uint16 _claim);
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
+|`_adminManager`|`address`|Address of the adminManager contract of the escrow platform.|
 |`_coverage`|`uint16`|Initial default coverage fee percentage.|
 |`_claim`|`uint16`|Initial default claim fee percentage.|
-|`_owner`|`address`|Address of the initial owner of the fee manager contract.|
 
 
 ### setDefaultFees
@@ -77,7 +104,7 @@ Updates the default coverage and claim fees.
 
 
 ```solidity
-function setDefaultFees(uint16 _coverage, uint16 _claim) external onlyOwner;
+function setDefaultFees(uint16 _coverage, uint16 _claim) external onlyAdmin;
 ```
 **Parameters**
 
@@ -93,7 +120,7 @@ Sets specific fee rates for a user.
 
 
 ```solidity
-function setUserSpecificFees(address _user, uint16 _coverage, uint16 _claim) external onlyOwner;
+function setUserSpecificFees(address _user, uint16 _coverage, uint16 _claim) external onlyAdmin;
 ```
 **Parameters**
 
@@ -110,7 +137,7 @@ Sets specific fee rates for an instance (proxy).
 
 
 ```solidity
-function setInstanceFees(address _instance, uint16 _coverage, uint16 _claim) external onlyOwner;
+function setInstanceFees(address _instance, uint16 _coverage, uint16 _claim) external onlyAdmin;
 ```
 **Parameters**
 
@@ -129,7 +156,7 @@ Sets specific fee rates for a particular contract ID within an instance.
 ```solidity
 function setContractSpecificFees(address _instance, uint256 _contractId, uint16 _coverage, uint16 _claim)
     external
-    onlyOwner;
+    onlyAdmin;
 ```
 **Parameters**
 
@@ -147,7 +174,7 @@ Resets contract-specific fees to default by removing the fee entry for a given c
 
 
 ```solidity
-function resetContractSpecificFees(address _instance, uint256 _contractId) external onlyOwner;
+function resetContractSpecificFees(address _instance, uint256 _contractId) external onlyAdmin;
 ```
 **Parameters**
 
@@ -163,7 +190,7 @@ Resets instance-specific fees to default by removing the fee entry for the given
 
 
 ```solidity
-function resetInstanceSpecificFees(address _instance) external onlyOwner;
+function resetInstanceSpecificFees(address _instance) external onlyAdmin;
 ```
 **Parameters**
 
@@ -178,7 +205,7 @@ Resets user-specific fees to default by removing the fee entry for the specified
 
 
 ```solidity
-function resetUserSpecificFees(address _user) external onlyOwner;
+function resetUserSpecificFees(address _user) external onlyAdmin;
 ```
 **Parameters**
 
@@ -194,7 +221,7 @@ call.
 
 
 ```solidity
-function resetAllToDefault(address _instance, uint256 _contractId, address _user) external onlyOwner;
+function resetAllToDefault(address _instance, uint256 _contractId, address _user) external onlyAdmin;
 ```
 **Parameters**
 

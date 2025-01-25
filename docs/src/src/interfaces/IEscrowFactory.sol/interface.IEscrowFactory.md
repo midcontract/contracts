@@ -1,5 +1,5 @@
 # IEscrowFactory
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/interfaces/IEscrowFactory.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/interfaces/IEscrowFactory.sol)
 
 *Interface defining the functionality for an escrow factory, responsible for deploying new escrow contracts.*
 
@@ -32,18 +32,13 @@ Deploys a new escrow contract with specified parameters.
 
 
 ```solidity
-function deployEscrow(Enums.EscrowType escrowType, address client, address admin, address registry)
-    external
-    returns (address);
+function deployEscrow(Enums.EscrowType escrowType) external returns (address);
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
 |`escrowType`|`Enums.EscrowType`|The type of escrow to deploy, which determines the template used for cloning.|
-|`client`|`address`|The address of the client for whom the escrow is being created.|
-|`admin`|`address`|The address with administrative privileges over the new escrow.|
-|`registry`|`address`|The address of the registry containing escrow configurations.|
 
 **Returns**
 
@@ -69,6 +64,20 @@ event EscrowProxyDeployed(address sender, address deployedProxy, Enums.EscrowTyp
 |`deployedProxy`|`address`|The address of the newly deployed escrow proxy.|
 |`escrowType`|`Enums.EscrowType`|The type of escrow to deploy, which determines the template used for cloning.|
 
+### AdminManagerUpdated
+Emitted when the admin manager address is updated in the registry.
+
+
+```solidity
+event AdminManagerUpdated(address adminManager);
+```
+
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`adminManager`|`address`|The new admin manager contract address.|
+
 ### RegistryUpdated
 Emitted when the registry address is updated in the factory.
 
@@ -83,20 +92,43 @@ event RegistryUpdated(address registry);
 |----|----|-----------|
 |`registry`|`address`|The new registry address.|
 
+### ETHWithdrawn
+Emitted when ETH is successfully withdrawn from the contract.
+
+
+```solidity
+event ETHWithdrawn(address receiver, uint256 amount);
+```
+
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`receiver`|`address`|The address that received the withdrawn ETH.|
+|`amount`|`uint256`|The amount of ETH withdrawn from the contract.|
+
 ## Errors
-### Factory__ZeroAddressProvided
+### ZeroAddressProvided
 Thrown when an operation involves a zero address where a valid address is required.
 
 
 ```solidity
-error Factory__ZeroAddressProvided();
+error ZeroAddressProvided();
 ```
 
-### Factory__InvalidEscrowType
+### InvalidEscrowType
 Thrown when an invalid escrow type is used in operations requiring a specific escrow type.
 
 
 ```solidity
-error Factory__InvalidEscrowType();
+error InvalidEscrowType();
+```
+
+### ETHTransferFailed
+Thrown when an ETH transfer failed.
+
+
+```solidity
+error ETHTransferFailed();
 ```
 

@@ -1,5 +1,5 @@
 # IEscrowFixedPrice
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/interfaces/IEscrowFixedPrice.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/interfaces/IEscrowFixedPrice.sol)
 
 **Inherits:**
 [IEscrow](/src/interfaces/IEscrow.sol/interface.IEscrow.md)
@@ -52,7 +52,7 @@ Emitted when a submission is made.
 
 
 ```solidity
-event Submitted(address indexed sender, uint256 indexed contractId);
+event Submitted(address indexed sender, uint256 indexed contractId, address indexed client);
 ```
 
 **Parameters**
@@ -61,6 +61,7 @@ event Submitted(address indexed sender, uint256 indexed contractId);
 |----|----|-----------|
 |`sender`|`address`|The address of the sender.|
 |`contractId`|`uint256`|The ID of the contract.|
+|`client`|`address`|The address of the client associated with the contract.|
 
 ### Approved
 Emitted when an approval is made.
@@ -100,7 +101,9 @@ Emitted when a claim is made by the contractor.
 
 
 ```solidity
-event Claimed(address indexed contractor, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
+event Claimed(
+    address indexed contractor, uint256 indexed contractId, uint256 amount, uint256 feeAmount, address indexed client
+);
 ```
 
 **Parameters**
@@ -111,6 +114,7 @@ event Claimed(address indexed contractor, uint256 indexed contractId, uint256 am
 |`contractId`|`uint256`|The ID of the contract associated with the claim.|
 |`amount`|`uint256`|The net amount claimed by the contractor, after deducting fees.|
 |`feeAmount`|`uint256`|The fee amount paid by the contractor for the claim.|
+|`client`|`address`|The address of the client associated with the contract.|
 
 ### Withdrawn
 Emitted when a withdrawal is made by a withdrawer.
@@ -149,7 +153,7 @@ Emitted when a return is approved.
 
 
 ```solidity
-event ReturnApproved(address indexed approver, uint256 contractId);
+event ReturnApproved(address indexed approver, uint256 contractId, address indexed client);
 ```
 
 **Parameters**
@@ -158,6 +162,7 @@ event ReturnApproved(address indexed approver, uint256 contractId);
 |----|----|-----------|
 |`approver`|`address`|The address of the approver.|
 |`contractId`|`uint256`|The ID of the contract.|
+|`client`|`address`|The address of the client associated with the contract.|
 
 ### ReturnCanceled
 Emitted when a return is canceled.
@@ -179,7 +184,7 @@ Emitted when a dispute is created.
 
 
 ```solidity
-event DisputeCreated(address indexed sender, uint256 contractId);
+event DisputeCreated(address indexed sender, uint256 contractId, address indexed client);
 ```
 
 **Parameters**
@@ -188,6 +193,7 @@ event DisputeCreated(address indexed sender, uint256 contractId);
 |----|----|-----------|
 |`sender`|`address`|The address of the sender.|
 |`contractId`|`uint256`|The ID of the contract.|
+|`client`|`address`|The address of the client associated with the contract.|
 
 ### DisputeResolved
 Emitted when a dispute is resolved.
@@ -195,7 +201,12 @@ Emitted when a dispute is resolved.
 
 ```solidity
 event DisputeResolved(
-    address indexed approver, uint256 contractId, Enums.Winner winner, uint256 clientAmount, uint256 contractorAmount
+    address indexed approver,
+    uint256 contractId,
+    Enums.Winner winner,
+    uint256 clientAmount,
+    uint256 contractorAmount,
+    address indexed client
 );
 ```
 
@@ -208,6 +219,7 @@ event DisputeResolved(
 |`winner`|`Enums.Winner`|The winner of the dispute.|
 |`clientAmount`|`uint256`|The amount awarded to the client.|
 |`contractorAmount`|`uint256`|The amount awarded to the contractor.|
+|`client`|`address`|The address of the client associated with the contract.|
 
 ### ContractorOwnershipTransferred
 Emitted when the ownership of a contractor account is transferred to a new owner.
@@ -228,12 +240,54 @@ event ContractorOwnershipTransferred(
 |`newOwner`|`address`|The new owner of the contractor account.|
 
 ## Structs
-### Deposit
-Represents a deposit in the escrow.
+### DepositRequest
+Represents input deposit payload for authorization in the escrow.
+
+*Includes additional metadata like expiration and signature for validation purposes.*
 
 
 ```solidity
-struct Deposit {
+struct DepositRequest {
+    uint256 contractId;
+    address contractor;
+    address paymentToken;
+    uint256 amount;
+    uint256 amountToClaim;
+    uint256 amountToWithdraw;
+    bytes32 contractorData;
+    Enums.FeeConfig feeConfig;
+    Enums.Status status;
+    address escrow;
+    uint256 expiration;
+    bytes signature;
+}
+```
+
+**Properties**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`contractId`|`uint256`|The ID of the contract associated with the deposit.|
+|`contractor`|`address`|The address of the contractor who will receive the deposit.|
+|`paymentToken`|`address`|The address of the ERC20 token used for payment.|
+|`amount`|`uint256`|The total amount being deposited.|
+|`amountToClaim`|`uint256`|The amount that can be claimed by the contractor.|
+|`amountToWithdraw`|`uint256`|The amount available for withdrawal by the contractor.|
+|`contractorData`|`bytes32`|A hash representing additional data related to the contractor.|
+|`feeConfig`|`Enums.FeeConfig`|Configuration specifying how fees are applied to the deposit.|
+|`status`|`Enums.Status`|The status of the deposit request before processing.|
+|`escrow`|`address`|The explicit address of the escrow contract handling the deposit.|
+|`expiration`|`uint256`|The timestamp specifying when the deposit request becomes invalid.|
+|`signature`|`bytes`|A digital signature from an admin validating the deposit request.|
+
+### DepositInfo
+Represents a storage for deposit details in the escrow.
+
+*This struct stores essential details about the deposit after it is processed.*
+
+
+```solidity
+struct DepositInfo {
     address contractor;
     address paymentToken;
     uint256 amount;
@@ -249,12 +303,12 @@ struct Deposit {
 
 |Name|Type|Description|
 |----|----|-----------|
-|`contractor`|`address`|The address of the contractor.|
-|`paymentToken`|`address`|The address of the payment token.|
-|`amount`|`uint256`|The amount deposited.|
-|`amountToClaim`|`uint256`|The amount to be claimed.|
-|`amountToWithdraw`|`uint256`|The amount to be withdrawn.|
-|`contractorData`|`bytes32`|The contractor's data hash.|
-|`feeConfig`|`Enums.FeeConfig`|The fee configuration.|
-|`status`|`Enums.Status`|The status of the deposit.|
+|`contractor`|`address`|The address of the contractor who will receive the deposit.|
+|`paymentToken`|`address`|The address of the ERC20 token used for payment.|
+|`amount`|`uint256`|The total amount deposited.|
+|`amountToClaim`|`uint256`|The amount that the contractor is eligible to claim.|
+|`amountToWithdraw`|`uint256`|The amount available for withdrawal by the contractor.|
+|`contractorData`|`bytes32`|A hash representing additional data related to the contractor.|
+|`feeConfig`|`Enums.FeeConfig`|Configuration specifying how fees are applied to the deposit.|
+|`status`|`Enums.Status`|The current status of the deposit.|
 

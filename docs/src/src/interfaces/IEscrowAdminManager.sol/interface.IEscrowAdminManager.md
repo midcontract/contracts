@@ -1,5 +1,5 @@
 # IEscrowAdminManager
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/interfaces/IEscrowAdminManager.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/interfaces/IEscrowAdminManager.sol)
 
 Provides interface methods for checking roles in the Escrow Admin Management system.
 
@@ -103,4 +103,37 @@ function isDao(address account) external view returns (bool);
 |----|----|-----------|
 |`<none>`|`bool`|True if the specified account is a dao, false otherwise.|
 
+
+## Events
+### ETHWithdrawn
+Emitted when ETH is successfully withdrawn from the contract.
+
+
+```solidity
+event ETHWithdrawn(address receiver, uint256 amount);
+```
+
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`receiver`|`address`|The address that received the withdrawn ETH.|
+|`amount`|`uint256`|The amount of ETH withdrawn from the contract.|
+
+## Errors
+### ZeroAddressProvided
+*Thrown when zero address usage where prohibited.*
+
+
+```solidity
+error ZeroAddressProvided();
+```
+
+### ETHTransferFailed
+Thrown when an ETH transfer failed.
+
+
+```solidity
+error ETHTransferFailed();
+```
 

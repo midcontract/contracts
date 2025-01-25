@@ -1,14 +1,18 @@
 # EscrowAdminManager
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/modules/EscrowAdminManager.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/modules/EscrowAdminManager.sol)
 
 **Inherits:**
-OwnedRoles
+[IEscrowAdminManager](/src/interfaces/IEscrowAdminManager.sol/interface.IEscrowAdminManager.md), OwnedRoles
 
-Manages administrative roles and permissions for the escrow system, using a role-based access control mechanism.
+Manages administrative roles and permissions for the escrow system, using a role-based access control
+mechanism.
 
-*This contract extends OwnedRoles to utilize its role management functionalities and establishes predefined roles such as Admin, Guardian, and Strategist.
-It includes references to unused role constants defined in the OwnedRoles library, which are part of the library's design to accommodate potential future roles.
-These constants do not affect the contract's functionality or gas efficiency but are retained for compatibility and future flexibility.*
+*This contract extends OwnedRoles to utilize its role management functionalities and establishes predefined
+roles such as Admin, Guardian, and Strategist.
+It includes references to unused role constants defined in the OwnedRoles library, which are part of the library's
+design to accommodate potential future roles.
+These constants do not affect the contract's functionality or gas efficiency but are retained for compatibility and
+future flexibility.*
 
 
 ## State Variables
@@ -258,5 +262,35 @@ function isDao(address _account) public view returns (bool);
 |Name|Type|Description|
 |----|----|-----------|
 |`<none>`|`bool`|True if the address has the Dao role, otherwise false.|
+
+
+### owner
+
+Resolves the conflict between `OwnedRoles` and `IEscrowAdminManager` for the `owner` function.
+
+
+```solidity
+function owner() public view override(OwnedRoles, IEscrowAdminManager) returns (address);
+```
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`address`|The address of the current owner.|
+
+
+### withdrawETH
+
+Withdraws any ETH accidentally sent to the contract.
+
+
+```solidity
+function withdrawETH(address _receiver) external onlyOwner;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_receiver`|`address`|The address that will receive the withdrawn ETH.|
 
 

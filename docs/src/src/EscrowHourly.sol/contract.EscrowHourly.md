@@ -1,5 +1,5 @@
 # EscrowHourly
-[Git Source](https://github.com/midcontract/contracts/blob/846255a5e3f946c40a5e526a441b2695f1307e48/src/EscrowHourly.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/EscrowHourly.sol)
 
 **Inherits:**
 [IEscrowHourly](/src/interfaces/IEscrowHourly.sol/interface.IEscrowHourly.md), [ERC1271](/src/common/ERC1271.sol/abstract.ERC1271.md)
@@ -35,15 +35,6 @@ address public client;
 ```
 
 
-### currentContractId
-*Tracks the last issued contract ID, incrementing with each new contract creation.*
-
-
-```solidity
-uint256 private currentContractId;
-```
-
-
 ### initialized
 *Indicates that the contract has been initialized.*
 
@@ -68,6 +59,15 @@ mapping(uint256 contractId => ContractDetails) public contractDetails;
 
 ```solidity
 mapping(uint256 contractId => WeeklyEntry[] weekIds) public weeklyEntries;
+```
+
+
+### previousStatuses
+*Maps each contract ID to its previous status before the return request.*
+
+
+```solidity
+mapping(uint256 contractId => Enums.Status) public previousStatuses;
 ```
 
 
@@ -108,14 +108,13 @@ contract.*
 
 
 ```solidity
-function deposit(uint256 _contractId, Deposit calldata _deposit) external onlyClient;
+function deposit(DepositRequest calldata _deposit) external onlyClient;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_contractId`|`uint256`|ID of the contract for which the deposit is made; if zero, a new contract is initialized.|
-|`_deposit`|`Deposit`|Details for deposit and initial week settings.|
+|`_deposit`|`DepositRequest`|Details for deposit and initial week settings.|
 
 
 ### approve
@@ -277,20 +276,19 @@ function approveReturn(uint256 _contractId) external;
 
 ### cancelReturn
 
-Cancels a previously requested return and resets the contract's status.
+Cancels a previously requested return and resets the deposit's status to the previous one.
 
-*Allows reverting the contract status from RETURN_REQUESTED to an active state.*
+*Reverts the status from RETURN_REQUESTED to the previous status stored in `previousStatuses`.*
 
 
 ```solidity
-function cancelReturn(uint256 _contractId, Enums.Status _status) external onlyClient;
+function cancelReturn(uint256 _contractId) external onlyClient;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_contractId`|`uint256`|The unique identifier of the contract for which the return is cancelled.|
-|`_status`|`Enums.Status`|The new status to set for the contract, must be either ACTIVE or APPROVED or COMPLETED.|
+|`_contractId`|`uint256`|The unique identifier of the deposit for which the return is being cancelled.|
 
 
 ### createDispute
@@ -407,19 +405,25 @@ function updateAdminManager(address _adminManager) external;
 |`_adminManager`|`address`|The new address of the admin manager contract.|
 
 
-### getCurrentContractId
+### contractExists
 
-Retrieves the current contract ID.
+Checks if a given contract ID exists.
 
 
 ```solidity
-function getCurrentContractId() external view returns (uint256);
+function contractExists(uint256 _contractId) external view returns (bool);
 ```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_contractId`|`uint256`|The contract ID to check.|
+
 **Returns**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`<none>`|`uint256`|The current contract ID.|
+|`<none>`|`bool`|bool True if the contract exists, false otherwise.|
 
 
 ### getWeeksCount
@@ -572,5 +576,20 @@ function _isValidSignature(bytes32 _hash, bytes calldata _signature) internal vi
 |Name|Type|Description|
 |----|----|-----------|
 |`<none>`|`bool`|True if the signature is valid, false otherwise.|
+
+
+### _validateDepositAuthorization
+
+Validates deposit fields against admin-signed approval.
+
+
+```solidity
+function _validateDepositAuthorization(DepositRequest calldata _deposit) internal view;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_deposit`|`DepositRequest`|The deposit details including signature and expiration.|
 
 
