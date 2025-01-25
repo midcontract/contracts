@@ -29,7 +29,7 @@ contract DeployAccountRecoveryScript is Script {
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        accountRecovery = new EscrowAccountRecovery(adminManager);
+        accountRecovery = new EscrowAccountRecovery(adminManager, registry);
         console.log("==accountRecovery addr=%s", address(accountRecovery));
         vm.stopBroadcast();
 

@@ -30,9 +30,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @dev Address of the client who initiates the escrow contract.
     address public client;
 
-    /// @dev Tracks the last issued contract ID, incrementing with each new contract creation.
-    uint256 private currentContractId;
-
     /// @notice The maximum number of milestones that can be processed in a single transaction.
     uint256 public maxMilestones;
 
@@ -44,6 +41,9 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
     /// @dev Maps each contract and milestone ID pair to its corresponding MilestoneDetails.
     mapping(uint256 contractId => mapping(uint256 milestoneId => MilestoneDetails)) public milestoneDetails;
+
+    /// @dev Maps each contract ID and milestone ID pair to its previous status before the return request.
+    mapping(uint256 contractId => mapping(uint256 milestoneId => Enums.Status)) public previousStatuses;
 
     /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
@@ -79,30 +79,46 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @dev This function allows the initialization of multiple milestones in a single transaction,
     ///     either by creating a new contract or adding to an existing one. Uses the adjustable limit `maxMilestones`
     ///     to prevent gas limit issues.
-    /// @param _contractId ID of the contract for which the deposits are made; if zero, a new contract is initialized.
-    /// @param _paymentToken  The address of the payment token for the contractId.
-    /// @param _milestones Array of details for each new milestone.
-    function deposit(uint256 _contractId, address _paymentToken, Milestone[] calldata _milestones)
-        external
-        onlyClient
-    {
+    ///     Uses authorization validation to prevent tampering or unauthorized deposits.
+    /// @param _deposit DepositRequest struct containing all deposit details.
+    function deposit(DepositRequest calldata _deposit, Milestone[] calldata _milestones) external onlyClient {
         // Check for blacklisted accounts and unsupported payment tokens.
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-        if (!registry.paymentTokens(_paymentToken)) revert Escrow__NotSupportedPaymentToken();
+        if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
 
         // Ensure there are milestones provided and do not exceed the limit.
-        if (_milestones.length == 0) revert Escrow__NoDepositsProvided();
-        if (_milestones.length > maxMilestones) revert Escrow__TooManyMilestones();
+        uint256 milestonesLength = _milestones.length;
+        if (milestonesLength == 0) revert Escrow__NoDepositsProvided();
+        if (milestonesLength > maxMilestones) revert Escrow__TooManyMilestones();
 
-        // Initialize or validate the contract ID.
-        uint256 contractId = _contractId == 0 ? ++currentContractId : _contractId;
-        if (_contractId > 0 && (contractMilestones[_contractId].length == 0 && _contractId > currentContractId)) {
-            revert Escrow__InvalidContractId();
+        // Verify hash integrity.
+        bytes32 computedHash = _hashMilestones(_milestones);
+        if (computedHash != _deposit.milestonesHash) revert Escrow__InvalidMilestonesHash();
+
+        // Validate authorization using a single signature for the entire request.
+        _validateDepositAuthorization(_deposit);
+
+        // Ensure the provided `contractId` is valid.
+        uint256 contractId = _deposit.contractId;
+        if (contractId == 0) revert Escrow__InvalidContractId();
+
+        // Handle new or existing contracts.
+        if (contractMilestones[contractId].length == 0) {
+            // New contract initialization.
+            if (milestoneDetails[contractId][0].paymentToken != address(0)) revert Escrow__ContractIdAlreadyExists();
+
+            // Initialize contract milestone metadata.
+            milestoneDetails[contractId][0].paymentToken = _deposit.paymentToken;
+        } else {
+            // Validate consistency for existing contracts.
+            if (milestoneDetails[contractId][0].paymentToken != _deposit.paymentToken) {
+                revert Escrow__PaymentTokenMismatch();
+            }
         }
 
         // Calculate the required deposit amounts for each milestone to ensure sufficient funds are transferred.
         uint256 totalAmountNeeded = 0;
-        uint256 milestonesLength = _milestones.length;
+        // uint256 milestonesLength = _milestones.length;
         for (uint256 i; i < milestonesLength;) {
             if (_milestones[i].amount == 0) revert Escrow__ZeroDepositAmount();
             (uint256 totalDepositAmount,) =
@@ -114,7 +130,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         }
 
         // Perform the token transfer once to cover all milestone deposits.
-        SafeTransferLib.safeTransferFrom(_paymentToken, msg.sender, address(this), totalAmountNeeded);
+        SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), totalAmountNeeded);
 
         // Start adding milestones to the contract.
         uint256 milestoneId = contractMilestones[contractId].length;
@@ -136,7 +152,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
             // Update milestone details and initialize it in the mapping.
             MilestoneDetails storage D = milestoneDetails[contractId][milestoneId];
-            D.paymentToken = _paymentToken;
+            D.paymentToken = _deposit.paymentToken;
             D.depositAmount = M.amount;
             D.winner = Enums.Winner.NONE; // Initially set to NONE.
 
@@ -156,7 +172,14 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _milestoneId ID of the milestone to submit work for.
     /// @param _data Contractor’s details or work summary.
     /// @param _salt Unique salt for cryptographic operations.
-    function submit(uint256 _contractId, uint256 _milestoneId, bytes calldata _data, bytes32 _salt) external {
+    /// @param _signature Signature proving the contractor’s authorization.
+    function submit(
+        uint256 _contractId,
+        uint256 _milestoneId,
+        bytes calldata _data,
+        bytes32 _salt,
+        bytes calldata _signature
+    ) external {
         // Ensure that the specified milestone exists within the bounds of the contract's milestones.
         if (_milestoneId >= contractMilestones[_contractId].length) revert Escrow__InvalidMilestoneId();
 
@@ -170,16 +193,24 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         // Ensure that the milestone is in a state that allows submission.
         if (M.status != Enums.Status.ACTIVE) revert Escrow__InvalidStatusForSubmit();
 
-        // Verify contractor's data using a hash function to ensure it matches expected details.
-        bytes32 contractorDataHash = _getContractorDataHash(_data, _salt);
+        // Compute hash with contractor binding.
+        bytes32 contractorDataHash = _getContractorDataHash(msg.sender, _data, _salt);
+
+        // Verify that the computed hash matches stored contractor data.
         if (M.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
+
+        // Verify the contractor's signature.
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+        if (ECDSA.recover(ethSignedHash, _signature) != msg.sender) {
+            revert Escrow__InvalidSignature();
+        }
 
         // Update the contractor information and status to SUBMITTED.
         M.contractor = msg.sender; // Assign the contractor if not previously set.
         M.status = Enums.Status.SUBMITTED;
 
         // Emit an event indicating successful submission of the milestone.
-        emit Submitted(msg.sender, _contractId, _milestoneId);
+        emit Submitted(msg.sender, _contractId, _milestoneId, client);
     }
 
     /// @notice Approves a milestone's submitted work, specifying the amount to release to the contractor.
@@ -250,8 +281,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _contractId ID of the contract containing the milestone.
     /// @param _milestoneId ID of the milestone from which funds are to be claimed.
     function claim(uint256 _contractId, uint256 _milestoneId) external {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
         Milestone storage M = contractMilestones[_contractId][_milestoneId];
         if (msg.sender != M.contractor) revert Escrow__UnauthorizedAccount(msg.sender);
         if (M.status != Enums.Status.APPROVED && M.status != Enums.Status.RESOLVED && M.status != Enums.Status.CANCELED)
@@ -284,7 +313,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         if (M.amount == 0) M.status = Enums.Status.COMPLETED;
 
         // Emit an event to log the claim.
-        emit Claimed(msg.sender, _contractId, _milestoneId, claimAmount, feeAmount);
+        emit Claimed(msg.sender, _contractId, _milestoneId, claimAmount, feeAmount, client);
     }
 
     /// @notice Claims all approved amounts by the contractor for a given contract.
@@ -294,7 +323,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _endMilestoneId Ending milestone ID until which claims are made.
     /// This function mitigates gas exhaustion issues by allowing batch processing within a specified limit.
     function claimAll(uint256 _contractId, uint256 _startMilestoneId, uint256 _endMilestoneId) external {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (_startMilestoneId > _endMilestoneId) revert Escrow__InvalidRange();
         if (_endMilestoneId >= contractMilestones[_contractId].length) revert Escrow__OutOfRange();
 
@@ -350,7 +378,8 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
             _endMilestoneId,
             totalClaimedAmount,
             totalFeeAmount,
-            totalClientFee
+            totalClientFee,
+            client
         );
     }
 
@@ -359,8 +388,6 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _contractId The identifier of the contract from which to withdraw funds.
     /// @param _milestoneId The identifier of the milestone within the contract from which to withdraw funds.
     function withdraw(uint256 _contractId, uint256 _milestoneId) external onlyClient {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
         Milestone storage M = contractMilestones[_contractId][_milestoneId];
         if (M.status != Enums.Status.REFUND_APPROVED && M.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw();
@@ -419,6 +446,9 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
                 && M.status != Enums.Status.COMPLETED
         ) revert Escrow__ReturnNotAllowed();
 
+        // Store the current status before changing it to RETURN_REQUESTED.
+        previousStatuses[_contractId][_milestoneId] = M.status;
+
         M.status = Enums.Status.RETURN_REQUESTED;
         emit ReturnRequested(msg.sender, _contractId, _milestoneId);
     }
@@ -435,24 +465,20 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         }
         M.amountToWithdraw = M.amount;
         M.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(msg.sender, _contractId, _milestoneId);
+        emit ReturnApproved(msg.sender, _contractId, _milestoneId, client);
     }
 
     /// @notice Cancels a previously requested return and resets the milestone's status.
-    /// @dev Allows reverting the milestone status from RETURN_REQUESTED to an active state.
+    /// @dev Reverts the status from RETURN_REQUESTED to the previous status stored in `previousStatuses`.
     /// @param _contractId The unique identifier of the milestone for which the return is being cancelled.
     /// @param _milestoneId ID of the milestone for which the return is being cancelled.
-    /// @param _status The new status to set for the milestone, must be ACTIVE, SUBMITTED, APPROVED, or COMPLETED.
-    function cancelReturn(uint256 _contractId, uint256 _milestoneId, Enums.Status _status) external onlyClient {
+    function cancelReturn(uint256 _contractId, uint256 _milestoneId) external onlyClient {
         Milestone storage M = contractMilestones[_contractId][_milestoneId];
         if (M.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-        if (
-            _status != Enums.Status.ACTIVE && _status != Enums.Status.SUBMITTED && _status != Enums.Status.APPROVED
-                && _status != Enums.Status.COMPLETED
-        ) {
-            revert Escrow__InvalidStatusProvided();
-        }
-        M.status = _status;
+
+        M.status = previousStatuses[_contractId][_milestoneId];
+        delete previousStatuses[_contractId][_milestoneId];
+
         emit ReturnCanceled(msg.sender, _contractId, _milestoneId);
     }
 
@@ -470,7 +496,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         if (msg.sender != client && msg.sender != M.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         M.status = Enums.Status.DISPUTED;
-        emit DisputeCreated(msg.sender, _contractId, _milestoneId);
+        emit DisputeCreated(msg.sender, _contractId, _milestoneId, client);
     }
 
     /// @notice Resolves a dispute over a specific milestone.
@@ -510,7 +536,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
 
         milestoneDetails[_contractId][_milestoneId].winner = _winner;
 
-        emit DisputeResolved(msg.sender, _contractId, _milestoneId, _winner, _clientAmount, _contractorAmount);
+        emit DisputeResolved(msg.sender, _contractId, _milestoneId, _winner, _clientAmount, _contractorAmount, client);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -578,10 +604,11 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         emit MaxMilestonesSet(_maxMilestones);
     }
 
-    /// @notice Retrieves the current contract ID.
-    /// @return The current contract ID.
-    function getCurrentContractId() external view returns (uint256) {
-        return currentContractId;
+    /// @notice Checks if a given contract ID exists.
+    /// @param _contractId The contract ID to check.
+    /// @return bool True if the contract exists, false otherwise.
+    function contractExists(uint256 _contractId) external view returns (bool) {
+        return contractMilestones[_contractId].length > 0;
     }
 
     /// @notice Retrieves the number of milestones for a given contract ID.
@@ -591,23 +618,41 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         return contractMilestones[_contractId].length;
     }
 
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
-    /// @param _data Contractor data.
-    /// @param _salt Salt value for generating the hash.
-    /// @return Hash value of the contractor data.
-    function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
-        return _getContractorDataHash(_data, _salt);
+    /// @notice Generates a hash for the contractor data with address binding.
+    /// @dev External function to compute a hash value tied to the contractor's identity.
+    /// @param _contractor Address of the contractor.
+    /// @param _data Contractor-specific data.
+    /// @param _salt A unique salt value.
+    /// @return Hash value bound to the contractor's address, data, and salt.
+    function getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+        external
+        pure
+        returns (bytes32)
+    {
+        return _getContractorDataHash(_contractor, _data, _salt);
+    }
+
+    /// @notice Computes a hash for the given array of milestones.
+    /// @param _milestones The array of milestones to hash.
+    /// @return bytes32 The combined hash of all the milestones.
+    function hashMilestones(Milestone[] calldata _milestones) public pure returns (bytes32) {
+        return _hashMilestones(_milestones);
     }
 
     /*//////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This internal function computes the hash value for the contractor data using the provided data and salt.
-    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_data, _salt));
+    /// @notice Generates a unique hash for verifying contractor data.
+    /// @dev Computes a hash that combines the contractor's address, data, and a salt value to securely bind the data
+    ///      to the contractor. This approach prevents impersonation and front-running attacks.
+    /// @return A keccak256 hash combining the contractor's address, data, and salt for verification.
+    function _getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_contractor, _data, _salt));
     }
 
     /// @notice Computes the total deposit amount and the applied fee.
@@ -666,7 +711,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _paymentToken Address of the payment token for the fee.
     /// @param _feeAmount Amount of the fee to be transferred.
     function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {
-        address treasury = IEscrowRegistry(registry).treasury();
+        address treasury = IEscrowRegistry(registry).milestoneTreasury();
         if (treasury == address(0)) revert Escrow__ZeroAddressProvided();
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
     }
@@ -688,5 +733,49 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
             address recoveredSigner = ECDSA.recover(ethSignedHash, _signature);
             return recoveredSigner == msg.sender;
         }
+    }
+
+    /// @notice Validates the deposit request using a single signature.
+    /// @dev Ensures the signature is signed off-chain and matches the provided parameters.
+    /// @param _deposit The deposit details including signature, expiration, and milestones hash.
+    function _validateDepositAuthorization(DepositRequest calldata _deposit) internal view {
+        if (_deposit.expiration < block.timestamp) revert Escrow__AuthorizationExpired();
+
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                msg.sender,
+                _deposit.contractId,
+                _deposit.paymentToken,
+                _deposit.milestonesHash,
+                _deposit.expiration,
+                address(this)
+            )
+        );
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(hash);
+        address signer = adminManager.owner();
+        if (!SignatureChecker.isValidSignatureNow(signer, ethSignedHash, _deposit.signature)) {
+            revert Escrow__InvalidSignature();
+        }
+    }
+
+    /// @notice Hashes all milestones into a single bytes32 hash.
+    /// @dev Used internally to compute a unique identifier for an array of milestones.
+    /// @param _milestones Array of milestones to hash.
+    /// @return bytes32 Combined hash of all milestones.
+    function _hashMilestones(Milestone[] calldata _milestones) internal pure returns (bytes32) {
+        bytes32[] memory hashes = new bytes32[](_milestones.length);
+
+        for (uint256 i = 0; i < _milestones.length; i++) {
+            hashes[i] = keccak256(
+                abi.encode(
+                    _milestones[i].contractor,
+                    _milestones[i].amount,
+                    _milestones[i].contractorData,
+                    _milestones[i].feeConfig
+                )
+            );
+        }
+
+        return keccak256(abi.encodePacked(hashes));
     }
 }

@@ -30,14 +30,14 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Address of the client who initiates the escrow contract.
     address public client;
 
-    /// @dev Tracks the last issued contract ID, incrementing with each new contract creation.
-    uint256 private currentContractId;
-
     /// @dev Indicates that the contract has been initialized.
     bool public initialized;
 
     /// @dev Maps each contract ID to its corresponding deposit details.
-    mapping(uint256 contractId => Deposit) public deposits;
+    mapping(uint256 contractId => DepositInfo) public deposits;
+
+    /// @dev Maps each contract ID to its previous status before the return request.
+    mapping(uint256 contractId => Enums.Status) public previousStatuses;
 
     /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
@@ -70,7 +70,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
 
     /// @notice Creates a new deposit for a fixed-price contract within the escrow system.
     /// @param _deposit Details of the deposit to be created.
-    function deposit(Deposit calldata _deposit) external onlyClient {
+    function deposit(DepositRequest calldata _deposit) external onlyClient {
         // Ensure the sender is not blacklisted and that the payment token is supported.
         if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
         if (!registry.paymentTokens(_deposit.paymentToken)) revert Escrow__NotSupportedPaymentToken();
@@ -78,13 +78,19 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Validate that the deposit amount is greater than zero.
         if (_deposit.amount == 0) revert Escrow__ZeroDepositAmount();
 
-        // Increment the contract ID counter safely.
-        unchecked {
-            currentContractId++;
+        // Ensure the provided `contractId` is valid, unique, and non-zero.
+        if (
+            _deposit.contractId == 0 || deposits[_deposit.contractId].status != Enums.Status.NONE
+                || deposits[_deposit.contractId].paymentToken != address(0)
+        ) {
+            revert Escrow__ContractIdAlreadyExists();
         }
 
+        // Validate the deposit fields against admin signature.
+        _validateDepositAuthorization(_deposit);
+
         // Store the deposit information in the storage mapping.
-        Deposit storage D = deposits[currentContractId];
+        DepositInfo storage D = deposits[_deposit.contractId];
         D.contractor = _deposit.contractor;
         D.paymentToken = _deposit.paymentToken;
         D.amount = _deposit.amount;
@@ -96,22 +102,23 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
 
         // Compute the total amount to be transferred, including any applicable fees.
         (uint256 totalDepositAmount,) =
-            _computeDepositAmountAndFee(currentContractId, msg.sender, _deposit.amount, _deposit.feeConfig);
+            _computeDepositAmountAndFee(_deposit.contractId, msg.sender, _deposit.amount, _deposit.feeConfig);
 
         // Transfer the calculated total deposit amount from the sender to this contract.
         SafeTransferLib.safeTransferFrom(_deposit.paymentToken, msg.sender, address(this), totalDepositAmount);
 
         // Emit an event to log the deposit details.
-        emit Deposited(msg.sender, currentContractId, totalDepositAmount, _deposit.contractor);
+        emit Deposited(msg.sender, _deposit.contractId, totalDepositAmount, _deposit.contractor);
     }
 
     /// @notice Submits work for a contract by the contractor.
-    /// @dev This function allows the contractor to submit their work details for a contract.
+    /// @dev Uses ECDSA signature to ensure the data originates from the contractor.
     /// @param _contractId ID of the deposit to be submitted.
-    /// @param _data Contractor’s details or work summary.
-    /// @param _salt Unique salt for cryptographic operations.
-    function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt) external {
-        Deposit storage D = deposits[_contractId];
+    /// @param _data Contractor-specific data.
+    /// @param _salt Unique salt value.
+    /// @param _signature Signature proving the contractor’s authorization.
+    function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt, bytes calldata _signature) external {
+        DepositInfo storage D = deposits[_contractId];
         // Only allow the designated contractor to submit, or allow initial submission if no contractor has been set.
         if (D.contractor != address(0) && msg.sender != D.contractor) {
             revert Escrow__UnauthorizedAccount(msg.sender);
@@ -120,16 +127,24 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Check that the contract is currently active and ready to receive a submission.
         if (D.status != Enums.Status.ACTIVE) revert Escrow__InvalidStatusForSubmit();
 
-        // Verify contractor's data using a hash function to ensure it matches expected details.
-        bytes32 contractorDataHash = _getContractorDataHash(_data, _salt);
+        // Compute hash with contractor binding.
+        bytes32 contractorDataHash = _getContractorDataHash(msg.sender, _data, _salt);
+
+        // Verify that the computed hash matches stored contractor data.
         if (D.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
+
+        // Verify the contractor's signature.
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
+        if (ECDSA.recover(ethSignedHash, _signature) != msg.sender) {
+            revert Escrow__InvalidSignature();
+        }
 
         // Update the contractor's address and change the contract status to SUBMITTED.
         D.contractor = msg.sender;
         D.status = Enums.Status.SUBMITTED;
 
         // Emit an event to signal that the work has been successfully submitted.
-        emit Submitted(msg.sender, _contractId);
+        emit Submitted(msg.sender, _contractId, client);
     }
 
     /// @notice Approves a submitted deposit by the client or an administrator.
@@ -146,7 +161,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Check that the approval amount is greater than zero.
         if (_amountApprove == 0) revert Escrow__InvalidAmount();
 
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
 
         // Verify the deposit is in a status that allows for approval.
         if (D.status != Enums.Status.SUBMITTED) revert Escrow__InvalidStatusForApprove();
@@ -175,7 +190,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Ensure a non-zero amount is specified for the refill operation.
         if (_amountAdditional == 0) revert Escrow__InvalidAmount();
 
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
 
         // Calculate the total amount including any applicable fees.
         (uint256 totalAmountAdditional,) =
@@ -195,9 +210,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Allows contractors to retrieve funds that have been approved for their work.
     /// @param _contractId Identifier of the deposit from which funds will be claimed.
     function claim(uint256 _contractId) external {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         // Verify that the deposit is in a state that allows claiming.
         if (D.status != Enums.Status.APPROVED && D.status != Enums.Status.RESOLVED && D.status != Enums.Status.CANCELED)
         {
@@ -234,16 +247,14 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (D.amount == 0) D.status = Enums.Status.COMPLETED;
 
         // Emit an event to record the claim transaction.
-        emit Claimed(msg.sender, _contractId, claimAmount, feeAmount);
+        emit Claimed(msg.sender, _contractId, claimAmount, feeAmount, client);
     }
 
     /// @notice Withdraws funds from a deposit under specific conditions after a refund approval or resolution.
     /// @dev Handles the withdrawal process including fee deductions and state updates.
     /// @param _contractId Identifier of the deposit from which funds will be withdrawn.
     function withdraw(uint256 _contractId) external onlyClient {
-        if (registry.blacklist(msg.sender)) revert Escrow__BlacklistedAccount();
-
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         // Verify the deposit's status to ensure it's eligible for withdrawal.
         if (D.status != Enums.Status.REFUND_APPROVED && D.status != Enums.Status.RESOLVED) {
             revert Escrow__InvalidStatusToWithdraw();
@@ -289,11 +300,14 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev The contract must be in an eligible state to request a return (not in disputed or already returned status).
     /// @param _contractId ID of the deposit for which the return is requested.
     function requestReturn(uint256 _contractId) external onlyClient {
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         if (
             D.status != Enums.Status.ACTIVE && D.status != Enums.Status.SUBMITTED && D.status != Enums.Status.APPROVED
                 && D.status != Enums.Status.COMPLETED
         ) revert Escrow__ReturnNotAllowed();
+
+        // Store the current status before changing it to RETURN_REQUESTED.
+        previousStatuses[_contractId] = D.status;
 
         D.status = Enums.Status.RETURN_REQUESTED;
         emit ReturnRequested(msg.sender, _contractId);
@@ -303,30 +317,29 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev This changes the status of the deposit to allow the client to withdraw their funds.
     /// @param _contractId ID of the deposit for which the return is approved.
     function approveReturn(uint256 _contractId) external {
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
         if (msg.sender != D.contractor && !IEscrowAdminManager(adminManager).isAdmin(msg.sender)) {
             revert Escrow__UnauthorizedToApproveReturn();
         }
         D.amountToWithdraw = D.amount; // Allows full withdrawal of the initial deposit.
         D.status = Enums.Status.REFUND_APPROVED;
-        emit ReturnApproved(msg.sender, _contractId);
+        emit ReturnApproved(msg.sender, _contractId, client);
     }
 
-    /// @notice Cancels a previously requested return and resets the deposit's status.
-    /// @dev Allows reverting the deposit status from RETURN_REQUESTED to an active state.
+    /// @notice Cancels a previously requested return and resets the deposit's status to the previous one.
+    /// @dev Reverts the status from RETURN_REQUESTED to the previous status stored in `previousStatuses`.
     /// @param _contractId The unique identifier of the deposit for which the return is being cancelled.
-    /// @param _status The new status to set for the deposit, must be ACTIVE, SUBMITTED, APPROVED, or COMPLETED.
-    function cancelReturn(uint256 _contractId, Enums.Status _status) external onlyClient {
-        Deposit storage D = deposits[_contractId];
+    function cancelReturn(uint256 _contractId) external onlyClient {
+        DepositInfo storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED) revert Escrow__NoReturnRequested();
-        if (
-            _status != Enums.Status.ACTIVE && _status != Enums.Status.SUBMITTED && _status != Enums.Status.APPROVED
-                && _status != Enums.Status.COMPLETED
-        ) {
-            revert Escrow__InvalidStatusProvided();
-        }
-        D.status = _status;
+
+        // Reset the status to the previous state.
+        D.status = previousStatuses[_contractId];
+
+        // Remove the previous status mapping entry.
+        delete previousStatuses[_contractId];
+
         emit ReturnCanceled(msg.sender, _contractId);
     }
 
@@ -336,14 +349,14 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @param _contractId ID of the deposit where the dispute is to be created.
     /// This function can only be called if the deposit status is either RETURN_REQUESTED or SUBMITTED.
     function createDispute(uint256 _contractId) external {
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         if (D.status != Enums.Status.RETURN_REQUESTED && D.status != Enums.Status.SUBMITTED) {
             revert Escrow__CreateDisputeNotAllowed();
         }
         if (msg.sender != client && msg.sender != D.contractor) revert Escrow__UnauthorizedToApproveDispute();
 
         D.status = Enums.Status.DISPUTED;
-        emit DisputeCreated(msg.sender, _contractId);
+        emit DisputeCreated(msg.sender, _contractId, client);
     }
 
     /// @notice Resolves a dispute over a specific deposit.
@@ -360,7 +373,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     {
         if (!IEscrowAdminManager(adminManager).isAdmin(msg.sender)) revert Escrow__UnauthorizedAccount(msg.sender);
 
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
         if (D.status != Enums.Status.DISPUTED) revert Escrow__DisputeNotActiveForThisDeposit();
 
         // Validate the total resolution does not exceed the available deposit amount.
@@ -377,7 +390,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
             D.amountToWithdraw = (_winner == Enums.Winner.CLIENT || _winner == Enums.Winner.SPLIT) ? _clientAmount : 0;
         }
 
-        emit DisputeResolved(msg.sender, _contractId, _winner, _clientAmount, _contractorAmount);
+        emit DisputeResolved(msg.sender, _contractId, _winner, _clientAmount, _contractorAmount, client);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -406,7 +419,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (msg.sender != registry.accountRecovery()) revert Escrow__UnauthorizedAccount(msg.sender);
         if (_newAccount == address(0)) revert Escrow__ZeroAddressProvided();
 
-        Deposit storage D = deposits[_contractId];
+        DepositInfo storage D = deposits[_contractId];
 
         // Emit the ownership transfer event before changing the state to reflect the previous state.
         emit ContractorOwnershipTransferred(_contractId, D.contractor, _newAccount);
@@ -434,29 +447,41 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         emit AdminManagerUpdated(_adminManager);
     }
 
-    /// @notice Retrieves the current contract ID.
-    /// @return The current contract ID.
-    function getCurrentContractId() external view returns (uint256) {
-        return currentContractId;
+    /// @notice Checks if a given contract ID exists.
+    /// @param _contractId The contract ID to check.
+    /// @return bool True if the contract exists, false otherwise.
+    function contractExists(uint256 _contractId) external view returns (bool) {
+        return deposits[_contractId].status != Enums.Status.NONE;
     }
 
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This external function computes the hash value for the contractor data using the provided data and salt.
-    /// @param _data Contractor data.
-    /// @param _salt Salt value for generating the hash.
-    /// @return Hash value of the contractor data.
-    function getContractorDataHash(bytes calldata _data, bytes32 _salt) external pure returns (bytes32) {
-        return _getContractorDataHash(_data, _salt);
+    /// @notice Generates a hash for the contractor data with address binding.
+    /// @dev External function to compute a hash value tied to the contractor's identity.
+    /// @param _contractor Address of the contractor.
+    /// @param _data Contractor-specific data.
+    /// @param _salt A unique salt value.
+    /// @return Hash value bound to the contractor's address, data, and salt.
+    function getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+        external
+        pure
+        returns (bytes32)
+    {
+        return _getContractorDataHash(_contractor, _data, _salt);
     }
 
     /*//////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Generates a hash for the contractor data.
-    /// @dev This internal function computes the hash value for the contractor data using the provided data and salt.
-    function _getContractorDataHash(bytes calldata _data, bytes32 _salt) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_data, _salt));
+    /// @notice Generates a unique hash for verifying contractor data.
+    /// @dev Computes a hash that combines the contractor's address, data, and a salt value to securely bind the data
+    ///      to the contractor. This approach prevents impersonation and front-running attacks.
+    /// @return A keccak256 hash combining the contractor's address, data, and salt for verification.
+    function _getContractorDataHash(address _contractor, bytes calldata _data, bytes32 _salt)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_contractor, _data, _salt));
     }
 
     /// @notice Computes the total deposit amount and the applied fee.
@@ -515,7 +540,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @param _paymentToken Address of the payment token for the fee.
     /// @param _feeAmount Amount of the fee to be transferred.
     function _sendPlatformFee(address _paymentToken, uint256 _feeAmount) internal {
-        address treasury = IEscrowRegistry(registry).treasury();
+        address treasury = IEscrowRegistry(registry).fixedTreasury();
         if (treasury == address(0)) revert Escrow__ZeroAddressProvided();
         SafeTransferLib.safeTransfer(_paymentToken, treasury, _feeAmount);
     }
@@ -536,6 +561,35 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
             // EOA signature verification.
             address recoveredSigner = ECDSA.recover(ethSignedHash, _signature);
             return recoveredSigner == msg.sender;
+        }
+    }
+
+    /// @notice Validates deposit fields against admin-signed approval.
+    /// @param _deposit The deposit details including signature and expiration.
+    function _validateDepositAuthorization(DepositRequest calldata _deposit) internal view {
+        // Ensure the authorization has not expired.
+        if (_deposit.expiration < block.timestamp) revert Escrow__AuthorizationExpired();
+
+        // Generate hash for signed data.
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                msg.sender, // Client submitting the deposit.
+                _deposit.contractId, // Contract ID for the deposit.
+                _deposit.contractor, // Contractor's address.
+                _deposit.paymentToken, // Payment token address.
+                _deposit.amount, // Deposit amount.
+                _deposit.feeConfig, // Fee configuration.
+                _deposit.contractorData, // Data hash for contractor details.
+                _deposit.expiration, // Expiration timestamp.
+                address(this) // Contract address.
+            )
+        );
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(hash);
+
+        // Verify signature using the admin's address.
+        address signer = adminManager.owner();
+        if (!SignatureChecker.isValidSignatureNow(signer, ethSignedHash, _deposit.signature)) {
+            revert Escrow__InvalidSignature();
         }
     }
 }

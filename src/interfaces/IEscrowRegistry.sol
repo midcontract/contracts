@@ -2,16 +2,20 @@
 pragma solidity 0.8.25;
 
 /// @title Interface for the EscrowRegistry
-/// @dev Interface for the registry that manages configuration settings such as payment tokens and contract addresses for an escrow system.
+/// @dev Interface for the registry that manages configuration settings such as payment tokens and contract addresses
+/// for an escrow system.
 interface IEscrowRegistry {
     /// @notice Thrown when a zero address is provided where a valid address is required.
-    error Registry__ZeroAddressProvided();
+    error ZeroAddressProvided();
 
     /// @notice Thrown when attempting to add a token that has already been added to the registry.
-    error Registry__TokenAlreadyAdded();
+    error TokenAlreadyAdded();
 
     /// @notice Thrown when attempting to remove or access a token that is not registered.
-    error Registry__PaymentTokenNotRegistered();
+    error PaymentTokenNotRegistered();
+
+    /// @notice Thrown when an ETH transfer failed.
+    error ETHTransferFailed();
 
     /// @notice Emitted when a new payment token is added to the registry.
     /// @param token The address of the token that was added.
@@ -53,6 +57,11 @@ interface IEscrowRegistry {
     /// @param user The address that has been removed from the blacklist.
     event Whitelisted(address indexed user);
 
+    /// @notice Emitted when ETH is successfully withdrawn from the contract.
+    /// @param receiver The address that received the withdrawn ETH.
+    /// @param amount The amount of ETH withdrawn from the contract.
+    event ETHWithdrawn(address receiver, uint256 amount);
+
     /// @notice Checks if a token is enabled as a payment token in the registry.
     /// @param token The address of the token to check.
     /// @return True if the token is enabled, false otherwise.
@@ -78,9 +87,20 @@ interface IEscrowRegistry {
     /// @return The address of the feeManager contract.
     function feeManager() external view returns (address);
 
-    /// @notice Retrieves the current treasury account address stored in the registry.
-    /// @return The address of the treasury account.
-    function treasury() external view returns (address);
+    /// @notice Retrieves the treasury address used for fixed-price escrow contracts.
+    /// @dev Used to isolate funds collected from fixed-price contracts.
+    /// @return The address of the fixed-price escrow treasury.
+    function fixedTreasury() external view returns (address);
+
+    /// @notice Retrieves the treasury address used for hourly escrow contracts.
+    /// @dev Used to isolate funds collected from hourly-based contracts.
+    /// @return The address of the hourly escrow treasury.
+    function hourlyTreasury() external view returns (address);
+
+    /// @notice Retrieves the treasury address used for milestone escrow contracts.
+    /// @dev Used to isolate funds collected from milestone-based contracts.
+    /// @return The address of the milestone escrow treasury.
+    function milestoneTreasury() external view returns (address);
 
     /// @notice Retrieves the current account recovery address stored in the registry.
     /// @return The address of the account recovery contract.

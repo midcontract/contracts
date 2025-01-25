@@ -3,7 +3,8 @@ pragma solidity 0.8.25;
 
 import { Test, console2 } from "forge-std/Test.sol";
 
-import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
+import { EscrowAdminManager, IEscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
+import { MockFailingReceiver } from "test/mocks/MockFailingReceiver.sol";
 
 contract EscrowAdminManagerUnitTest is Test {
     EscrowAdminManager adminManager;
@@ -16,6 +17,7 @@ contract EscrowAdminManagerUnitTest is Test {
     address notOwner;
 
     event RolesUpdated(address indexed user, uint256 indexed roles);
+    event ETHWithdrawn(address receiver, uint256 amount);
 
     function setUp() public {
         admin = makeAddr("admin");
@@ -121,7 +123,7 @@ contract EscrowAdminManagerUnitTest is Test {
         assertFalse(adminManager.isStrategist(newAdmin));
     }
 
-   function test_addDaoAccount() public {
+    function test_addDaoAccount() public {
         assertFalse(adminManager.isDao(notOwner));
         vm.prank(notOwner);
         vm.expectRevert(OwnedRoles.Unauthorized.selector);
@@ -184,7 +186,7 @@ contract EscrowAdminManagerUnitTest is Test {
         vm.prank(pendingOwner);
         adminManager.requestOwnershipHandover();
 
-        vm.warp(block.timestamp + 172801); // Fast forward time to simulate handover period
+        vm.warp(block.timestamp + 172_801); // Fast forward time to simulate handover period
 
         vm.prank(initialOwner);
         vm.expectRevert(OwnedRoles.NoHandoverRequest.selector);
@@ -198,5 +200,25 @@ contract EscrowAdminManagerUnitTest is Test {
         adminManager.completeOwnershipHandover(pendingOwner);
         assertEq(adminManager.owner(), pendingOwner);
         assertNotEq(adminManager.owner(), initialOwner);
+    }
+
+    function test_withdraw_eth() public {
+        vm.deal(address(adminManager), 10 ether);
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedRoles.Unauthorized.selector);
+        adminManager.withdrawETH(notOwner);
+        vm.startPrank(initialOwner);
+        vm.expectRevert(IEscrowAdminManager.ZeroAddressProvided.selector);
+        adminManager.withdrawETH(address(0));
+        vm.expectEmit(true, false, false, true);
+        emit ETHWithdrawn(initialOwner, 10 ether);
+        adminManager.withdrawETH(initialOwner);
+        assertEq(initialOwner.balance, 10 ether, "Receiver did not receive the correct amount of ETH");
+        assertEq(address(adminManager).balance, 0, "AdminManager contract balance should be zero");
+        vm.deal(address(adminManager), 10 ether);
+        MockFailingReceiver failingReceiver = new MockFailingReceiver();
+        vm.expectRevert(IEscrowAdminManager.ETHTransferFailed.selector);
+        adminManager.withdrawETH(address(failingReceiver));
+        vm.stopPrank();
     }
 }

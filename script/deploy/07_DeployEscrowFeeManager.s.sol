@@ -10,6 +10,7 @@ import { PolAmoyConfig } from "config/PolAmoyConfig.sol";
 
 contract DeployEscrowFeeManagerScript is Script {
     EscrowFeeManager feeManager;
+    address adminManager;
     address registry;
     address ownerPublicKey;
     uint256 ownerPrivateKey;
@@ -21,12 +22,13 @@ contract DeployEscrowFeeManagerScript is Script {
         ownerPrivateKey = vm.envUint("OWNER_PRIVATE_KEY");
         deployerPublicKey = vm.envAddress("DEPLOYER_PUBLIC_KEY");
         deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        adminManager = PolAmoyConfig.ADMIN_MANAGER;
         registry = PolAmoyConfig.REGISTRY;
     }
 
     function run() public {
         vm.startBroadcast(deployerPrivateKey);
-        feeManager = new EscrowFeeManager(3_00, 5_00, ownerPublicKey);
+        feeManager = new EscrowFeeManager(adminManager, 3_00, 5_00);
         console.log("==feeManager addr=%s", address(feeManager));
         assert(address(feeManager) != address(0));
         vm.stopBroadcast();

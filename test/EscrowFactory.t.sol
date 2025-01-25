@@ -3,6 +3,10 @@ pragma solidity 0.8.25;
 
 import { Test, console2 } from "forge-std/Test.sol";
 
+import { ECDSA } from "@solbase/utils/ECDSA.sol";
+import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+
 import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";
 import { EscrowFactory, IEscrowFactory, OwnedThreeStep, Pausable } from "src/EscrowFactory.sol";
 import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
@@ -11,9 +15,10 @@ import { EscrowMilestone, IEscrowMilestone } from "src/EscrowMilestone.sol";
 import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";
 import { EscrowRegistry, IEscrowRegistry } from "src/modules/EscrowRegistry.sol";
 import { Enums } from "src/common/Enums.sol";
-import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
+import { MockFailingReceiver } from "test/mocks/MockFailingReceiver.sol";
+import { TestUtils } from "test/utils/TestUtils.sol";
 
-contract EscrowFactoryUnitTest is Test {
+contract EscrowFactoryUnitTest is Test, TestUtils {
     EscrowFactory factory;
     EscrowFixedPrice escrow;
     EscrowRegistry registry;
@@ -27,36 +32,30 @@ contract EscrowFactoryUnitTest is Test {
     address contractor;
     address treasury;
     address owner;
-
-    EscrowFixedPrice.Deposit deposit;
-    Enums.FeeConfig feeConfig;
-    Enums.Status status;
-    Enums.EscrowType escrowType;
-    IEscrowHourly.Deposit depositHourly;
-    IEscrowHourly.ContractDetails contractDetails;
+    uint256 ownerPrKey;
 
     bytes32 contractorData;
     bytes32 salt;
     bytes contractData;
+    bytes signature;
 
-    struct Deposit {
-        address contractor;
-        address paymentToken;
-        uint256 amount;
-        uint256 amountToClaim;
-        uint256 amountToWithdraw;
-        bytes32 contractorData;
-        Enums.FeeConfig feeConfig;
-        Enums.Status status;
-    }
+    Enums.FeeConfig feeConfig;
+    Enums.Status status;
+    Enums.EscrowType escrowType;
+    IEscrowFixedPrice.DepositRequest deposit;
+    IEscrowHourly.DepositRequest depositHourly;
+    IEscrowHourly.ContractDetails contractDetails;
+    IEscrowMilestone.DepositRequest depositMilestone;
 
     event EscrowProxyDeployed(address sender, address deployedProxy, Enums.EscrowType escrowType);
+    event AdminManagerUpdated(address adminManager);
     event RegistryUpdated(address registry);
     event Paused(address account);
     event Unpaused(address account);
+    event ETHWithdrawn(address receiver, uint256 amount);
 
     function setUp() public {
-        owner = makeAddr("owner");
+        (owner, ownerPrKey) = makeAddrAndKey("owner");
         treasury = makeAddr("treasury");
         client = makeAddr("client");
         contractor = makeAddr("contractor");
@@ -65,8 +64,8 @@ contract EscrowFactoryUnitTest is Test {
         escrowMilestone = new EscrowMilestone();
         registry = new EscrowRegistry(owner);
         paymentToken = new ERC20Mock();
-        feeManager = new EscrowFeeManager(300, 500, owner);
         adminManager = new EscrowAdminManager(owner);
+        feeManager = new EscrowFeeManager(address(adminManager), 300, 500);
         escrowHourly = new EscrowHourly();
 
         vm.startPrank(owner);
@@ -75,59 +74,40 @@ contract EscrowFactoryUnitTest is Test {
         registry.updateEscrowMilestone(address(escrowMilestone));
         registry.updateEscrowHourly(address(escrowHourly));
         registry.updateFeeManager(address(feeManager));
+        registry.setAdminManager(address(adminManager));
         vm.stopPrank();
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(42)));
         contractorData = keccak256(abi.encodePacked(contractData, salt));
 
-        deposit = IEscrowFixedPrice.Deposit({
-            contractor: address(0),
-            paymentToken: address(paymentToken),
-            amount: 1 ether,
-            amountToClaim: 0 ether,
-            amountToWithdraw: 0 ether,
-            contractorData: contractorData,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
-            status: Enums.Status.ACTIVE
-        });
-
         escrow.initialize(address(client), address(owner), address(registry));
 
-        factory = new EscrowFactory(address(registry), owner);
+        factory = new EscrowFactory(address(adminManager), address(registry), owner);
     }
+
+    ///////////////////////////////////////////
+    //        setup & functional tests       //
+    ///////////////////////////////////////////
 
     function test_setUpState() public view {
         assertTrue(escrow.initialized());
         assertTrue(address(factory).code.length > 0);
         assertFalse(factory.paused());
-        assertEq(factory.owner(), address(owner));
+        assertEq(address(factory.owner()), owner);
+        assertEq(address(factory.adminManager()), address(adminManager));
         assertEq(address(factory.registry()), address(registry));
     }
 
     function test_deployFactory_reverts() public {
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        new EscrowFactory(address(0), owner);
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        new EscrowFactory(address(0), address(0));
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
-        new EscrowFactory(address(registry), address(0));
-    }
-
-    // helper
-    function _computeDepositAndFeeAmount(
-        address _escrow,
-        uint256 _contractId,
-        address _client,
-        uint256 _depositAmount,
-        Enums.FeeConfig _feeConfig
-    ) internal view returns (uint256, uint256) {
-        address feeManagerAddress = registry.feeManager();
-        IEscrowFeeManager _feeManager = IEscrowFeeManager(feeManagerAddress);
-        (uint256 totalDepositAmount, uint256 feeApplied) =
-            _feeManager.computeDepositAmountAndFee(_escrow, _contractId, _client, _depositAmount, _feeConfig);
-
-        return (totalDepositAmount, feeApplied);
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
+        new EscrowFactory(address(0), address(registry), address(0));
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
+        new EscrowFactory(address(0), address(0), address(0));
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
+        new EscrowFactory(address(adminManager), address(0), address(0));
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
+        new EscrowFactory(address(0), address(0), address(owner));
     }
 
     function test_deployEscrow() public returns (address deployedEscrowProxy) {
@@ -136,13 +116,12 @@ contract EscrowFactoryUnitTest is Test {
         vm.startPrank(client);
         vm.expectEmit(true, true, false, false);
         emit EscrowProxyDeployed(client, deployedEscrowProxy, escrowType);
-        deployedEscrowProxy = factory.deployEscrow(escrowType, client, address(adminManager), address(registry));
+        deployedEscrowProxy = factory.deployEscrow(escrowType);
         vm.stopPrank();
         EscrowFixedPrice escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
         assertEq(escrowProxy.client(), client);
         assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
-        assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxy)));
@@ -151,24 +130,49 @@ contract EscrowFactoryUnitTest is Test {
     function test_deploy_and_deposit() public returns (EscrowFixedPrice escrowProxy) {
         vm.startPrank(client);
         // 1. deploy
-        address deployedEscrowProxy = factory.deployEscrow(escrowType, client, address(adminManager), address(registry));
+        address deployedEscrowProxy = factory.deployEscrow(escrowType);
         escrowProxy = EscrowFixedPrice(address(deployedEscrowProxy));
         assertEq(escrowProxy.client(), client);
         assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
-        assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxy)));
-        (uint256 totalDepositAmount,) =
-            _computeDepositAndFeeAmount(address(escrowProxy), 0, client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL);
+        (uint256 totalDepositAmount,) = computeDepositAndFeeAmount(
+            address(registry), address(escrowProxy), 0, client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ALL
+        );
         // 2. mint, approve payment token
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrowProxy), totalDepositAmount);
         // 3. deposit
+        TestUtils.FixedPriceSignatureParams memory params = FixedPriceSignatureParams({
+            contractId: 1,
+            contractor: address(0),
+            proxy: address(escrowProxy),
+            token: address(paymentToken),
+            amount: 1 ether,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            contractorData: contractorData,
+            client: client,
+            ownerPrKey: ownerPrKey
+        });
+        deposit = IEscrowFixedPrice.DepositRequest({
+            contractId: 1,
+            contractor: address(0),
+            paymentToken: address(paymentToken),
+            amount: 1 ether,
+            amountToClaim: 0 ether,
+            amountToWithdraw: 0 ether,
+            contractorData: contractorData,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ALL,
+            status: Enums.Status.ACTIVE,
+            escrow: address(escrowProxy),
+            expiration: block.timestamp + 3 hours,
+            signature: getSignatureFixed(params)
+        });
+
         escrowProxy.deposit(deposit);
-        uint256 currentContractId = escrowProxy.getCurrentContractId();
-        assertEq(currentContractId, 1);
+        uint256 currentContractId = 1;
         assertEq(paymentToken.balanceOf(address(escrowProxy)), totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
@@ -196,7 +200,20 @@ contract EscrowFactoryUnitTest is Test {
     function test_deposit_next() public {
         EscrowFixedPrice escrowProxy = test_deploy_and_deposit();
 
-        EscrowFixedPrice.Deposit memory deposit2 = IEscrowFixedPrice.Deposit({
+        TestUtils.FixedPriceSignatureParams memory params = FixedPriceSignatureParams({
+            contractId: 2,
+            contractor: address(0),
+            proxy: address(escrowProxy),
+            token: address(paymentToken),
+            amount: 2 ether,
+            feeConfig: Enums.FeeConfig.NO_FEES,
+            contractorData: contractorData,
+            client: client,
+            ownerPrKey: ownerPrKey
+        });
+
+        EscrowFixedPrice.DepositRequest memory deposit2 = IEscrowFixedPrice.DepositRequest({
+            contractId: 2,
             contractor: address(0),
             paymentToken: address(paymentToken),
             amount: 2 ether,
@@ -204,11 +221,15 @@ contract EscrowFactoryUnitTest is Test {
             amountToWithdraw: 0 ether,
             contractorData: contractorData,
             feeConfig: Enums.FeeConfig.NO_FEES,
-            status: Enums.Status.ACTIVE
+            status: Enums.Status.ACTIVE,
+            escrow: address(escrowProxy),
+            expiration: block.timestamp + 3 hours,
+            signature: getSignatureFixed(params)
         });
 
-        (uint256 totalDepositAmount,) =
-            _computeDepositAndFeeAmount(address(escrowProxy), 1, client, 2 ether, Enums.FeeConfig.NO_FEES);
+        (uint256 totalDepositAmount,) = computeDepositAndFeeAmount(
+            address(registry), address(escrowProxy), 1, client, 2 ether, Enums.FeeConfig.NO_FEES
+        );
 
         vm.startPrank(address(this));
         paymentToken.mint(address(this), totalDepositAmount);
@@ -223,8 +244,7 @@ contract EscrowFactoryUnitTest is Test {
         paymentToken.mint(address(client), totalDepositAmount);
         paymentToken.approve(address(escrowProxy), totalDepositAmount);
         escrowProxy.deposit(deposit2);
-        uint256 currentContractId = escrowProxy.getCurrentContractId();
-        assertEq(currentContractId, 2);
+        uint256 currentContractId = 2;
         assertEq(paymentToken.balanceOf(address(escrowProxy)), escrowBalanceBefore + totalDepositAmount);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         (
@@ -254,19 +274,16 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(escrowProxy.client(), client);
         assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
-        assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxy)));
 
         vm.startPrank(client);
-        address deployedEscrowProxy2 =
-            factory.deployEscrow(escrowType, client, address(adminManager), address(registry));
+        address deployedEscrowProxy2 = factory.deployEscrow(escrowType);
         EscrowFixedPrice escrowProxy2 = EscrowFixedPrice(address(deployedEscrowProxy2));
         assertEq(escrowProxy2.client(), client);
         assertEq(address(escrowProxy2.adminManager()), address(adminManager));
         assertEq(address(escrowProxy2.registry()), address(registry));
-        assertEq(escrowProxy2.getCurrentContractId(), 0);
         assertTrue(escrowProxy2.initialized());
         assertEq(factory.factoryNonce(client), 2);
         assertTrue(factory.existingEscrow(address(escrowProxy2)));
@@ -281,21 +298,25 @@ contract EscrowFactoryUnitTest is Test {
         vm.startPrank(client);
         vm.expectEmit(true, true, false, false);
         emit EscrowProxyDeployed(client, deployedEscrowProxy, escrowType);
-        deployedEscrowProxy = factory.deployEscrow(escrowType, client, address(adminManager), address(registry));
+        deployedEscrowProxy = factory.deployEscrow(escrowType);
 
         EscrowMilestone escrowProxy = EscrowMilestone(address(deployedEscrowProxy));
         assertEq(escrowProxy.client(), client);
         assertEq(address(escrowProxy.adminManager()), address(adminManager));
         assertEq(address(escrowProxy.registry()), address(registry));
-        assertEq(escrowProxy.getCurrentContractId(), 0);
         assertTrue(escrowProxy.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxy)));
 
         // 2. mint, approve payment token
         uint256 depositMilestoneAmount = 1 ether;
-        (uint256 totalDepositMilestoneAmount,) = _computeDepositAndFeeAmount(
-            address(escrowProxy), 1, client, depositMilestoneAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+        (uint256 totalDepositMilestoneAmount,) = computeDepositAndFeeAmount(
+            address(registry),
+            address(escrowProxy),
+            1,
+            client,
+            depositMilestoneAmount,
+            Enums.FeeConfig.CLIENT_COVERS_ONLY
         );
         paymentToken.mint(address(client), totalDepositMilestoneAmount);
         paymentToken.approve(address(escrowProxy), totalDepositMilestoneAmount);
@@ -312,15 +333,30 @@ contract EscrowFactoryUnitTest is Test {
             status: Enums.Status.ACTIVE
         });
 
-        uint256 currentContractId = escrowProxy.getCurrentContractId();
-        assertEq(currentContractId, 0);
-        escrowProxy.deposit(currentContractId, address(paymentToken), milestones);
+        uint256 currentContractId = 1;
+        bytes32 milestonesHash = hashMilestones(milestones);
+        TestUtils.MilestoneSignatureParams memory milestoneInput = MilestoneSignatureParams({
+            proxy: address(escrowProxy),
+            client: client,
+            contractId: currentContractId,
+            token: address(paymentToken),
+            milestonesHash: milestonesHash,
+            ownerPrKey: ownerPrKey
+        });
+        depositMilestone = IEscrowMilestone.DepositRequest({
+            contractId: currentContractId,
+            paymentToken: address(paymentToken),
+            milestonesHash: milestonesHash,
+            escrow: address(escrowProxy),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: getSignatureMilestone(milestoneInput)
+        });
+
+        escrowProxy.deposit(depositMilestone, milestones);
         assertEq(paymentToken.balanceOf(address(escrowProxy)), totalDepositMilestoneAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
         vm.stopPrank();
-        currentContractId = escrowProxy.getCurrentContractId();
-        assertEq(currentContractId, 1);
         uint256 milestoneId = escrowProxy.getMilestoneCount(currentContractId);
 
         (
@@ -345,49 +381,67 @@ contract EscrowFactoryUnitTest is Test {
         address deployedEscrowProxy;
         escrowType = Enums.EscrowType.HOURLY;
         vm.startPrank(client);
-        vm.expectRevert(IEscrowFactory.Factory__InvalidEscrowType.selector);
-        deployedEscrowProxy =
-            factory.deployEscrow(Enums.EscrowType.INVALID, client, address(adminManager), address(registry));
+        vm.expectRevert(IEscrowFactory.InvalidEscrowType.selector);
+        deployedEscrowProxy = factory.deployEscrow(Enums.EscrowType.INVALID);
         vm.expectEmit(true, true, false, false);
         emit EscrowProxyDeployed(client, deployedEscrowProxy, escrowType);
-        deployedEscrowProxy = factory.deployEscrow(escrowType, client, address(adminManager), address(registry));
+        deployedEscrowProxy = factory.deployEscrow(escrowType);
 
         EscrowHourly escrowProxyHourly = EscrowHourly(address(deployedEscrowProxy));
         assertEq(escrowProxyHourly.client(), client);
         assertEq(address(escrowProxyHourly.adminManager()), address(adminManager));
         assertEq(address(escrowProxyHourly.registry()), address(registry));
-        assertEq(escrowProxyHourly.getCurrentContractId(), 0);
         assertTrue(escrowProxyHourly.initialized());
         assertEq(factory.factoryNonce(client), 1);
         assertTrue(factory.existingEscrow(address(escrowProxyHourly)));
 
         // 2. mint, approve payment token
         uint256 depositHourlyAmount = 1 ether;
-        (uint256 totalDepositHourlyAmount,) = _computeDepositAndFeeAmount(
-            address(escrowProxyHourly), 1, client, depositHourlyAmount, Enums.FeeConfig.CLIENT_COVERS_ONLY
+        (uint256 totalDepositHourlyAmount,) = computeDepositAndFeeAmount(
+            address(registry),
+            address(escrowProxyHourly),
+            1,
+            client,
+            depositHourlyAmount,
+            Enums.FeeConfig.CLIENT_COVERS_ONLY
         );
         paymentToken.mint(address(client), totalDepositHourlyAmount);
         paymentToken.approve(address(escrowProxyHourly), totalDepositHourlyAmount);
 
         // 3. deposit
-        depositHourly = IEscrowHourly.Deposit({
+        uint256 currentContractId = 1;
+        TestUtils.HourlySignatureParams memory hourlyInput = HourlySignatureParams({
+            contractId: currentContractId,
+            contractor: contractor,
+            proxy: address(escrowProxyHourly),
+            token: address(paymentToken),
+            prepaymentAmount: depositHourlyAmount,
+            amountToClaim: 0,
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            client: client,
+            ownerPrKey: ownerPrKey
+        });
+        depositHourly = IEscrowHourly.DepositRequest({
+            contractId: currentContractId,
             contractor: contractor,
             paymentToken: address(paymentToken),
             prepaymentAmount: depositHourlyAmount,
             amountToClaim: 0,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY
+            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            escrow: address(escrowProxyHourly),
+            expiration: uint256(block.timestamp + 3 hours),
+            signature: getSignatureHourly(hourlyInput)
         });
-        uint256 currentContractId = escrowProxyHourly.getCurrentContractId();
-        assertEq(currentContractId, 0);
 
-        escrowProxyHourly.deposit(currentContractId, depositHourly);
+        assertFalse(escrowProxyHourly.contractExists(currentContractId));
+
+        escrowProxyHourly.deposit(depositHourly);
         assertEq(paymentToken.balanceOf(address(escrowProxyHourly)), totalDepositHourlyAmount);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        assertTrue(escrowProxyHourly.contractExists(currentContractId));
         vm.stopPrank();
 
-        currentContractId = escrowProxyHourly.getCurrentContractId();
-        assertEq(currentContractId, 1);
         (
             address _contractor,
             address _paymentToken,
@@ -395,7 +449,7 @@ contract EscrowFactoryUnitTest is Test {
             uint256 _amountToWithdraw,
             Enums.FeeConfig _feeConfig,
             Enums.Status _status
-        ) = escrowProxyHourly.contractDetails(currentContractId); //currentContractId
+        ) = escrowProxyHourly.contractDetails(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(address(_paymentToken), address(paymentToken));
         assertEq(_prepaymentAmount, 1 ether);
@@ -414,8 +468,26 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(factory.getEscrowImplementation(Enums.EscrowType.HOURLY), registry.escrowHourly());
         assertNotEq(factory.getEscrowImplementation(Enums.EscrowType.FIXED_PRICE), registry.escrowHourly());
 
-        vm.expectRevert(IEscrowFactory.Factory__InvalidEscrowType.selector);
+        vm.expectRevert(IEscrowFactory.InvalidEscrowType.selector);
         factory.getEscrowImplementation(Enums.EscrowType.INVALID);
+    }
+
+    function test_setAdminManager() public {
+        assertEq(address(factory.adminManager()), address(adminManager));
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        factory.updateAdminManager(address(adminManager));
+        vm.startPrank(address(owner));
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
+        factory.updateAdminManager(address(0));
+        assertEq(address(factory.adminManager()), address(adminManager));
+        EscrowAdminManager newAdminManager = new EscrowAdminManager(owner);
+        vm.expectEmit(true, false, false, true);
+        emit AdminManagerUpdated(address(newAdminManager));
+        factory.updateAdminManager(address(newAdminManager));
+        assertEq(address(factory.adminManager()), address(newAdminManager));
+        vm.stopPrank();
     }
 
     function test_updateRegistry() public {
@@ -425,7 +497,7 @@ contract EscrowFactoryUnitTest is Test {
         vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
         factory.updateRegistry(address(registry));
         vm.startPrank(address(owner));
-        vm.expectRevert(IEscrowFactory.Factory__ZeroAddressProvided.selector);
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
         factory.updateRegistry(address(0));
         assertEq(address(factory.registry()), address(registry));
         EscrowRegistry newRegistry = new EscrowRegistry(owner);
@@ -444,7 +516,7 @@ contract EscrowFactoryUnitTest is Test {
         factory.pause();
         assertFalse(factory.paused());
         vm.startPrank(client);
-        address deployedEscrowProxy = factory.deployEscrow(escrowType, client, owner, address(registry));
+        address deployedEscrowProxy = factory.deployEscrow(escrowType);
         vm.stopPrank();
         assertTrue(address(deployedEscrowProxy).code.length > 0);
         vm.startPrank(owner);
@@ -453,7 +525,7 @@ contract EscrowFactoryUnitTest is Test {
         factory.pause();
         assertTrue(factory.paused());
         vm.expectRevert(Pausable.EnforcedPause.selector);
-        address deployedEscrowProxy2 = factory.deployEscrow(escrowType, client, owner, address(registry));
+        address deployedEscrowProxy2 = factory.deployEscrow(escrowType);
         assertTrue(address(deployedEscrowProxy2).code.length == 0);
         vm.stopPrank();
         vm.prank(notOwner);
@@ -465,7 +537,28 @@ contract EscrowFactoryUnitTest is Test {
         factory.unpause();
         assertFalse(factory.paused());
         vm.prank(client);
-        deployedEscrowProxy2 = factory.deployEscrow(escrowType, client, owner, address(registry));
+        deployedEscrowProxy2 = factory.deployEscrow(escrowType);
         assertTrue(address(deployedEscrowProxy2).code.length > 0);
+    }
+
+    function test_withdraw_eth() public {
+        vm.deal(address(factory), 10 ether);
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(OwnedThreeStep.Unauthorized.selector);
+        factory.withdrawETH(notOwner);
+        vm.startPrank(owner);
+        vm.expectRevert(IEscrowFactory.ZeroAddressProvided.selector);
+        factory.withdrawETH(address(0));
+        vm.expectEmit(true, false, false, true);
+        emit ETHWithdrawn(owner, 10 ether);
+        factory.withdrawETH(owner);
+        assertEq(owner.balance, 10 ether, "Receiver did not receive the correct amount of ETH");
+        assertEq(address(factory).balance, 0, "Factory contract balance should be zero");
+        vm.deal(address(factory), 10 ether);
+        MockFailingReceiver failingReceiver = new MockFailingReceiver();
+        vm.expectRevert(IEscrowFactory.ETHTransferFailed.selector);
+        factory.withdrawETH(address(failingReceiver));
+        vm.stopPrank();
     }
 }

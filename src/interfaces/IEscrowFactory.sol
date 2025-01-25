@@ -7,9 +7,11 @@ import { Enums } from "../common/Enums.sol";
 /// @dev Interface defining the functionality for an escrow factory, responsible for deploying new escrow contracts.
 interface IEscrowFactory {
     /// @notice Thrown when an operation involves a zero address where a valid address is required.
-    error Factory__ZeroAddressProvided();
+    error ZeroAddressProvided();
     /// @notice Thrown when an invalid escrow type is used in operations requiring a specific escrow type.
-    error Factory__InvalidEscrowType();
+    error InvalidEscrowType();
+    /// @notice Thrown when an ETH transfer failed.
+    error ETHTransferFailed();
 
     /// @notice Emitted when a new escrow proxy is successfully deployed.
     /// @param sender The address of the sender who initiated the escrow deployment.
@@ -17,9 +19,18 @@ interface IEscrowFactory {
     /// @param escrowType The type of escrow to deploy, which determines the template used for cloning.
     event EscrowProxyDeployed(address sender, address deployedProxy, Enums.EscrowType escrowType);
 
+    /// @notice Emitted when the admin manager address is updated in the registry.
+    /// @param adminManager The new admin manager contract address.
+    event AdminManagerUpdated(address adminManager);
+
     /// @notice Emitted when the registry address is updated in the factory.
     /// @param registry The new registry address.
     event RegistryUpdated(address registry);
+
+    /// @notice Emitted when ETH is successfully withdrawn from the contract.
+    /// @param receiver The address that received the withdrawn ETH.
+    /// @param amount The amount of ETH withdrawn from the contract.
+    event ETHWithdrawn(address receiver, uint256 amount);
 
     /// @notice Checks if the given address is an escrow contract deployed by this factory.
     /// @param escrow The address of the escrow contract to check.
@@ -28,11 +39,6 @@ interface IEscrowFactory {
 
     /// @notice Deploys a new escrow contract with specified parameters.
     /// @param escrowType The type of escrow to deploy, which determines the template used for cloning.
-    /// @param client The address of the client for whom the escrow is being created.
-    /// @param admin The address with administrative privileges over the new escrow.
-    /// @param registry The address of the registry containing escrow configurations.
     /// @return The address of the newly deployed escrow contract.
-    function deployEscrow(Enums.EscrowType escrowType, address client, address admin, address registry)
-        external
-        returns (address);
+    function deployEscrow(Enums.EscrowType escrowType) external returns (address);
 }
