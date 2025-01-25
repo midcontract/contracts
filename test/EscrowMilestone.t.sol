@@ -5,7 +5,7 @@ import { Test, console2 } from "forge-std/Test.sol";
 
 import { ECDSA } from "@solbase/utils/ECDSA.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
-import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import { SignatureChecker } from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
 import { EscrowMilestone, IEscrowMilestone } from "src/EscrowMilestone.sol";
 import { EscrowAccountRecovery } from "src/modules/EscrowAccountRecovery.sol";
@@ -196,7 +196,6 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         // Create deposit request struct with authorization
         bytes32 _milestonesHash = hashMilestones(milestones);
         TestUtils.MilestoneSignatureParams memory params = MilestoneSignatureParams({
-            
             contractId: contractId,
             proxy: address(escrow),
             token: address(paymentToken),
@@ -322,7 +321,7 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
                     proxy: address(escrow),
                     token: address(paymentToken),
                     milestonesHash: _milestonesHash,
-                     client: client,
+                    client: client,
                     ownerPrKey: ownerPrKey
                 })
             )
@@ -576,7 +575,7 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
             escrow: address(escrow),
             expiration: uint256(block.timestamp + 3 hours),
             signature: getSignatureMilestone(
-                MilestoneSignatureParams({            
+                MilestoneSignatureParams({
                     contractId: contractId,
                     proxy: address(escrow),
                     token: address(paymentToken),
@@ -741,7 +740,7 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
             escrow: address(escrow),
             expiration: uint256(block.timestamp + 3 hours),
             signature: getSignatureMilestone(
-                MilestoneSignatureParams({ 
+                MilestoneSignatureParams({
                     contractId: contractId,
                     proxy: address(escrow),
                     token: address(paymentToken),
@@ -785,7 +784,7 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
             escrow: address(escrow),
             expiration: uint256(block.timestamp + 3 hours),
             signature: getSignatureMilestone(
-                MilestoneSignatureParams({   
+                MilestoneSignatureParams({
                     contractId: contractId,
                     proxy: address(escrow),
                     token: address(paymentToken),
@@ -842,7 +841,7 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
             escrow: address(escrow),
             expiration: uint256(block.timestamp + 3 hours),
             signature: getSignatureMilestone(
-                MilestoneSignatureParams({  
+                MilestoneSignatureParams({
                     contractId: contractId,
                     proxy: address(escrow),
                     token: address(paymentToken),
@@ -953,7 +952,7 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
             escrow: address(escrow),
             expiration: uint256(block.timestamp + 3 hours), // Valid for 3 hours
             signature: getSignatureMilestone(
-                MilestoneSignatureParams({              
+                MilestoneSignatureParams({
                     contractId: contractId,
                     proxy: address(escrow),
                     token: address(paymentToken),
@@ -994,7 +993,7 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
             escrow: address(escrow),
             expiration: uint256(block.timestamp + 3 hours),
             signature: getSignatureMilestone(
-                MilestoneSignatureParams({          
+                MilestoneSignatureParams({
                     contractId: currentContractId,
                     proxy: address(escrow),
                     token: address(newPaymentToken),
@@ -1039,7 +1038,7 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
             escrow: address(escrow),
             expiration: uint256(block.timestamp + 3 hours),
             signature: getSignatureMilestone(
-                MilestoneSignatureParams({                 
+                MilestoneSignatureParams({
                     contractId: 1,
                     proxy: address(escrow),
                     token: address(paymentToken),
@@ -2341,7 +2340,7 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
             escrow: address(escrow),
             expiration: uint256(block.timestamp + 3 hours),
             signature: getSignatureMilestone(
-                MilestoneSignatureParams({  
+                MilestoneSignatureParams({
                     contractId: contractId,
                     proxy: address(escrow),
                     token: address(usdt),

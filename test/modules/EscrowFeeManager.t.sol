@@ -5,7 +5,7 @@ import { Test, console2 } from "forge-std/Test.sol";
 
 import { ECDSA } from "@solbase/utils/ECDSA.sol";
 import { ERC20Mock } from "@openzeppelin/mocks/token/ERC20Mock.sol";
-import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import { SignatureChecker } from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
 import { EscrowFeeManager, IEscrowFeeManager } from "src/modules/EscrowFeeManager.sol";
 import { EscrowAdminManager, OwnedRoles } from "src/modules/EscrowAdminManager.sol";

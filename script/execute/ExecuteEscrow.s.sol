@@ -4,7 +4,7 @@ pragma solidity 0.8.25;
 import { Script, console } from "forge-std/Script.sol";
 
 import { ECDSA } from "@solbase/utils/ECDSA.sol";
-import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import { SignatureChecker } from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 
 import { EscrowFixedPrice, IEscrowFixedPrice } from "src/EscrowFixedPrice.sol";
 import { EscrowHourly, IEscrowHourly } from "src/EscrowHourly.sol";

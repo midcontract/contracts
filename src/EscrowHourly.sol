@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { MessageHashUtils } from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import { MessageHashUtils } from "@openzeppelin/utils/cryptography/MessageHashUtils.sol";
 import { SignatureChecker } from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 import { SafeTransferLib } from "@solbase/utils/SafeTransferLib.sol";
 
