@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { MessageHashUtils } from "@openzeppelin/utils/cryptography/MessageHashUtils.sol";
 import { SignatureChecker } from "@openzeppelin/utils/cryptography/SignatureChecker.sol";
 import { SafeTransferLib } from "@solbase/utils/SafeTransferLib.sol";
 
@@ -582,6 +581,45 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         return weeklyEntries[_contractId].length;
     }
 
+    /// @notice Generates the hash required for deposit signing in EscrowHourly.
+    /// @param _client The address of the client submitting the deposit.
+    /// @param _contractId The ID of the contract associated with the deposit.
+    /// @param _contractor The contractor's address.
+    /// @param _paymentToken The payment token used.
+    /// @param _prepaymentAmount The initial prepayment amount.
+    /// @param _amountToClaim The amount designated for the contractor's claim.
+    /// @param _feeConfig The fee configuration for this deposit.
+    /// @param _expiration The timestamp when the deposit authorization expires.
+    /// @return ethSignedHash The Ethereum signed message hash that needs to be signed.
+    function getDepositHash(
+        address _client,
+        uint256 _contractId,
+        address _contractor,
+        address _paymentToken,
+        uint256 _prepaymentAmount,
+        uint256 _amountToClaim,
+        Enums.FeeConfig _feeConfig,
+        uint256 _expiration
+    ) external view returns (bytes32) {
+        // Generate the raw hash using the same structure as `_validateDepositAuthorization`
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                _client,
+                _contractId,
+                _contractor,
+                _paymentToken,
+                _prepaymentAmount,
+                _amountToClaim,
+                _feeConfig,
+                _expiration,
+                address(this)
+            )
+        );
+
+        // Apply Ethereum’s signed message prefix (same as ECDSA.toEthSignedMessageHash).
+        return ECDSA.toEthSignedMessageHash(hash);
+    }
+
     /*//////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -702,7 +740,7 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
                 address(this) // Contract address.
             )
         );
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(hash);
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(hash);
 
         // Verify signature using the admin's address.
         address signer = adminManager.owner();

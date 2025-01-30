@@ -632,6 +632,29 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         return _getContractorDataHash(_contractor, _data, _salt);
     }
 
+    /// @notice Generates the hash required for deposit signing in EscrowMilestone.
+    /// @param _client The address of the client submitting the deposit.
+    /// @param _contractId The unique contract ID associated with the deposit.
+    /// @param _paymentToken The ERC20 token used for the deposit.
+    /// @param _milestonesHash The hash representing the milestones structure.
+    /// @param _expiration The timestamp when the deposit authorization expires.
+    /// @return ethSignedHash The Ethereum signed message hash that needs to be signed.
+    function getDepositHash(
+        address _client,
+        uint256 _contractId,
+        address _paymentToken,
+        bytes32 _milestonesHash,
+        uint256 _expiration
+    ) external view returns (bytes32) {
+        // Generate the raw hash using the same structure as `_validateDepositAuthorization`.
+        bytes32 hash = keccak256(
+            abi.encodePacked(_client, _contractId, _paymentToken, _milestonesHash, _expiration, address(this))
+        );
+
+        // Apply Ethereum’s signed message prefix (same as ECDSA.toEthSignedMessageHash).
+        return ECDSA.toEthSignedMessageHash(hash);
+    }
+
     /// @notice Computes a hash for the given array of milestones.
     /// @param _milestones The array of milestones to hash.
     /// @return bytes32 The combined hash of all the milestones.
@@ -740,7 +763,7 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     /// @param _deposit The deposit details including signature, expiration, and milestones hash.
     function _validateDepositAuthorization(DepositRequest calldata _deposit) internal view {
         if (_deposit.expiration < block.timestamp) revert Escrow__AuthorizationExpired();
-
+        
         bytes32 hash = keccak256(
             abi.encodePacked(
                 msg.sender,

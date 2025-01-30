@@ -468,6 +468,45 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         return _getContractorDataHash(_contractor, _data, _salt);
     }
 
+    /// @notice Generates the hash required for deposit signing.
+    /// @param _client The address of the client submitting the deposit.
+    /// @param _contractId The ID of the contract associated with the deposit.
+    /// @param _contractor The contractor's address.
+    /// @param _paymentToken The payment token used.
+    /// @param _amount The deposit amount.
+    /// @param _feeConfig The fee configuration.
+    /// @param _contractorData Hash of the contractor's additional data.
+    /// @param _expiration The timestamp when the deposit authorization expires.
+    /// @return ethSignedHash The Ethereum signed message hash that needs to be signed.
+    function getDepositHash(
+        address _client,
+        uint256 _contractId,
+        address _contractor,
+        address _paymentToken,
+        uint256 _amount,
+        Enums.FeeConfig _feeConfig,
+        bytes32 _contractorData,
+        uint256 _expiration
+    ) external view returns (bytes32) {
+        // Generate the raw hash.
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                _client,
+                _contractId,
+                _contractor,
+                _paymentToken,
+                _amount,
+                _feeConfig,
+                _contractorData,
+                _expiration,
+                address(this) // Contract address to prevent replay attacks.
+            )
+        );
+
+        // Apply Ethereum’s signed message prefix (same as ECDSA.toEthSignedMessageHash).
+        return ECDSA.toEthSignedMessageHash(hash);
+    }
+
     /*//////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -573,15 +612,15 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Generate hash for signed data.
         bytes32 hash = keccak256(
             abi.encodePacked(
-                msg.sender, // Client submitting the deposit.
-                _deposit.contractId, // Contract ID for the deposit.
-                _deposit.contractor, // Contractor's address.
-                _deposit.paymentToken, // Payment token address.
-                _deposit.amount, // Deposit amount.
-                _deposit.feeConfig, // Fee configuration.
-                _deposit.contractorData, // Data hash for contractor details.
-                _deposit.expiration, // Expiration timestamp.
-                address(this) // Contract address.
+                msg.sender,
+                _deposit.contractId,
+                _deposit.contractor,
+                _deposit.paymentToken,
+                _deposit.amount,
+                _deposit.feeConfig,
+                _deposit.contractorData,
+                _deposit.expiration,
+                address(this)
             )
         );
         bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(hash);

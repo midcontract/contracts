@@ -777,32 +777,37 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
             status: Enums.Status.ACTIVE
         });
+        // Compute the hash for milestones
+        bytes32 milestonesHash = hashMilestones(_milestones);
+
+        // Generate deposit hash
+        bytes32 depositHash =
+            escrow.getDepositHash(client, contractId, address(paymentToken), milestonesHash, block.timestamp + 3 hours);
+
+        // Sign the deposit hash off-chain (simulated in test)
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, depositHash);
+        bytes memory _signature = abi.encodePacked(r, s, v);
+
+        // Construct deposit request with signed hash
         deposit = IEscrowMilestone.DepositRequest({
             contractId: contractId,
             paymentToken: address(paymentToken),
-            milestonesHash: hashMilestones(_milestones),
+            milestonesHash: milestonesHash,
             escrow: address(escrow),
-            expiration: uint256(block.timestamp + 3 hours),
-            signature: getSignatureMilestone(
-                MilestoneSignatureParams({
-                    contractId: contractId,
-                    proxy: address(escrow),
-                    token: address(paymentToken),
-                    milestonesHash: hashMilestones(_milestones),
-                    client: client,
-                    ownerPrKey: ownerPrKey
-                })
-            )
+            expiration: block.timestamp + 3 hours,
+            signature: _signature
         });
-
+        // Compute deposit amount including fees
         (uint256 depositAmountMilestone1,) = computeDepositAndFeeAmount(
             address(registry), address(escrow), 1, client, 1 ether, Enums.FeeConfig.CLIENT_COVERS_ONLY
         );
+        // Perform the deposit
         vm.startPrank(address(client));
         paymentToken.mint(address(client), depositAmountMilestone1);
         paymentToken.approve(address(escrow), depositAmountMilestone1);
         escrow.deposit(deposit, _milestones); //0, address(paymentToken), _milestones
         uint256 currentContractId = 1;
+        // Validate contract milestones storage
         (
             address _contractor,
             uint256 _amount,
@@ -819,9 +824,11 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 1); //Status.ACTIVE
+        // Validate balances
         assertEq(paymentToken.balanceOf(address(escrow)), depositAmountMilestone1);
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(client)), 0 ether);
+        // Validate milestone details
         (address _paymentToken, uint256 _depositAmount, Enums.Winner _winner) =
             escrow.milestoneDetails(currentContractId, 0);
         assertEq(address(_paymentToken), address(paymentToken));

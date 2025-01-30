@@ -344,21 +344,32 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
     }
 
     function test_deposit_withContractorAddress() public {
+        // Initialize the escrow contract with necessary parameters
         escrow.initialize(client, address(adminManager), address(registry));
-        // uint256 currentContractId = 1;
-        TestUtils.FixedPriceSignatureParams memory params = FixedPriceSignatureParams({
-            contractId: 1,
-            contractor: contractor,
-            proxy: address(escrow),
-            token: address(paymentToken),
-            amount: 1 ether,
-            feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
-            contractorData: contractorData,
-            client: client,
-            ownerPrKey: ownerPrKey
-        });
+
+        // Define test parameters
+        uint256 currentContractId = 1;
+        uint256 expiration = block.timestamp + 3 hours;
+
+        // Generate the deposit hash from the smart contract
+        bytes32 depositHash = escrow.getDepositHash(
+            client,
+            currentContractId,
+            contractor,
+            address(paymentToken),
+            1 ether,
+            Enums.FeeConfig.CLIENT_COVERS_ONLY,
+            contractorData,
+            expiration
+        );
+
+        // Sign the deposit hash with the owner's private key
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrKey, depositHash);
+        bytes memory _signature = abi.encodePacked(r, s, v);
+
+        // Create the deposit request struct using the generated hash and signature
         deposit = IEscrowFixedPrice.DepositRequest({
-            contractId: 1,
+            contractId: currentContractId,
             contractor: contractor,
             paymentToken: address(paymentToken),
             amount: 1 ether,
@@ -368,9 +379,11 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
             feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
             status: Enums.Status.ACTIVE,
             escrow: address(escrow),
-            expiration: block.timestamp + 3 hours,
-            signature: getSignatureFixed(params)
+            expiration: expiration,
+            signature: _signature
         });
+
+        // Perform deposit transaction
         vm.startPrank(client);
         paymentToken.mint(client, 1.03 ether);
         paymentToken.approve(address(escrow), 1.03 ether);
@@ -378,6 +391,8 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         emit Deposited(client, 1, 1.03 ether, contractor);
         escrow.deposit(deposit);
         vm.stopPrank();
+
+        // Retrieve and verify stored deposit data
         (
             address _contractor,
             address _paymentToken,
