@@ -106,9 +106,6 @@ contract EscrowERC1271UnitTest is Test {
     /// EscrowMilestone ///
 
     function runRecoveryTestMilestone(bytes32 message, bytes memory signature_) private view returns (bool) {
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(message);
-        address recoveredSignerMilestone = this.externalRecover(ethSignedHash, signature_);
-        (recoveredSignerMilestone);
         return escrowMilestone.isValidSignature(message, signature_) == 0x1626ba7e;
     }
 
@@ -130,25 +127,25 @@ contract EscrowERC1271UnitTest is Test {
 
     function test_signerAndSignature_WalletMatching_escrowMilestone() public {
         vm.startPrank(address(wallet));
-        assertTrue(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        assertTrue(runRecoveryTestMilestone(TEST_MESSAGE, signMessageByWallet(signerPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
     function test_invalidSigner_Wallet_escrowMilestone() public {
         vm.startPrank(address(escrow));
-        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(otherPrivateKey, TEST_MESSAGE)));
+        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessageByWallet(otherPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
     function test_invalidSignature_Wallet_escrowMilestone() public {
         vm.startPrank(address(wallet));
-        assertFalse(runRecoveryTestMilestone(WRONG_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        assertFalse(runRecoveryTestMilestone(WRONG_MESSAGE, signMessageByWallet(signerPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
     function test_invalidSigner_MaliciousWallet_escrowMilestone() public {
         vm.startPrank(address(malicious));
-        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessageByWallet(signerPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
