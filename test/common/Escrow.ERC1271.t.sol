@@ -40,9 +40,16 @@ contract EscrowERC1271UnitTest is Test {
         signature = signMessage(signerPrivateKey, TEST_MESSAGE);
     }
 
+    // Signing for Externally Owned Accounts (EOAs)
     function signMessage(uint256 privateKey, bytes32 messageHash) internal pure returns (bytes memory) {
         bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(messageHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, ethSignedHash);
+        return abi.encodePacked(r, s, v);
+    }
+
+    // Signing for Smart Contract Wallets (ERC-1271)
+    function signMessageByWallet(uint256 privateKey, bytes32 messageHash) internal pure returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, messageHash); // No `toEthSignedMessageHash()`
         return abi.encodePacked(r, s, v);
     }
 
@@ -51,9 +58,6 @@ contract EscrowERC1271UnitTest is Test {
     }
 
     function runRecoveryTest(bytes32 message, bytes memory signature_) private view returns (bool) {
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(message);
-        address recoveredSigner = this.externalRecover(ethSignedHash, signature_);
-        (recoveredSigner);
         return escrow.isValidSignature(message, signature_) == 0x1626ba7e;
     }
 
@@ -77,34 +81,31 @@ contract EscrowERC1271UnitTest is Test {
 
     function test_signerAndSignature_WalletMatching_escrowFixedPrice() public {
         vm.startPrank(address(wallet));
-        assertTrue(runRecoveryTest(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        assertTrue(runRecoveryTest(TEST_MESSAGE, signMessageByWallet(signerPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
     function test_invalidSigner_Wallet_escrowFixedPrice() public {
         vm.startPrank(address(escrow));
-        assertFalse(runRecoveryTest(TEST_MESSAGE, signMessage(otherPrivateKey, TEST_MESSAGE)));
+        assertFalse(runRecoveryTest(TEST_MESSAGE, signMessageByWallet(otherPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
     function test_invalidSignature_Wallet_escrowFixedPrice() public {
         vm.startPrank(address(wallet));
-        assertFalse(runRecoveryTest(WRONG_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        assertFalse(runRecoveryTest(WRONG_MESSAGE, signMessageByWallet(signerPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
     function test_invalidSigner_MaliciousWallet_escrowFixedPrice() public {
         vm.startPrank(address(malicious));
-        assertFalse(runRecoveryTest(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        assertFalse(runRecoveryTest(TEST_MESSAGE, signMessageByWallet(signerPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
     /// EscrowMilestone ///
 
     function runRecoveryTestMilestone(bytes32 message, bytes memory signature_) private view returns (bool) {
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(message);
-        address recoveredSignerMilestone = this.externalRecover(ethSignedHash, signature_);
-        (recoveredSignerMilestone);
         return escrowMilestone.isValidSignature(message, signature_) == 0x1626ba7e;
     }
 
@@ -126,25 +127,25 @@ contract EscrowERC1271UnitTest is Test {
 
     function test_signerAndSignature_WalletMatching_escrowMilestone() public {
         vm.startPrank(address(wallet));
-        assertTrue(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        assertTrue(runRecoveryTestMilestone(TEST_MESSAGE, signMessageByWallet(signerPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
     function test_invalidSigner_Wallet_escrowMilestone() public {
         vm.startPrank(address(escrow));
-        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(otherPrivateKey, TEST_MESSAGE)));
+        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessageByWallet(otherPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
     function test_invalidSignature_Wallet_escrowMilestone() public {
         vm.startPrank(address(wallet));
-        assertFalse(runRecoveryTestMilestone(WRONG_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        assertFalse(runRecoveryTestMilestone(WRONG_MESSAGE, signMessageByWallet(signerPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 
     function test_invalidSigner_MaliciousWallet_escrowMilestone() public {
         vm.startPrank(address(malicious));
-        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessage(signerPrivateKey, TEST_MESSAGE)));
+        assertFalse(runRecoveryTestMilestone(TEST_MESSAGE, signMessageByWallet(signerPrivateKey, TEST_MESSAGE)));
         vm.stopPrank();
     }
 

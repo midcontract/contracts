@@ -10,7 +10,7 @@ import { EthSepoliaConfig } from "config/EthSepoliaConfig.sol";
 import { PolAmoyConfig } from "config/PolAmoyConfig.sol";
 
 contract DeployRegistryScript is Script {
-    // EscrowRegistry registry;
+    EscrowRegistry registry;
     MockDAI daiToken;
     MockUSDT usdtToken;
     address ownerPublicKey;
@@ -20,7 +20,7 @@ contract DeployRegistryScript is Script {
     address paymentToken1;
     address paymentToken2;
     address paymentToken3;
-    address registry;
+    // address registry;
 
     function setUp() public {
         ownerPublicKey = vm.envAddress("OWNER_PUBLIC_KEY");
@@ -30,26 +30,26 @@ contract DeployRegistryScript is Script {
         paymentToken1 = PolAmoyConfig.MOCK_USDT;
         paymentToken2 = PolAmoyConfig.MOCK_DAI;
         paymentToken3 = PolAmoyConfig.MOCK_USDC;
-        registry = PolAmoyConfig.REGISTRY;
+        // registry = PolAmoyConfig.REGISTRY;
     }
 
     function run() public {
-        // vm.startBroadcast(deployerPrivateKey);
-        // registry = new EscrowRegistry(ownerPublicKey);
-        // // daiToken = new MockDAI();
-        // // registry.addPaymentToken(address(daiToken));
-        // // usdtToken = new MockUSDT();
-        // // console.log("==registry addr=%s", address(registry));
-        // // // console.log("==daiToken addr=%s", address(daiToken));
-        // // console.log("==usdtToken addr=%s", address(usdtToken));
-        // // assert(address(registry) != address(0));
-        // // // assert(registry.paymentTokens(address(paymentToken)) == true);
-        // vm.stopBroadcast();
+        vm.startBroadcast(deployerPrivateKey);
+        registry = new EscrowRegistry(ownerPublicKey);
+        // daiToken = new MockDAI();
+        // registry.addPaymentToken(address(daiToken));
+        // usdtToken = new MockUSDT();
+        // console.log("==registry addr=%s", address(registry));
+        // // console.log("==daiToken addr=%s", address(daiToken));
+        // console.log("==usdtToken addr=%s", address(usdtToken));
+        // assert(address(registry) != address(0));
+        // // assert(registry.paymentTokens(address(paymentToken)) == true);
+        vm.stopBroadcast();
 
         vm.startBroadcast(ownerPrivateKey);
-        EscrowRegistry(registry).setFixedTreasury(ownerPublicKey);
-        EscrowRegistry(registry).setHourlyTreasury(ownerPublicKey);
-        EscrowRegistry(registry).setMilestoneTreasury(ownerPublicKey);
+        // EscrowRegistry(registry).setFixedTreasury(ownerPublicKey);
+        // EscrowRegistry(registry).setHourlyTreasury(ownerPublicKey);
+        // EscrowRegistry(registry).setMilestoneTreasury(ownerPublicKey);
         EscrowRegistry(registry).addPaymentToken(paymentToken1);
         EscrowRegistry(registry).addPaymentToken(paymentToken2);
         EscrowRegistry(registry).addPaymentToken(paymentToken3);

@@ -134,8 +134,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (D.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
 
         // Verify the contractor's signature.
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
-        if (ECDSA.recover(ethSignedHash, _signature) != msg.sender) {
+        if (!_isValidSignature(contractorDataHash, _signature)) {
             revert Escrow__InvalidSignature();
         }
 
@@ -591,13 +590,13 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @param _signature The signature byte array associated with the hash.
     /// @return True if the signature is valid, false otherwise.
     function _isValidSignature(bytes32 _hash, bytes calldata _signature) internal view override returns (bool) {
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(_hash);
-        // Check if msg.sender is a contract.
+        // Check if msg.sender is a contract (Embedded Account).
         if (msg.sender.code.length > 0) {
             // ERC-1271 signature verification.
-            return SignatureChecker.isValidERC1271SignatureNow(msg.sender, ethSignedHash, _signature);
+            return SignatureChecker.isValidERC1271SignatureNow(msg.sender, _hash, _signature);
         } else {
-            // EOA signature verification.
+            // EOA signature verification (Apply Ethereum Signed Message Prefix).
+            bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(_hash);
             address recoveredSigner = ECDSA.recover(ethSignedHash, _signature);
             return recoveredSigner == msg.sender;
         }
