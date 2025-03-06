@@ -25,57 +25,6 @@ abstract contract TestUtils is Test {
         uint256 ownerPrKey;
     }
 
-    /// @dev Struct for hourly escrow signature inputs.
-    struct HourlySignatureParams {
-        uint256 contractId;
-        address contractor;
-        address proxy;
-        address token;
-        uint256 prepaymentAmount;
-        uint256 amountToClaim;
-        Enums.FeeConfig feeConfig;
-        address client;
-        uint256 ownerPrKey;
-    }
-
-    /// @dev Struct for milestone escrow signature inputs.
-    struct MilestoneSignatureParams {
-        uint256 contractId;
-        address proxy;
-        address token;
-        bytes32 milestonesHash;
-        address client;
-        uint256 ownerPrKey;
-    }
-
-    /// @notice Compute the total deposit amount and fee.
-    function computeDepositAndFeeAmount(
-        address registry,
-        address escrow,
-        uint256 contractId,
-        address client,
-        uint256 depositAmount,
-        Enums.FeeConfig feeConfig
-    ) internal view returns (uint256 totalDepositAmount, uint256 feeApplied) {
-        address feeManagerAddress = IEscrowRegistry(address(registry)).feeManager();
-        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
-        return feeManager.computeDepositAmountAndFee(escrow, contractId, client, depositAmount, feeConfig);
-    }
-
-    /// @notice Compute claimable amount and fee.
-    function computeClaimableAndFeeAmount(
-        address registry,
-        address escrow,
-        uint256 contractId,
-        address contractor,
-        uint256 claimAmount,
-        Enums.FeeConfig feeConfig
-    ) internal view returns (uint256 claimableAmount, uint256 feeAmount, uint256 clientFee) {
-        address feeManagerAddress = IEscrowRegistry(address(registry)).feeManager();
-        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
-        return feeManager.computeClaimableAmountAndFee(escrow, contractId, contractor, claimAmount, feeConfig);
-    }
-
     /// @notice Generate a signature for fixed-price escrow.
     /// @param params The `FixedPriceSignatureParams` struct containing all necessary data.
     /// @return The generated signature as bytes.
@@ -99,6 +48,19 @@ abstract contract TestUtils is Test {
         return abi.encodePacked(r, s, v);
     }
 
+    /// @dev Struct for hourly escrow signature inputs.
+    struct HourlySignatureParams {
+        uint256 contractId;
+        address contractor;
+        address proxy;
+        address token;
+        uint256 prepaymentAmount;
+        uint256 amountToClaim;
+        Enums.FeeConfig feeConfig;
+        address client;
+        uint256 ownerPrKey;
+    }
+
     /// @notice Generate a signature for hourly escrow.
     /// @param params The `HourlySignatureParams` struct containing all necessary data.
     /// @return The generated signature as bytes.
@@ -120,6 +82,16 @@ abstract contract TestUtils is Test {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(params.ownerPrKey, ethSignedHash);
         return abi.encodePacked(r, s, v);
+    }
+
+    /// @dev Struct for milestone escrow signature inputs.
+    struct MilestoneSignatureParams {
+        uint256 contractId;
+        address proxy;
+        address token;
+        bytes32 milestonesHash;
+        address client;
+        uint256 ownerPrKey;
     }
 
     /// @notice Generate a signature for milestone escrow.
@@ -158,6 +130,44 @@ abstract contract TestUtils is Test {
         return keccak256(abi.encodePacked(hashes));
     }
 
+    /// @dev Struct for fixed price submit authorization inputs.
+    struct FixedPriceSubmitSignatureParams {
+        uint256 contractId;
+        address contractor;
+        bytes data;
+        bytes32 salt;
+        uint256 expiration;
+        uint256 nonce;
+        address proxy;
+        uint256 ownerPrKey;
+    }
+
+    /// @notice Generate a signature for fixed-price submit authorization.
+    /// @param params The `FixedPriceSubmitSignatureParams` struct containing all necessary data.
+    /// @return The generated signature as bytes.
+    function getFixedPriceSubmitSignature(FixedPriceSubmitSignatureParams memory params)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    params.contractId,
+                    params.contractor,
+                    params.data,
+                    params.salt,
+                    params.expiration,
+                    params.nonce,
+                    params.proxy
+                )
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(params.ownerPrKey, ethSignedHash); // Admin signs the submission
+        return abi.encodePacked(r, s, v);
+    }
+
     /// @notice Generate a signature for submit functionality.
     function getSubmitSignature(address contractor, uint256 contractorPrKey, bytes memory data, bytes32 salt)
         internal
@@ -171,5 +181,33 @@ abstract contract TestUtils is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(contractorPrKey, ethSignedHash); // Simulate contractor's signature
         contractorSignature = abi.encodePacked(r, s, v);
         return (contractorDataHash, contractorSignature);
+    }
+
+    /// @notice Compute the total deposit amount and fee.
+    function computeDepositAndFeeAmount(
+        address registry,
+        address escrow,
+        uint256 contractId,
+        address client,
+        uint256 depositAmount,
+        Enums.FeeConfig feeConfig
+    ) internal view returns (uint256 totalDepositAmount, uint256 feeApplied) {
+        address feeManagerAddress = IEscrowRegistry(address(registry)).feeManager();
+        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
+        return feeManager.computeDepositAmountAndFee(escrow, contractId, client, depositAmount, feeConfig);
+    }
+
+    /// @notice Compute claimable amount and fee.
+    function computeClaimableAndFeeAmount(
+        address registry,
+        address escrow,
+        uint256 contractId,
+        address contractor,
+        uint256 claimAmount,
+        Enums.FeeConfig feeConfig
+    ) internal view returns (uint256 claimableAmount, uint256 feeAmount, uint256 clientFee) {
+        address feeManagerAddress = IEscrowRegistry(address(registry)).feeManager();
+        IEscrowFeeManager feeManager = IEscrowFeeManager(feeManagerAddress);
+        return feeManager.computeClaimableAmountAndFee(escrow, contractId, contractor, claimAmount, feeConfig);
     }
 }

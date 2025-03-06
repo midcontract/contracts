@@ -42,6 +42,7 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
     Enums.Status status;
     Enums.EscrowType escrowType;
     EscrowFixedPrice.DepositRequest deposit;
+    EscrowFixedPrice.SubmitRequest submit;
 
     event Deposited(address indexed depositor, uint256 indexed contractId, uint256 amount, address indexed contractor);
     event Withdrawn(address indexed withdrawer, uint256 indexed contractId, uint256 amount, uint256 feeAmount);
@@ -328,11 +329,31 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         vm.prank(client);
         escrow2.deposit(deposit);
 
+        // Prepare submit request
         uint256 currentContractId = 1;
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        uint256 contractorNonce = escrow2.getContractorNonce(contractor, currentContractId);
+        submit = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: contractorNonce,
+                    proxy: address(escrow2),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         vm.prank(contractor);
-        escrow2.submit(currentContractId, contractData, salt, contractorSignature);
+        escrow2.submit(submit);
         vm.prank(client);
         escrow2.approve(currentContractId, 1 ether, contractor);
 
@@ -768,15 +789,41 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        (bytes32 contractorDataHash, bytes memory contractorSignature) =
-            getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        // Get the contractor's current nonce
+        uint256 contractorNonce = escrow.getContractorNonce(contractor, currentContractId);
+
+        // Prepare the fixed-price submit request
+        TestUtils.FixedPriceSubmitSignatureParams memory params = FixedPriceSubmitSignatureParams({
+            contractId: currentContractId,
+            contractor: contractor,
+            data: contractData,
+            salt: salt,
+            expiration: uint256(block.timestamp + 3 hours),
+            nonce: contractorNonce,
+            proxy: address(escrow),
+            ownerPrKey: ownerPrKey
+        });
+
+        // Generate admin-signed submission signature
+        submit = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData,
+            salt: salt,
+            expiration: uint256(block.timestamp + 3 hours),
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(params) // Admin signature
+         });
+
+        // Simulate contractor calling submit
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit Submitted(contractor, currentContractId, client);
-        escrow.submit(currentContractId, contractData, salt, contractorSignature);
+        escrow.submit(submit);
+
+        // Check updated contract state
         (_contractor,, _amount, _amountToClaim,,, _feeConfig, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(_contractorData, contractorDataHash);
+        assertEq(_contractorData, keccak256(abi.encodePacked(contractor, contractData, salt)));
         assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
@@ -789,20 +836,57 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
 
         bytes memory contractData1 = bytes("contract_data_");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        bytes32 contractorDataHash = escrow.getContractorDataHash(contractor, contractData1, salt);
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData1, salt);
+        uint256 contractorNonce = escrow.getContractorNonce(contractor, currentContractId);
+        IEscrowFixedPrice.SubmitRequest memory request = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData1,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId,
+                    contractor: contractor,
+                    data: contractData1,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: contractorNonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidContractorDataHash.selector);
-        escrow.submit(currentContractId, contractData1, salt, contractorSignature);
+        escrow.submit(request);
         assertEq(_contractor, address(0));
 
         bytes memory contractData2 = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(41)));
-        contractorDataHash = escrow.getContractorDataHash(contractor, contractData2, salt);
-        (, contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData2, salt);
+        request = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData1,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId,
+                    contractor: contractor,
+                    data: contractData2,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: contractorNonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidContractorDataHash.selector);
-        escrow.submit(currentContractId, contractData2, salt, contractorSignature);
+        escrow.submit(request);
         assertEq(_contractor, address(0));
         vm.stopPrank();
     }
@@ -817,18 +901,37 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         assertEq(uint256(_feeConfig), 1); //Enums.Enums.FeeConfig.CLIENT_COVERS_ONLY
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        (bytes32 contractorDataHash, bytes memory contractorSignature) =
-            getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        uint256 contractorNonce = escrow.getContractorNonce(contractor, currentContractId);
+        IEscrowFixedPrice.SubmitRequest memory request = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: contractorNonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.prank(address(this));
         vm.expectRevert(); //Escrow__UnauthorizedAccount(msg.sender)
-        escrow.submit(currentContractId, contractData, salt, contractorSignature);
+        escrow.submit(request);
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit Submitted(contractor, currentContractId, client);
-        escrow.submit(currentContractId, contractData, salt, contractorSignature);
+        escrow.submit(request);
         (_contractor,,,,, _contractorData, _feeConfig, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(_contractorData, contractorDataHash);
+        assertEq(_contractorData, keccak256(abi.encodePacked(contractor, contractData, salt))); //contractorDataHash
         assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
@@ -839,10 +942,30 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        uint256 contractorNonce = escrow.getContractorNonce(contractor, currentContractId);
+        IEscrowFixedPrice.SubmitRequest memory request = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: contractorNonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.prank(address(this));
         vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
-        escrow.submit(currentContractId, contractData, salt, contractorSignature);
+        escrow.submit(request);
         (_contractor,,,,,,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
         assertEq(uint256(_status), 1); //Status.ACTIVE
@@ -856,14 +979,33 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
 
-        (bytes32 contractorDataHash, bytes memory contractorSignature) =
-            getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        uint256 contractorNonce = escrow.getContractorNonce(contractor, currentContractId);
+        IEscrowFixedPrice.SubmitRequest memory request = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: contractorNonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusForSubmit.selector);
-        escrow.submit(currentContractId, contractData, salt, contractorSignature);
+        escrow.submit(request);
         (_contractor,,,,, _contractorData,, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(_contractorData, contractorDataHash);
+        assertEq(_contractorData, keccak256(abi.encodePacked(contractor, contractData, salt)));
         assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
@@ -874,9 +1016,19 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
+        uint256 contractorNonce = escrow.getContractorNonce(contractor, currentContractId);
+        IEscrowFixedPrice.SubmitRequest memory request = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: abi.encodePacked("invalidSignature") // Invalid signature
+         });
+
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
-        escrow.submit(currentContractId, contractData, salt, abi.encodePacked("invalidSignature"));
+        escrow.submit(request);
 
         (, uint256 fakeAdminPrKey) = makeAddrAndKey("fakeAdmin");
         bytes32 contractorDataHash = keccak256(abi.encodePacked(contractor, contractData, salt));
@@ -885,9 +1037,11 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(fakeAdminPrKey, ethSignedHash);
         bytes memory fakeSignature = abi.encodePacked(r, s, v);
 
+        request.signature = fakeSignature;
+
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
-        escrow.submit(currentContractId, contractData, salt, fakeSignature);
+        escrow.submit(request); //currentContractId, contractData, salt, fakeSignature
     }
 
     ////////////////////////////////////////////
@@ -1263,10 +1417,29 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         vm.stopPrank();
 
         uint256 currentContractId = 1;
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        uint256 contractorNonce = escrow.getContractorNonce(contractor, currentContractId);
+        IEscrowFixedPrice.SubmitRequest memory submitRequest = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: contractorNonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         vm.prank(contractor);
-        escrow.submit(currentContractId, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
 
         uint256 amountApprove = 1 ether;
         vm.prank(client);
@@ -1346,10 +1519,29 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         assertEq(paymentToken.balanceOf(address(treasury)), 0 ether);
         assertEq(paymentToken.balanceOf(address(contractor)), 0 ether);
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        uint256 contractorNonce = escrow.getContractorNonce(contractor, currentContractId_2);
+        IEscrowFixedPrice.SubmitRequest memory submitRequest = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId_2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId_2,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: contractorNonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         vm.prank(contractor);
-        escrow.submit(currentContractId_2, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest); //currentContractId_2, contractData, salt, contractorSignature
 
         uint256 amountApprove = 1 ether;
         vm.prank(client);
@@ -1426,10 +1618,29 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         vm.stopPrank();
 
         uint256 currentContractId = 1;
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        uint256 contractorNonce = escrow.getContractorNonce(contractor, currentContractId);
+        IEscrowFixedPrice.SubmitRequest memory submitRequest = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: contractorNonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         vm.prank(contractor);
-        escrow.submit(currentContractId, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
         (
             address _contractor,
             ,
@@ -1565,10 +1776,29 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         vm.stopPrank();
 
         uint256 currentContractId = 1;
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        uint256 contractorNonce = escrow.getContractorNonce(contractor, currentContractId);
+        IEscrowFixedPrice.SubmitRequest memory submitRequest = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: contractorNonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         vm.prank(contractor);
-        escrow.submit(currentContractId, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
         (
             address _contractor,
             ,
@@ -1620,6 +1850,9 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
 
     address newContractor;
     uint256 newContractorPrKey;
+
+    uint256 nonce;
+    IEscrowFixedPrice.SubmitRequest srequest;
 
     function _getSubmitSignature2() internal returns (bytes32 contractorDataHash, bytes memory contractorSignature) {
         contractData = bytes("contract_data");
@@ -1688,10 +1921,30 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         (,, uint256 _amount, uint256 _amountToClaim, uint256 _amountToWithdraw,,, Enums.Status _status) =
             escrow.deposits(currentContractId_1);
         assertEq(uint256(_status), 1); //Status.ACTIVE
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+
+        nonce = escrow.getContractorNonce(contractor, currentContractId_1);
+        srequest = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId_1,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: nonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId_1,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: nonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         vm.prank(contractor);
-        escrow.submit(currentContractId_1, contractData, salt, contractorSignature);
+        escrow.submit(srequest);
         (,,,,,,, _status) = escrow.deposits(currentContractId_1);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
 
@@ -1751,17 +2004,6 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
         // 3. deposit usdt again
-        // params = FixedPriceSignatureParams({
-        //     contractId: 3,
-        //     contractor:  address(0),
-        //     proxy: address(escrow),
-        //     token: address(usdt),
-        //     amount: 1e6,
-        //     feeConfig: Enums.FeeConfig.CLIENT_COVERS_ONLY,
-        //     contractorData: contractorData,
-        //     client: client,
-        //     ownerPrKey: ownerPrKey
-        // });
         deposit = IEscrowFixedPrice.DepositRequest({
             contractId: 3,
             contractor: address(0),
@@ -1856,9 +2098,29 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         assertEq(dai.balanceOf(address(escrow)), 1.03 ether); //1.03 ether - totalDepositAmount_dai
         assertEq(dai.balanceOf(address(contractor)), 0 ether);
 
-        (, contractorSignature) = _getSubmitSignature2();
+        nonce = escrow.getContractorNonce(newContractor, currentContractId_2);
+        srequest = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId_2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: nonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId_2,
+                    contractor: newContractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: nonce,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.prank(newContractor);
-        escrow.submit(currentContractId_2, contractData, salt, contractorSignature);
+        escrow.submit(srequest);
         vm.prank(client);
         escrow.approve(currentContractId_2, depositAmount_usdt, newContractor);
 

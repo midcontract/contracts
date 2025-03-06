@@ -103,6 +103,9 @@ interface IEscrow {
     /// @notice Thrown when the authorization for a deposit has expired.
     error Escrow__AuthorizationExpired();
 
+    /// @notice Thrown when an invalid nonce is provided.
+    error Escrow__InvalidNonce();
+
     /// @notice Thrown when the provided signature is invalid during deposit validation.
     error Escrow__InvalidSignature();
 

@@ -19,8 +19,9 @@ import { Enums } from "src/common/Enums.sol";
 import { MockDAI } from "test/mocks/MockDAI.sol";
 import { MockUSDT } from "test/mocks/MockUSDT.sol";
 import { MockUSDC } from "test/mocks/MockUSDC.sol";
+import { TestUtils } from "test/utils/TestUtils.sol";
 
-contract ExecuteEscrowScript is Script {
+contract ExecuteEscrowScript is Script, TestUtils {
     address escrow;
     address escrowHourly;
     address factory;
@@ -35,6 +36,7 @@ contract ExecuteEscrowScript is Script {
     address client;
 
     IEscrowFixedPrice.DepositRequest deposit;
+    EscrowFixedPrice.SubmitRequest submitRequest;
     IEscrowHourly.DepositRequest depositHourly;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
@@ -138,14 +140,32 @@ contract ExecuteEscrowScript is Script {
         // Execute the deposit transaction
         EscrowFixedPrice(escrowProxy).deposit(deposit);
 
-        // Generate the contractor's off-chain signature
-        contractorDataHash = keccak256(abi.encodePacked(contractor, contractData, salt));
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
-        (v, r, s) = vm.sign(contractorPrKey, ethSignedHash); // Simulate contractor's signature
-        bytes memory contractorSignature = abi.encodePacked(r, s, v);
+        // Get the contractor's current nonce
+        uint256 contractorNonce = EscrowFixedPrice(escrowProxy).getContractorNonce(contractor, contractId);
+
+        // Prepare submit request
+        submitRequest = IEscrowFixedPrice.SubmitRequest({
+            contractId: contractId,
+            data: contractData,
+            salt: salt,
+            expiration: expiration,
+            nonce: contractorNonce,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: contractId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: expiration,
+                    nonce: contractorNonce,
+                    proxy: address(escrowProxy),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         // Submit
-        EscrowFixedPrice(escrowProxy).submit(contractId, contractData, salt, contractorSignature);
+        EscrowFixedPrice(escrowProxy).submit(submitRequest);
 
         // Approve
         EscrowFixedPrice(escrowProxy).approve(contractId, 1000e6, address(deployerPublicKey));
