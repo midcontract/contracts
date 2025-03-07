@@ -931,7 +931,8 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         escrow.submit(request);
         (_contractor,,,,, _contractorData, _feeConfig, _status) = escrow.deposits(currentContractId);
         assertEq(_contractor, contractor);
-        assertEq(_contractorData, keccak256(abi.encodePacked(contractor, contractData, salt))); //contractorDataHash
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractor, contractData, salt);
+        assertEq(_contractorData, contractorDataHash);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
@@ -1042,6 +1043,76 @@ contract EscrowFixedPriceUnitTest is Test, TestUtils {
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
         escrow.submit(request); //currentContractId, contractData, salt, fakeSignature
+    }
+
+    function test_submit_reverts_AuthorizationExpired() public {
+        test_deposit();
+        uint256 currentContractId = 1;
+        (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId);
+        assertEq(_contractor, address(0));
+        assertEq(uint256(_status), 1); // Status.ACTIVE
+
+        // Generate an admin signature with an expired timestamp
+        uint256 expiredTimestamp = block.timestamp + 3 hours;
+        IEscrowFixedPrice.SubmitRequest memory request = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId,
+            data: contractData,
+            salt: salt,
+            expiration: expiredTimestamp, // Expired timestamp
+            nonce: escrow.getContractorNonce(contractor, currentContractId),
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: expiredTimestamp,
+                    nonce: escrow.getContractorNonce(contractor, currentContractId),
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        skip(expiredTimestamp + 1 hours);
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__AuthorizationExpired.selector);
+        escrow.submit(request);
+    }
+
+    function test_submit_reverts_InvalidNonce() public {
+        // Perform an initial deposit and submission
+        test_deposit();
+        uint256 currentContractId_1 = 1;
+        (address _contractor,,,,,,, Enums.Status _status) = escrow.deposits(currentContractId_1);
+        assertEq(_contractor, address(0));
+        assertEq(uint256(_status), 1); // Status.ACTIVE
+
+        // Attempt to submit with a skipped nonce
+        uint256 skippedNonce = escrow.getContractorNonce(contractor, currentContractId_1) + 1;
+
+        IEscrowFixedPrice.SubmitRequest memory requestWithSkippedNonce = IEscrowFixedPrice.SubmitRequest({
+            contractId: currentContractId_1,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            nonce: skippedNonce, // Skipping the correct nonce
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: currentContractId_1,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    nonce: skippedNonce, // Incorrect nonce (skipped expected nonce)
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__InvalidNonce.selector);
+        escrow.submit(requestWithSkippedNonce);
     }
 
     ////////////////////////////////////////////
