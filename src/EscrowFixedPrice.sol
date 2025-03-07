@@ -40,7 +40,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     mapping(uint256 contractId => Enums.Status) public previousStatuses;
 
     /// @dev Maps each contractor and contract ID to their respective nonce for sequential tracking.
-    mapping(address nonce => mapping(uint256 contractor => uint256 contractId)) private contractorNonces;
+    mapping(address contractor => mapping(uint256 contractId => uint256 nonce)) private contractorNonces;
 
     /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
@@ -134,7 +134,7 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Verify that the computed hash matches stored contractor data.
         if (D.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
 
-        // Validate the submission using admin-signed approval
+        // Validate the submission using admin-signed approval.
         _validateSubmitAuthorization(msg.sender, _request);
 
         // Update the contractor's address and change the contract status to SUBMITTED.
