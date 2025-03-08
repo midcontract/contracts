@@ -215,14 +215,29 @@ contract ExecuteEscrowScript is Script, TestUtils {
         uint256 milestoneId = EscrowMilestone(escrowProxy).getMilestoneCount(1); //contractId
         milestoneId--;
 
-        // Generate the contractor's off-chain signature
-        contractorDataHash = keccak256(abi.encodePacked(contractor, contractData, salt));
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
-        (v, r, s) = vm.sign(contractorPrKey, ethSignedHash); // Simulate contractor's signature
-        bytes memory contractorSignature = abi.encodePacked(r, s, v);
+        // Prepare submit request
+        IEscrowMilestone.SubmitRequest memory submitMilestoneRequest = IEscrowMilestone.SubmitRequest({
+            contractId: contractId,
+            milestoneId: milestoneId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: contractId,
+                    milestoneId: milestoneId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         // Submit
-        EscrowMilestone(escrowProxy).submit(contractId, milestoneId, contractData, salt, contractorSignature);
+        EscrowMilestone(escrowProxy).submit(submitMilestoneRequest);
 
         // Approve
         EscrowMilestone(escrowProxy).approve(contractId, milestoneId, 1 ether, address(deployerPublicKey));

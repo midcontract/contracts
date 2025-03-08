@@ -167,23 +167,14 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
     }
 
     /// @notice Submits work for a milestone by the contractor.
-    /// @dev This function allows the contractor to submit their work details for a milestone.
-    /// @param _contractId ID of the contract containing the milestone.
-    /// @param _milestoneId ID of the milestone to submit work for.
-    /// @param _data Contractor’s details or work summary.
-    /// @param _salt Unique salt for cryptographic operations.
-    /// @param _signature Signature proving the contractor’s authorization.
-    function submit(
-        uint256 _contractId,
-        uint256 _milestoneId,
-        bytes calldata _data,
-        bytes32 _salt,
-        bytes calldata _signature
-    ) external {
+    /// @dev Uses an admin-signed authorization to verify submission legitimacy,
+    ///      ensuring multiple submissions are uniquely signed and replay-proof.
+    /// @param _request Struct containing all required parameters for submission.
+    function submit(SubmitRequest calldata _request) external {
         // Ensure that the specified milestone exists within the bounds of the contract's milestones.
-        if (_milestoneId >= contractMilestones[_contractId].length) revert Escrow__InvalidMilestoneId();
+        if (_request.milestoneId >= contractMilestones[_request.contractId].length) revert Escrow__InvalidMilestoneId();
 
-        Milestone storage M = contractMilestones[_contractId][_milestoneId];
+        Milestone storage M = contractMilestones[_request.contractId][_request.milestoneId];
 
         // Only allow the designated contractor to submit, or allow initial submission if no contractor has been set.
         if (M.contractor != address(0) && msg.sender != M.contractor) {
@@ -194,22 +185,20 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         if (M.status != Enums.Status.ACTIVE) revert Escrow__InvalidStatusForSubmit();
 
         // Compute hash with contractor binding.
-        bytes32 contractorDataHash = _getContractorDataHash(msg.sender, _data, _salt);
+        bytes32 contractorDataHash = _getContractorDataHash(msg.sender, _request.data, _request.salt);
 
         // Verify that the computed hash matches stored contractor data.
         if (M.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
 
-        // Verify the contractor's signature.
-        if (!_isValidSignature(contractorDataHash, _signature)) {
-            revert Escrow__InvalidSignature();
-        }
+        // Validate the submission using admin-signed approval.
+        _validateSubmitAuthorization(msg.sender, _request);
 
         // Update the contractor information and status to SUBMITTED.
         M.contractor = msg.sender; // Assign the contractor if not previously set.
         M.status = Enums.Status.SUBMITTED;
 
         // Emit an event indicating successful submission of the milestone.
-        emit Submitted(msg.sender, _contractId, _milestoneId, client);
+        emit Submitted(msg.sender, _request.contractId, _request.milestoneId, client);
     }
 
     /// @notice Approves a milestone's submitted work, specifying the amount to release to the contractor.
@@ -799,5 +788,36 @@ contract EscrowMilestone is IEscrowMilestone, ERC1271 {
         }
 
         return keccak256(abi.encodePacked(hashes));
+    }
+
+    /// @notice Validates submit authorization using an admin-signed approval.
+    /// @dev Prevents replay attacks and ensures multiple submissions are uniquely signed.
+    /// @param _contractor Address of the contractor submitting the work.
+    /// @param _request Struct containing all necessary parameters for submission.
+    function _validateSubmitAuthorization(address _contractor, SubmitRequest calldata _request) internal view {
+        // Ensure the authorization has not expired.
+        if (_request.expiration < block.timestamp) revert Escrow__AuthorizationExpired();
+
+        // Generate the hash for signature verification.
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                _request.contractId,
+                _request.milestoneId,
+                _contractor,
+                _request.data,
+                _request.salt,
+                _request.expiration,
+                address(this)
+            )
+        );
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(hash);
+
+        // Retrieve the admin signer from the EscrowAdminManager.
+        address adminSigner = adminManager.owner();
+
+        // Verify ECDSA signature (admin must sign the submission).
+        if (!SignatureChecker.isValidSignatureNow(adminSigner, ethSignedHash, _request.signature)) {
+            revert Escrow__InvalidSignature();
+        }
     }
 }

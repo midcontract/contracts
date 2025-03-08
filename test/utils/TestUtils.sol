@@ -166,6 +166,44 @@ abstract contract TestUtils is Test {
         return abi.encodePacked(r, s, v);
     }
 
+    /// @dev Struct for milestone submit authorization inputs.
+    struct MilestoneSubmitSignatureParams {
+        uint256 contractId;
+        uint256 milestoneId;
+        address contractor;
+        bytes data;
+        bytes32 salt;
+        uint256 expiration;
+        address proxy;
+        uint256 ownerPrKey;
+    }
+
+    /// @notice Generate a signature for milestone submit authorization.
+    /// @param params The `MilestoneSubmitSignatureParams` struct containing all necessary data.
+    /// @return The generated signature as bytes.
+    function getMilestoneSubmitSignature(MilestoneSubmitSignatureParams memory params)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(
+            keccak256(
+                abi.encodePacked(
+                    params.contractId,
+                    params.milestoneId,
+                    params.contractor,
+                    params.data,
+                    params.salt,
+                    params.expiration,
+                    params.proxy
+                )
+            )
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(params.ownerPrKey, ethSignedHash); // Admin signs the submission
+        return abi.encodePacked(r, s, v);
+    }
+
     /// @notice Generate a signature for submit functionality.
     function getSubmitSignature(address contractor, uint256 contractorPrKey, bytes memory data, bytes32 salt)
         internal

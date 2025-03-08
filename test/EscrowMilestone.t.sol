@@ -519,9 +519,27 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         escrow2.deposit(deposit, _milestones); //0, address(paymentToken2), _milestones
 
         uint256 currentContractId = 1;
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow2),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
         vm.prank(contractor);
-        escrow2.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow2.submit(submitRequest);
         vm.prank(client);
         escrow2.approve(currentContractId, 0, 1 ether, contractor);
 
@@ -1081,14 +1099,36 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        (bytes32 contractorDataHash, bytes memory contractorSignature) =
-            getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        // (bytes32 contractorDataHash, bytes memory contractorSignature) =
+        //     getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit Submitted(contractor, currentContractId, 0, client);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
         (_contractor, _amount,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
+        bytes32 contractorDataHash = escrow.getContractorDataHash(contractor, contractData, salt);
         assertEq(_contractorData, contractorDataHash);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
@@ -1103,15 +1143,33 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        (bytes32 contractorDataHash, bytes memory contractorSignature) =
-            getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.prank(contractor);
         vm.expectEmit(true, true, true, true);
         emit Submitted(contractor, currentContractId, 0, client);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
         (_contractor, _amount,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
-        assertEq(_contractorData, contractorDataHash);
+        assertEq(_contractorData, keccak256(abi.encodePacked(contractor, contractData, salt)));
         assertEq(uint256(_status), 2); //Status.SUBMITTED
     }
 
@@ -1124,10 +1182,29 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 2); //Status.SUBMITTED
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidStatusForSubmit.selector);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
         (_contractor,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
         assertEq(_contractorData, contractorData);
@@ -1146,20 +1223,58 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
 
         contractData = bytes("contract_data_");
         salt = keccak256(abi.encodePacked(uint256(42)));
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidContractorDataHash.selector);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
         (_contractor,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
         contractData = bytes("contract_data");
         salt = keccak256(abi.encodePacked(uint256(43)));
-        (, contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.startPrank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidContractorDataHash.selector);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
         (_contractor,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, address(0));
         assertEq(uint256(_status), 1); //Status.ACTIVE
@@ -1174,14 +1289,32 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        (bytes32 contractorDataHash, bytes memory contractorSignature) =
-            getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.prank(address(this));
         vm.expectRevert(); //IEscrow.Escrow__UnauthorizedAccount.selector
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
         (_contractor,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
         assertEq(_contractor, contractor);
-        assertEq(_contractorData, contractorDataHash);
+        assertEq(_contractorData, keccak256(abi.encodePacked(contractor, contractData, salt)));
         assertEq(uint256(_status), 1); //Status.ACTIVE
     }
 
@@ -1197,10 +1330,30 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         uint256 milestoneId = escrow.getMilestoneCount(currentContractId);
         assertEq(milestoneId, 1);
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        milestoneId++;
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: milestoneId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: milestoneId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.prank(contractor);
         vm.expectRevert(IEscrowMilestone.Escrow__InvalidMilestoneId.selector);
-        escrow.submit(currentContractId, ++milestoneId, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
     }
 
     function test_submit_reverts_InvalidSignature() public {
@@ -1213,9 +1366,18 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         assertEq(_contractorData, contractorData);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: abi.encodePacked("invalidSignature")
+        });
+
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
-        escrow.submit(currentContractId, 0, contractData, salt, abi.encodePacked("invalidSignature"));
+        escrow.submit(submitRequest);
 
         (, uint256 fakeAdminPrKey) = makeAddrAndKey("fakeAdmin");
         bytes32 contractorDataHash = keccak256(abi.encodePacked(contractor, contractData, salt));
@@ -1224,9 +1386,11 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(fakeAdminPrKey, ethSignedHash);
         bytes memory fakeSignature = abi.encodePacked(r, s, v);
 
+        submitRequest.signature = fakeSignature;
+
         vm.prank(contractor);
         vm.expectRevert(IEscrow.Escrow__InvalidSignature.selector);
-        escrow.submit(currentContractId, 0, contractData, salt, fakeSignature);
+        escrow.submit(submitRequest);
     }
 
     ////////////////////////////////////////////
@@ -1764,9 +1928,28 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         assertEq(_amountToClaim, 0 ether);
         assertEq(uint256(_status), 1); //Status.ACTIVE
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: milestoneId2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: milestoneId2,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+
         vm.prank(contractor);
-        escrow.submit(currentContractId, milestoneId2, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest); //currentContractId, milestoneId2, contractData, salt, contractorSignature
 
         uint256 amountApprove = 2 ether;
         vm.prank(client);
@@ -1804,12 +1987,70 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
+        escrow.submit(submitRequest);
+
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 1,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 1,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 2,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -1892,12 +2133,69 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
-
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 1,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 1,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 2,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -1941,12 +2239,69 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
-
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 1,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 1,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 2,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -2008,12 +2363,67 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
-
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 1,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 1,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 2,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -2055,12 +2465,67 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         // uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(1), 3);
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
-
         vm.startPrank(contractor);
-        escrow.submit(1, 0, contractData, salt, contractorSignature);
-        escrow.submit(1, 1, contractData, salt, contractorSignature);
-        escrow.submit(1, 2, contractData, salt, contractorSignature);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: 1,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: 1,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: 1,
+            milestoneId: 1,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: 1,
+                    milestoneId: 1,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: 1,
+            milestoneId: 2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: 1,
+                    milestoneId: 2,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -2169,12 +2634,67 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         // uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(1), 3);
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
-
         vm.startPrank(contractor);
-        escrow.submit(1, 0, contractData, salt, contractorSignature);
-        escrow.submit(1, 1, contractData, salt, contractorSignature);
-        escrow.submit(1, 2, contractData, salt, contractorSignature);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: 1,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: 1,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: 1,
+            milestoneId: 1,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: 1,
+                    milestoneId: 1,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: 1,
+            milestoneId: 2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: 1,
+                    milestoneId: 2,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
         vm.stopPrank();
 
         vm.startPrank(client);
@@ -2370,14 +2890,70 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         assertEq(usdt.balanceOf(address(client)), 0 ether);
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
 
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 2,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
         vm.stopPrank();
-        (, contractorSignature) = _getSubmitSignature2();
+        // (, contractorSignature) = _getSubmitSignature2();
         vm.prank(newContractor);
-        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 1,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 1,
+                    contractor: newContractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest); //currentContractId, 1, contractData, salt, contractorSignature
         vm.startPrank(client);
         escrow.approve(currentContractId, 0, depositAmount, contractor);
         escrow.approve(currentContractId, 2, depositAmount, contractor);
@@ -2409,12 +2985,68 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         test_deposit_severalMilestones();
         uint256 currentContractId = 1;
         assertEq(escrow.getMilestoneCount(currentContractId), 3);
-        (, bytes memory contractorSignature) = getSubmitSignature(contractor, contractorPrKey, contractData, salt);
 
         vm.startPrank(contractor);
-        escrow.submit(currentContractId, 0, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 1, contractData, salt, contractorSignature);
-        escrow.submit(currentContractId, 2, contractData, salt, contractorSignature);
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 1,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 1,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
+        submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 2,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 2,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        escrow.submit(submitRequest);
         vm.stopPrank();
 
         vm.startPrank(client);
