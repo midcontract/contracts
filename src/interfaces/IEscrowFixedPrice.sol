@@ -65,14 +65,12 @@ interface IEscrowFixedPrice is IEscrow {
     /// @param data Contractor-specific data related to the submission.
     /// @param salt Unique salt value to prevent replay attacks.
     /// @param expiration Timestamp when the authorization expires.
-    /// @param nonce Unique incrementing nonce for the contractor.
     /// @param signature Signature from an admin (EOA) verifying the submission.
     struct SubmitRequest {
         uint256 contractId;
         bytes data;
         bytes32 salt;
         uint256 expiration;
-        uint256 nonce;
         bytes signature;
     }
 

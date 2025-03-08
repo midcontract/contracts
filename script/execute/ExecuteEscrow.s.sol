@@ -140,16 +140,12 @@ contract ExecuteEscrowScript is Script, TestUtils {
         // Execute the deposit transaction
         EscrowFixedPrice(escrowProxy).deposit(deposit);
 
-        // Get the contractor's current nonce
-        uint256 contractorNonce = EscrowFixedPrice(escrowProxy).getContractorNonce(contractor, contractId);
-
         // Prepare submit request
         submitRequest = IEscrowFixedPrice.SubmitRequest({
             contractId: contractId,
             data: contractData,
             salt: salt,
             expiration: expiration,
-            nonce: contractorNonce,
             signature: getFixedPriceSubmitSignature(
                 FixedPriceSubmitSignatureParams({
                     contractId: contractId,
@@ -157,7 +153,6 @@ contract ExecuteEscrowScript is Script, TestUtils {
                     data: contractData,
                     salt: salt,
                     expiration: expiration,
-                    nonce: contractorNonce,
                     proxy: address(escrowProxy),
                     ownerPrKey: ownerPrKey
                 })

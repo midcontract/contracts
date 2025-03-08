@@ -137,7 +137,6 @@ abstract contract TestUtils is Test {
         bytes data;
         bytes32 salt;
         uint256 expiration;
-        uint256 nonce;
         address proxy;
         uint256 ownerPrKey;
     }
@@ -158,7 +157,6 @@ abstract contract TestUtils is Test {
                     params.data,
                     params.salt,
                     params.expiration,
-                    params.nonce,
                     params.proxy
                 )
             )

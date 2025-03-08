@@ -39,9 +39,6 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Maps each contract ID to its previous status before the return request.
     mapping(uint256 contractId => Enums.Status) public previousStatuses;
 
-    /// @dev Maps each contractor and contract ID to their respective nonce for sequential tracking.
-    mapping(address contractor => mapping(uint256 contractId => uint256 nonce)) private contractorNonces;
-
     /// @dev Modifier to restrict functions to the client address.
     modifier onlyClient() {
         if (msg.sender != client) revert Escrow__UnauthorizedAccount(msg.sender);
@@ -505,14 +502,6 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         return ECDSA.toEthSignedMessageHash(hash);
     }
 
-    /// @notice Returns the current nonce for a given contractor and contract ID.
-    /// @param _contractor The address of the contractor.
-    /// @param _contractId The contract ID.
-    /// @return The current nonce assigned to the contractor for this contract ID.
-    function getContractorNonce(address _contractor, uint256 _contractId) external view returns (uint256) {
-        return contractorNonces[_contractor][_contractId];
-    }
-
     /*//////////////////////////////////////////////////////////////
                         INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -642,12 +631,9 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     /// @dev Prevents replay attacks and ensures multiple submissions are uniquely signed.
     /// @param _contractor Address of the contractor submitting the work.
     /// @param _request Struct containing all necessary parameters for submission.
-    function _validateSubmitAuthorization(address _contractor, SubmitRequest calldata _request) internal {
+    function _validateSubmitAuthorization(address _contractor, SubmitRequest calldata _request) internal view {
         // Ensure the authorization has not expired.
         if (_request.expiration < block.timestamp) revert Escrow__AuthorizationExpired();
-
-        // Ensure the nonce is sequential (prevents replay attacks with old nonces).
-        if (_request.nonce != contractorNonces[_contractor][_request.contractId]) revert Escrow__InvalidNonce();
 
         // Generate the hash for signature verification.
         bytes32 hash = keccak256(
@@ -657,21 +643,17 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
                 _request.data,
                 _request.salt,
                 _request.expiration,
-                _request.nonce,
                 address(this) // Prevents cross-contract replay attacks.
             )
         );
         bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(hash);
 
-        // Retrieve the admin signer from the EscrowAdminManager (always EOA).
+        // Retrieve the admin signer from the EscrowAdminManager.
         address adminSigner = adminManager.owner();
 
         // Verify ECDSA signature (admin must sign the submission).
         if (!SignatureChecker.isValidSignatureNow(adminSigner, ethSignedHash, _request.signature)) {
             revert Escrow__InvalidSignature();
         }
-
-        // Increment the nonce for the contractor and contract ID to allow the next submission.
-        contractorNonces[_contractor][_request.contractId]++;
     }
 }
