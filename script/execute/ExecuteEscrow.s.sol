@@ -19,8 +19,9 @@ import { Enums } from "src/common/Enums.sol";
 import { MockDAI } from "test/mocks/MockDAI.sol";
 import { MockUSDT } from "test/mocks/MockUSDT.sol";
 import { MockUSDC } from "test/mocks/MockUSDC.sol";
+import { TestUtils } from "test/utils/TestUtils.sol";
 
-contract ExecuteEscrowScript is Script {
+contract ExecuteEscrowScript is Script, TestUtils {
     address escrow;
     address escrowHourly;
     address factory;
@@ -35,6 +36,7 @@ contract ExecuteEscrowScript is Script {
     address client;
 
     IEscrowFixedPrice.DepositRequest deposit;
+    EscrowFixedPrice.SubmitRequest submitRequest;
     IEscrowHourly.DepositRequest depositHourly;
     Enums.FeeConfig feeConfig;
     Enums.Status status;
@@ -138,14 +140,27 @@ contract ExecuteEscrowScript is Script {
         // Execute the deposit transaction
         EscrowFixedPrice(escrowProxy).deposit(deposit);
 
-        // Generate the contractor's off-chain signature
-        contractorDataHash = keccak256(abi.encodePacked(contractor, contractData, salt));
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
-        (v, r, s) = vm.sign(contractorPrKey, ethSignedHash); // Simulate contractor's signature
-        bytes memory contractorSignature = abi.encodePacked(r, s, v);
+        // Prepare submit request
+        submitRequest = IEscrowFixedPrice.SubmitRequest({
+            contractId: contractId,
+            data: contractData,
+            salt: salt,
+            expiration: expiration,
+            signature: getFixedPriceSubmitSignature(
+                FixedPriceSubmitSignatureParams({
+                    contractId: contractId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: expiration,
+                    proxy: address(escrowProxy),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         // Submit
-        EscrowFixedPrice(escrowProxy).submit(contractId, contractData, salt, contractorSignature);
+        EscrowFixedPrice(escrowProxy).submit(submitRequest);
 
         // Approve
         EscrowFixedPrice(escrowProxy).approve(contractId, 1000e6, address(deployerPublicKey));
@@ -200,14 +215,29 @@ contract ExecuteEscrowScript is Script {
         uint256 milestoneId = EscrowMilestone(escrowProxy).getMilestoneCount(1); //contractId
         milestoneId--;
 
-        // Generate the contractor's off-chain signature
-        contractorDataHash = keccak256(abi.encodePacked(contractor, contractData, salt));
-        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(contractorDataHash);
-        (v, r, s) = vm.sign(contractorPrKey, ethSignedHash); // Simulate contractor's signature
-        bytes memory contractorSignature = abi.encodePacked(r, s, v);
+        // Prepare submit request
+        IEscrowMilestone.SubmitRequest memory submitMilestoneRequest = IEscrowMilestone.SubmitRequest({
+            contractId: contractId,
+            milestoneId: milestoneId,
+            data: contractData,
+            salt: salt,
+            expiration: block.timestamp + 3 hours,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: contractId,
+                    milestoneId: milestoneId,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: block.timestamp + 3 hours,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
 
         // Submit
-        EscrowMilestone(escrowProxy).submit(contractId, milestoneId, contractData, salt, contractorSignature);
+        EscrowMilestone(escrowProxy).submit(submitMilestoneRequest);
 
         // Approve
         EscrowMilestone(escrowProxy).approve(contractId, milestoneId, 1 ether, address(deployerPublicKey));

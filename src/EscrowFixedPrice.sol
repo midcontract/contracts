@@ -112,13 +112,11 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
     }
 
     /// @notice Submits work for a contract by the contractor.
-    /// @dev Uses ECDSA signature to ensure the data originates from the contractor.
-    /// @param _contractId ID of the deposit to be submitted.
-    /// @param _data Contractor-specific data.
-    /// @param _salt Unique salt value.
-    /// @param _signature Signature proving the contractor’s authorization.
-    function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt, bytes calldata _signature) external {
-        DepositInfo storage D = deposits[_contractId];
+    /// @dev Uses an admin-signed authorization to verify submission legitimacy,
+    ///      ensuring multiple submissions are uniquely signed and replay-proof.
+    /// @param _request Struct containing all required parameters for submission.
+    function submit(SubmitRequest calldata _request) external {
+        DepositInfo storage D = deposits[_request.contractId];
         // Only allow the designated contractor to submit, or allow initial submission if no contractor has been set.
         if (D.contractor != address(0) && msg.sender != D.contractor) {
             revert Escrow__UnauthorizedAccount(msg.sender);
@@ -128,22 +126,20 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         if (D.status != Enums.Status.ACTIVE) revert Escrow__InvalidStatusForSubmit();
 
         // Compute hash with contractor binding.
-        bytes32 contractorDataHash = _getContractorDataHash(msg.sender, _data, _salt);
+        bytes32 contractorDataHash = _getContractorDataHash(msg.sender, _request.data, _request.salt);
 
         // Verify that the computed hash matches stored contractor data.
         if (D.contractorData != contractorDataHash) revert Escrow__InvalidContractorDataHash();
 
-        // Verify the contractor's signature.
-        if (!_isValidSignature(contractorDataHash, _signature)) {
-            revert Escrow__InvalidSignature();
-        }
+        // Validate the submission using admin-signed approval.
+        _validateSubmitAuthorization(msg.sender, _request);
 
         // Update the contractor's address and change the contract status to SUBMITTED.
         D.contractor = msg.sender;
         D.status = Enums.Status.SUBMITTED;
 
         // Emit an event to signal that the work has been successfully submitted.
-        emit Submitted(msg.sender, _contractId, client);
+        emit Submitted(msg.sender, _request.contractId, client);
     }
 
     /// @notice Approves a submitted deposit by the client or an administrator.
@@ -627,6 +623,36 @@ contract EscrowFixedPrice is IEscrowFixedPrice, ERC1271 {
         // Verify signature using the admin's address.
         address signer = adminManager.owner();
         if (!SignatureChecker.isValidSignatureNow(signer, ethSignedHash, _deposit.signature)) {
+            revert Escrow__InvalidSignature();
+        }
+    }
+
+    /// @notice Validates submit authorization using an admin-signed approval.
+    /// @dev Prevents replay attacks and ensures multiple submissions are uniquely signed.
+    /// @param _contractor Address of the contractor submitting the work.
+    /// @param _request Struct containing all necessary parameters for submission.
+    function _validateSubmitAuthorization(address _contractor, SubmitRequest calldata _request) internal view {
+        // Ensure the authorization has not expired.
+        if (_request.expiration < block.timestamp) revert Escrow__AuthorizationExpired();
+
+        // Generate the hash for signature verification.
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                _request.contractId,
+                _contractor,
+                _request.data,
+                _request.salt,
+                _request.expiration,
+                address(this) // Prevents cross-contract replay attacks.
+            )
+        );
+        bytes32 ethSignedHash = ECDSA.toEthSignedMessageHash(hash);
+
+        // Retrieve the admin signer from the EscrowAdminManager.
+        address adminSigner = adminManager.owner();
+
+        // Verify ECDSA signature (admin must sign the submission).
+        if (!SignatureChecker.isValidSignatureNow(adminSigner, ethSignedHash, _request.signature)) {
             revert Escrow__InvalidSignature();
         }
     }

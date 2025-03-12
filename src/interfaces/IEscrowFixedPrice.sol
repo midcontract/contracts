@@ -59,6 +59,21 @@ interface IEscrowFixedPrice is IEscrow {
         Enums.Status status;
     }
 
+    /// @notice Represents input submission payload for authorization in the escrow.
+    /// @dev This struct encapsulate submission parameters and prevent stack too deep errors.
+    /// @param contractId ID of the deposit being submitted.
+    /// @param data Contractor-specific data related to the submission.
+    /// @param salt Unique salt value to prevent replay attacks.
+    /// @param expiration Timestamp when the authorization expires.
+    /// @param signature Signature from an admin (EOA) verifying the submission.
+    struct SubmitRequest {
+        uint256 contractId;
+        bytes data;
+        bytes32 salt;
+        uint256 expiration;
+        bytes signature;
+    }
+
     /// @notice Emitted when a deposit is made.
     /// @param depositor The address of the depositor.
     /// @param contractId The ID of the contract.
