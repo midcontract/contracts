@@ -1,5 +1,5 @@
 # EscrowMilestone
-[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/EscrowMilestone.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/71e459a676c50fe05291a09ea107d28263f8dabb/src/EscrowMilestone.sol)
 
 **Inherits:**
 [IEscrowMilestone](/src/interfaces/IEscrowMilestone.sol/interface.IEscrowMilestone.md), [ERC1271](/src/common/ERC1271.sol/abstract.ERC1271.md)
@@ -133,27 +133,18 @@ function deposit(DepositRequest calldata _deposit, Milestone[] calldata _milesto
 
 Submits work for a milestone by the contractor.
 
-*This function allows the contractor to submit their work details for a milestone.*
+*Uses an admin-signed authorization to verify submission legitimacy,
+ensuring multiple submissions are uniquely signed and replay-proof.*
 
 
 ```solidity
-function submit(
-    uint256 _contractId,
-    uint256 _milestoneId,
-    bytes calldata _data,
-    bytes32 _salt,
-    bytes calldata _signature
-) external;
+function submit(SubmitRequest calldata _request) external;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_contractId`|`uint256`|ID of the contract containing the milestone.|
-|`_milestoneId`|`uint256`|ID of the milestone to submit work for.|
-|`_data`|`bytes`|Contractor’s details or work summary.|
-|`_salt`|`bytes32`|Unique salt for cryptographic operations.|
-|`_signature`|`bytes`|Signature proving the contractor’s authorization.|
+|`_request`|`SubmitRequest`|Struct containing all required parameters for submission.|
 
 
 ### approve
@@ -508,6 +499,37 @@ function getContractorDataHash(address _contractor, bytes calldata _data, bytes3
 |`<none>`|`bytes32`|Hash value bound to the contractor's address, data, and salt.|
 
 
+### getDepositHash
+
+Generates the hash required for deposit signing in EscrowMilestone.
+
+
+```solidity
+function getDepositHash(
+    address _client,
+    uint256 _contractId,
+    address _paymentToken,
+    bytes32 _milestonesHash,
+    uint256 _expiration
+) external view returns (bytes32);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_client`|`address`|The address of the client submitting the deposit.|
+|`_contractId`|`uint256`|The unique contract ID associated with the deposit.|
+|`_paymentToken`|`address`|The ERC20 token used for the deposit.|
+|`_milestonesHash`|`bytes32`|The hash representing the milestones structure.|
+|`_expiration`|`uint256`|The timestamp when the deposit authorization expires.|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bytes32`|ethSignedHash The Ethereum signed message hash that needs to be signed.|
+
+
 ### hashMilestones
 
 Computes a hash for the given array of milestones.
@@ -698,5 +720,23 @@ function _hashMilestones(Milestone[] calldata _milestones) internal pure returns
 |Name|Type|Description|
 |----|----|-----------|
 |`<none>`|`bytes32`|bytes32 Combined hash of all milestones.|
+
+
+### _validateSubmitAuthorization
+
+Validates submit authorization using an admin-signed approval.
+
+*Prevents replay attacks and ensures multiple submissions are uniquely signed.*
+
+
+```solidity
+function _validateSubmitAuthorization(address _contractor, SubmitRequest calldata _request) internal view;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_contractor`|`address`|Address of the contractor submitting the work.|
+|`_request`|`SubmitRequest`|Struct containing all necessary parameters for submission.|
 
 

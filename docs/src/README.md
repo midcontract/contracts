@@ -84,9 +84,9 @@ open out/coverage/index.html
 | Name             | Address                                                                                                                       |
 | :--------------- | :---------------------------------------------------------------------------------------------------------------------------- |
 | EscrowFactory     | [0x44BB077F73FD6136187EA408F695f7508E88e236](https://amoy.polygonscan.com/address/0x44BB077F73FD6136187EA408F695f7508E88e236) |
-| EscrowFixedPrice | [0x6EcA62692Cd13188f8FAf76203aB82fE74dfD180](https://amoy.polygonscan.com/address/0x6EcA62692Cd13188f8FAf76203aB82fE74dfD180) |
-| EscrowHourly     | [0xA305B51f01dBef1838Dcd4FEd4C9bb646adb72eE](https://amoy.polygonscan.com/address/0xA305B51f01dBef1838Dcd4FEd4C9bb646adb72eE) |
-| EscrowMilestone  | [0xD97C5BF0e73CB7f145CfAc939892CFF4372437be](https://amoy.polygonscan.com/address/0xD97C5BF0e73CB7f145CfAc939892CFF4372437be) |
+| EscrowFixedPrice | [0xB4124e19D482Afc4172740F836200943580C5DD1](https://amoy.polygonscan.com/address/0xB4124e19D482Afc4172740F836200943580C5DD1) |
+| EscrowHourly     | [0x7D2D6482c8612Fa04406A3BA099F31146D0E447b](https://amoy.polygonscan.com/address/0x7D2D6482c8612Fa04406A3BA099F31146D0E447b) |
+| EscrowMilestone  | [0x75E871c9160519334e712F44C2C4A36FCBAC1C76](https://amoy.polygonscan.com/address/0x75E871c9160519334e712F44C2C4A36FCBAC1C76) |
 | EscrowRegistry    | [0x511576f212FfA4A985e79804de213904B701B095](https://amoy.polygonscan.com/address/0x511576f212FfA4A985e79804de213904B701B095) |
 | EscrowFeeManager       | [0x802603E43D68b5A5C5A1fae8De96ec6caf30EE01](https://amoy.polygonscan.com/address/0x802603E43D68b5A5C5A1fae8De96ec6caf30EE01) |
 | EscrowAdminManager     | [0x2248A2e34FBCd2FC2cD5c436B82ED0B257cf5de3](https://amoy.polygonscan.com/address/0x2248A2e34FBCd2FC2cD5c436B82ED0B257cf5de3) |

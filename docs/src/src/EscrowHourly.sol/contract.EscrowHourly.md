@@ -1,5 +1,5 @@
 # EscrowHourly
-[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/EscrowHourly.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/71e459a676c50fe05291a09ea107d28263f8dabb/src/EscrowHourly.sol)
 
 **Inherits:**
 [IEscrowHourly](/src/interfaces/IEscrowHourly.sol/interface.IEscrowHourly.md), [ERC1271](/src/common/ERC1271.sol/abstract.ERC1271.md)
@@ -445,6 +445,43 @@ function getWeeksCount(uint256 _contractId) external view returns (uint256);
 |Name|Type|Description|
 |----|----|-----------|
 |`<none>`|`uint256`|The number of weeks associated with the given contract ID.|
+
+
+### getDepositHash
+
+Generates the hash required for deposit signing in EscrowHourly.
+
+
+```solidity
+function getDepositHash(
+    address _client,
+    uint256 _contractId,
+    address _contractor,
+    address _paymentToken,
+    uint256 _prepaymentAmount,
+    uint256 _amountToClaim,
+    Enums.FeeConfig _feeConfig,
+    uint256 _expiration
+) external view returns (bytes32);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_client`|`address`|The address of the client submitting the deposit.|
+|`_contractId`|`uint256`|The ID of the contract associated with the deposit.|
+|`_contractor`|`address`|The contractor's address.|
+|`_paymentToken`|`address`|The payment token used.|
+|`_prepaymentAmount`|`uint256`|The initial prepayment amount.|
+|`_amountToClaim`|`uint256`|The amount designated for the contractor's claim.|
+|`_feeConfig`|`Enums.FeeConfig`|The fee configuration for this deposit.|
+|`_expiration`|`uint256`|The timestamp when the deposit authorization expires.|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bytes32`|ethSignedHash The Ethereum signed message hash that needs to be signed.|
 
 
 ### _computeDepositAmountAndFee

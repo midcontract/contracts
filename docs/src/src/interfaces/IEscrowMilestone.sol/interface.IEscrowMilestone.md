@@ -1,5 +1,5 @@
 # IEscrowMilestone
-[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/interfaces/IEscrowMilestone.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/71e459a676c50fe05291a09ea107d28263f8dabb/src/interfaces/IEscrowMilestone.sol)
 
 **Inherits:**
 [IEscrow](/src/interfaces/IEscrow.sol/interface.IEscrow.md)
@@ -467,4 +467,32 @@ struct Milestone {
 |`contractorData`|`bytes32`|Data hash containing specific information about the contractor's obligations.|
 |`feeConfig`|`Enums.FeeConfig`|Configuration for any applicable fees associated with the milestone.|
 |`status`|`Enums.Status`|Current status of the milestone, tracking its lifecycle from creation to completion.|
+
+### SubmitRequest
+Represents input submission payload for authorization in the escrow.
+
+*This struct encapsulate submission parameters and prevent stack too deep errors.*
+
+
+```solidity
+struct SubmitRequest {
+    uint256 contractId;
+    uint256 milestoneId;
+    bytes data;
+    bytes32 salt;
+    uint256 expiration;
+    bytes signature;
+}
+```
+
+**Properties**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`contractId`|`uint256`|ID of the deposit being submitted.|
+|`milestoneId`|`uint256`|ID of the milestone to submit work for.|
+|`data`|`bytes`|Contractor-specific data related to the submission.|
+|`salt`|`bytes32`|Unique salt value to prevent replay attacks.|
+|`expiration`|`uint256`|Timestamp when the authorization expires.|
+|`signature`|`bytes`|Signature from an admin (EOA) verifying the submission.|
 

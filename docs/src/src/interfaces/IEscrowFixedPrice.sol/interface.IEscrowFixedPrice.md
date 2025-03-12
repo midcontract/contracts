@@ -1,5 +1,5 @@
 # IEscrowFixedPrice
-[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/interfaces/IEscrowFixedPrice.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/71e459a676c50fe05291a09ea107d28263f8dabb/src/interfaces/IEscrowFixedPrice.sol)
 
 **Inherits:**
 [IEscrow](/src/interfaces/IEscrow.sol/interface.IEscrow.md)
@@ -311,4 +311,30 @@ struct DepositInfo {
 |`contractorData`|`bytes32`|A hash representing additional data related to the contractor.|
 |`feeConfig`|`Enums.FeeConfig`|Configuration specifying how fees are applied to the deposit.|
 |`status`|`Enums.Status`|The current status of the deposit.|
+
+### SubmitRequest
+Represents input submission payload for authorization in the escrow.
+
+*This struct encapsulate submission parameters and prevent stack too deep errors.*
+
+
+```solidity
+struct SubmitRequest {
+    uint256 contractId;
+    bytes data;
+    bytes32 salt;
+    uint256 expiration;
+    bytes signature;
+}
+```
+
+**Properties**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`contractId`|`uint256`|ID of the deposit being submitted.|
+|`data`|`bytes`|Contractor-specific data related to the submission.|
+|`salt`|`bytes32`|Unique salt value to prevent replay attacks.|
+|`expiration`|`uint256`|Timestamp when the authorization expires.|
+|`signature`|`bytes`|Signature from an admin (EOA) verifying the submission.|
 

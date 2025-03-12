@@ -1,5 +1,5 @@
 # EscrowFixedPrice
-[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/EscrowFixedPrice.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/71e459a676c50fe05291a09ea107d28263f8dabb/src/EscrowFixedPrice.sol)
 
 **Inherits:**
 [IEscrowFixedPrice](/src/interfaces/IEscrowFixedPrice.sol/interface.IEscrowFixedPrice.md), [ERC1271](/src/common/ERC1271.sol/abstract.ERC1271.md)
@@ -109,20 +109,18 @@ function deposit(DepositRequest calldata _deposit) external onlyClient;
 
 Submits work for a contract by the contractor.
 
-*Uses ECDSA signature to ensure the data originates from the contractor.*
+*Uses an admin-signed authorization to verify submission legitimacy,
+ensuring multiple submissions are uniquely signed and replay-proof.*
 
 
 ```solidity
-function submit(uint256 _contractId, bytes calldata _data, bytes32 _salt, bytes calldata _signature) external;
+function submit(SubmitRequest calldata _request) external;
 ```
 **Parameters**
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_contractId`|`uint256`|ID of the deposit to be submitted.|
-|`_data`|`bytes`|Contractor-specific data.|
-|`_salt`|`bytes32`|Unique salt value.|
-|`_signature`|`bytes`|Signature proving the contractor’s authorization.|
+|`_request`|`SubmitRequest`|Struct containing all required parameters for submission.|
 
 
 ### approve
@@ -403,6 +401,43 @@ function getContractorDataHash(address _contractor, bytes calldata _data, bytes3
 |`<none>`|`bytes32`|Hash value bound to the contractor's address, data, and salt.|
 
 
+### getDepositHash
+
+Generates the hash required for deposit signing.
+
+
+```solidity
+function getDepositHash(
+    address _client,
+    uint256 _contractId,
+    address _contractor,
+    address _paymentToken,
+    uint256 _amount,
+    Enums.FeeConfig _feeConfig,
+    bytes32 _contractorData,
+    uint256 _expiration
+) external view returns (bytes32);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_client`|`address`|The address of the client submitting the deposit.|
+|`_contractId`|`uint256`|The ID of the contract associated with the deposit.|
+|`_contractor`|`address`|The contractor's address.|
+|`_paymentToken`|`address`|The payment token used.|
+|`_amount`|`uint256`|The deposit amount.|
+|`_feeConfig`|`Enums.FeeConfig`|The fee configuration.|
+|`_contractorData`|`bytes32`|Hash of the contractor's additional data.|
+|`_expiration`|`uint256`|The timestamp when the deposit authorization expires.|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`<none>`|`bytes32`|ethSignedHash The Ethereum signed message hash that needs to be signed.|
+
+
 ### _getContractorDataHash
 
 Generates a unique hash for verifying contractor data.
@@ -547,5 +582,23 @@ function _validateDepositAuthorization(DepositRequest calldata _deposit) interna
 |Name|Type|Description|
 |----|----|-----------|
 |`_deposit`|`DepositRequest`|The deposit details including signature and expiration.|
+
+
+### _validateSubmitAuthorization
+
+Validates submit authorization using an admin-signed approval.
+
+*Prevents replay attacks and ensures multiple submissions are uniquely signed.*
+
+
+```solidity
+function _validateSubmitAuthorization(address _contractor, SubmitRequest calldata _request) internal view;
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`_contractor`|`address`|Address of the contractor submitting the work.|
+|`_request`|`SubmitRequest`|Struct containing all necessary parameters for submission.|
 
 

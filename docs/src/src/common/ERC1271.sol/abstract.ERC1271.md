@@ -1,5 +1,5 @@
 # ERC1271
-[Git Source](https://github.com/midcontract/contracts/blob/c3bacfc361af14f108b5e0e6edb2b6ddbd5e9ee6/src/common/ERC1271.sol)
+[Git Source](https://github.com/midcontract/contracts/blob/71e459a676c50fe05291a09ea107d28263f8dabb/src/common/ERC1271.sol)
 
 *Abstract contract for validating signatures as per ERC-1271 standard.*
 
