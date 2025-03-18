@@ -157,14 +157,19 @@ contract EscrowHourly is IEscrowHourly, ERC1271 {
         if (_weekId >= weeklyEntries[_contractId].length) revert Escrow__InvalidWeekId();
 
         WeeklyEntry storage W = weeklyEntries[_contractId][_weekId];
-        if (W.weekStatus != Enums.Status.ACTIVE && W.weekStatus != Enums.Status.COMPLETED) {
+        if (
+            W.weekStatus != Enums.Status.ACTIVE && W.weekStatus != Enums.Status.COMPLETED
+                && W.weekStatus != Enums.Status.RESOLVED
+        ) {
             revert Escrow__InvalidStatusForApprove();
         }
 
         ContractDetails storage C = contractDetails[_contractId];
         if (C.contractor != _receiver) revert Escrow__UnauthorizedReceiver();
 
-        if (C.status == Enums.Status.COMPLETED || C.status == Enums.Status.CANCELED) C.status = Enums.Status.APPROVED;
+        if (
+            C.status == Enums.Status.COMPLETED || C.status == Enums.Status.CANCELED || C.status == Enums.Status.RESOLVED
+        ) C.status = Enums.Status.APPROVED;
 
         // Calculate fee and approve the total amount once, then perform the transfer.
         (uint256 totalAmountApprove,) =

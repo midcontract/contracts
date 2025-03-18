@@ -1506,6 +1506,35 @@ contract EscrowHourlyUnitTest is Test, TestUtils {
         assertEq(uint256(_status), 3); //Status.APPROVED
     }
 
+    function test_approve_after_resolveDispute_winnerSplit2() public {
+        test_resolveDispute_winnerSplit();
+        uint256 contractId = 1;
+        uint256 weekId = escrow.getWeeksCount(contractId);
+        (address _contractor,, uint256 _prepaymentAmount, uint256 _amountToWithdraw,, Enums.Status _status) =
+            escrow.contractDetails(contractId);
+        assertEq(_contractor, contractor);
+        assertEq(_prepaymentAmount, 1 ether);
+        assertEq(_amountToWithdraw, _prepaymentAmount / 2);
+        assertEq(uint256(_status), 7); //Status.RESOLVED
+
+        (uint256 _amountToClaim, Enums.Status _weekStatus) = escrow.weeklyEntries(contractId, --weekId);
+        assertEq(_amountToClaim, _prepaymentAmount / 2);
+        assertEq(uint256(_weekStatus), 7); //Status.RESOLVED
+
+        uint256 amountApprove = 1.03 ether;
+        vm.startPrank(client);
+        paymentToken.mint(address(client), amountApprove);
+        paymentToken.approve(address(escrow), amountApprove);
+        escrow.approve(contractId, weekId, 1 ether, contractor);
+        vm.stopPrank();
+
+        (, _weekStatus) = escrow.weeklyEntries(contractId, weekId);
+        assertEq(uint256(_weekStatus), 3); //Status.APPROVED
+        (,,,,, _status) = escrow.contractDetails(contractId);
+        assertEq(uint256(_status), 3); //Status.APPROVED
+    }
+
+
     ////////////////////////////////////////////
     //              refill tests              //
     ////////////////////////////////////////////
