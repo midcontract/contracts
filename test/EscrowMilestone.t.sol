@@ -1393,6 +1393,45 @@ contract EscrowMilestoneUnitTest is Test, TestUtils {
         escrow.submit(submitRequest);
     }
 
+    function test_submit_reverts_AuthorizationExpired() public {
+        test_deposit_withContractorAddress();
+        uint256 currentContractId = 1;
+        (address _contractor,,,, bytes32 _contractorData,, Enums.Status _status) =
+            escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, contractorData);
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+
+        uint256 expiredTimestamp = block.timestamp + 3 hours;
+        IEscrowMilestone.SubmitRequest memory submitRequest = IEscrowMilestone.SubmitRequest({
+            contractId: currentContractId,
+            milestoneId: 0,
+            data: contractData,
+            salt: salt,
+            expiration: expiredTimestamp,
+            signature: getMilestoneSubmitSignature(
+                MilestoneSubmitSignatureParams({
+                    contractId: currentContractId,
+                    milestoneId: 0,
+                    contractor: contractor,
+                    data: contractData,
+                    salt: salt,
+                    expiration: expiredTimestamp,
+                    proxy: address(escrow),
+                    ownerPrKey: ownerPrKey
+                })
+            )
+        });
+        skip(expiredTimestamp + 4 hours);
+        vm.prank(contractor);
+        vm.expectRevert(IEscrow.Escrow__AuthorizationExpired.selector);
+        escrow.submit(submitRequest);
+        (_contractor,,,,,, _status) = escrow.contractMilestones(currentContractId, 0);
+        assertEq(_contractor, contractor);
+        assertEq(_contractorData, keccak256(abi.encodePacked(contractor, contractData, salt)));
+        assertEq(uint256(_status), 1); //Status.ACTIVE
+    }
+
     ////////////////////////////////////////////
     //             approve tests              //
     ////////////////////////////////////////////
